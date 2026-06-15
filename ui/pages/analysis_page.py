@@ -1010,25 +1010,21 @@ class AnalysisPage(QWidget):
         h.addWidget(title)
         h.addStretch()
         self._status_label = QLabel("就绪")
-        self._status_label.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px;")
+        self._status_label.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px;")
         h.addWidget(self._status_label)
         layout.addLayout(h)
 
     def _build_import_bar(self, layout: QVBoxLayout) -> None:
         bar = QFrame()
         bar.setObjectName("cardContainer")
-        bar.setStyleSheet(
-            f"""
+        bar.setStyleSheet(DT.sheet.sheet_card() + f"""
             QFrame#cardContainer {{
-                background: {DT.C.BG_PRIMARY};
                 border: 2px dashed {DT.C.BORDER_DEFAULT};
-                border-radius: {DT.R.LG}px;
             }}
             QFrame#cardContainer:hover {{
                 border-color: {DT.C.ACCENT_PRIMARY};
             }}
-        """
-        )
+        """)
         bar.setFixedHeight(80)
         bl = QHBoxLayout(bar)
         bl.setContentsMargins(DT.S.LG, DT.S.MD, DT.S.LG, DT.S.MD)
@@ -1039,7 +1035,7 @@ class AnalysisPage(QWidget):
             f"""
             QPushButton {{
                 background: {DT.C.ACCENT_PRIMARY}; color: white; border: none;
-                border-radius: 4px; padding: 6px 18px; font-size: 13px;
+                border-radius: 4px; padding: 6px 18px; font-size: {DT.FS.BODY}px;
             }}
             QPushButton:hover {{ background: {DT.C.ACCENT_HOVER}; }}
         """
@@ -1049,12 +1045,12 @@ class AnalysisPage(QWidget):
 
         # 提示文字（无文件时显示）
         self._prompt_label = QLabel("选择文件或拖放 CSV/Excel/TXT 文件到此处")
-        self._prompt_label.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 13px;")
+        self._prompt_label.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY}px;")
         bl.addWidget(self._prompt_label)
 
         # 文件信息（有文件时显示）
         self._file_label = QLabel("")
-        self._file_label.setStyleSheet(f"color: {DT.C.TEXT_SECONDARY}; font-size: 12px;")
+        self._file_label.setStyleSheet(f"color: {DT.C.TEXT_SECONDARY}; font-size: {DT.FS.BODY_SMALL}px;")
         self._file_label.setVisible(False)
         bl.addWidget(self._file_label, 1)
 
@@ -1068,7 +1064,7 @@ class AnalysisPage(QWidget):
             QPushButton {{
                 background: transparent; color: {DT.C.TEXT_SECONDARY};
                 border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px;
-                padding: 4px 14px; font-size: 12px;
+                padding: 4px 14px; font-size: {DT.FS.BODY_SMALL}px;
             }}
             QPushButton:hover {{ background: {DT.C.BG_HOVER}; }}
         """
@@ -1078,7 +1074,7 @@ class AnalysisPage(QWidget):
         bl.addWidget(self._clear_btn)
 
         # 阈值过滤
-        bl.addWidget(QLabel("最低幅值:", styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px;"))
+        bl.addWidget(QLabel("最低幅值:", styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px;"))
         self._threshold_spin = QSpinBox()
         self._threshold_spin.setRange(0, 100000)
         self._threshold_spin.setValue(0)
@@ -1087,7 +1083,7 @@ class AnalysisPage(QWidget):
         self._threshold_spin.setStyleSheet(
             f"""
             QSpinBox {{ background: {DT.C.BG_PRIMARY}; border: 1px solid {DT.C.BORDER_DEFAULT};
-            border-radius: 4px; padding: 2px 6px; font-size: 12px; color: {DT.C.TEXT_PRIMARY}; }}
+            border-radius: 4px; padding: 2px 6px; font-size: {DT.FS.BODY_SMALL}px; color: {DT.C.TEXT_PRIMARY}; }}
         """
         )
         self._threshold_spin.valueChanged.connect(self._on_threshold_changed)
@@ -1156,14 +1152,14 @@ class AnalysisPage(QWidget):
         self._ref_type_label.setStyleSheet(f"color: {DT.C.TEXT_PRIMARY};")
         self._ref_mark_label = QLabel("[参考结果]")
         self._ref_mark_label.setStyleSheet(
-            f"color: {DT.C.TEXT_TERTIARY}; font-size: 10px; background: transparent;"
+            f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.CAPTION_SMALL}px; background: transparent;"
         )
         rfl.addWidget(self._ref_type_label)
         rfl.addWidget(self._ref_mark_label)
         rfl.addStretch()
         self._ref_conf_label = QLabel("—")
         self._ref_conf_label.setStyleSheet(
-            f"color: {DT.C.TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            f"color: {DT.C.TEXT_SECONDARY}; font-size: {DT.FS.BODY_SMALL}px; background: transparent;"
         )
         rfl.addWidget(self._ref_conf_label)
         fl.addWidget(self._ref_frame)
@@ -1188,12 +1184,12 @@ class AnalysisPage(QWidget):
         self._type_table.setStyleSheet(
             f"""
             QTableWidget {{
-                background: transparent; border: none; font-size: 12px;
+                background: transparent; border: none; font-size: {DT.FS.BODY_SMALL}px;
             }}
             QTableWidget::item {{ padding: 3px 6px; }}
             QHeaderView::section {{
                 background: {DT.C.BG_SECONDARY}; color: {DT.C.TEXT_SECONDARY};
-                border: none; font-size: 11px; font-weight: 600;
+                border: none; font-size: {DT.FS.CAPTION}px; font-weight: 600;
             }}
         """
         )
@@ -1212,12 +1208,12 @@ class AnalysisPage(QWidget):
         self._stat_table.setStyleSheet(
             f"""
             QTableWidget {{
-                background: transparent; border: none; font-size: 12px;
+                background: transparent; border: none; font-size: {DT.FS.BODY_SMALL}px;
             }}
             QTableWidget::item {{ padding: 3px 6px; }}
             QHeaderView::section {{
                 background: {DT.C.BG_SECONDARY}; color: {DT.C.TEXT_SECONDARY};
-                border: none; font-size: 11px; font-weight: 600;
+                border: none; font-size: {DT.FS.CAPTION}px; font-weight: 600;
             }}
         """
         )
@@ -1238,7 +1234,7 @@ class AnalysisPage(QWidget):
                 QPushButton {{
                     background: transparent; color: {DT.C.TEXT_SECONDARY};
                     border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px;
-                    padding: 3px 10px; font-size: 11px;
+                    padding: 3px 10px; font-size: {DT.FS.CAPTION}px;
                 }}
                 QPushButton:hover {{ background: {DT.C.BG_HOVER}; }}
             """
@@ -1281,8 +1277,8 @@ class AnalysisPage(QWidget):
         card.setStyleSheet(f"QFrame {{ background: {DT.C.BG_SECONDARY}; border-radius: {DT.R.MD}px; }}")
         cl = QHBoxLayout(card)
         cl.setContentsMargins(DT.S.MD, DT.S.SM, DT.S.MD, DT.S.SM)
-        cl.addWidget(QLabel(title, styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: 11px;"))
-        cl.addWidget(QLabel(value, styleSheet=f"color: {DT.C.TEXT_PRIMARY}; font-size: 14px; font-weight: 600;"))
+        cl.addWidget(QLabel(title, styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.CAPTION}px;"))
+        cl.addWidget(QLabel(value, styleSheet=f"color: {DT.C.TEXT_PRIMARY}; font-size: {DT.FS.DATA_SMALL}px; font-weight: 600;"))
         return card
 
     # ── 导入 ─────────────────────────────────────────
@@ -1525,8 +1521,8 @@ class AnalysisPage(QWidget):
             item = cl.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        cl.addWidget(QLabel(title, styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: 11px;"))
-        cl.addWidget(QLabel(value, styleSheet=f"color: {color}; font-size: 16px; font-weight: 700;"))
+        cl.addWidget(QLabel(title, styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.CAPTION}px;"))
+        cl.addWidget(QLabel(value, styleSheet=f"color: {color}; font-size: {DT.FS.TITLE_MEDIUM}px; font-weight: 700;"))
 
     def _update_distribution(self, amps: np.ndarray) -> None:
         if not HAS_PYQTGRAPH or self._dist_plot is None:

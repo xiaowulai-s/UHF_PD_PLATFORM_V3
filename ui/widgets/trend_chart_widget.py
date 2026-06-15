@@ -85,7 +85,7 @@ class TrendChartWidget(QWidget):
         self._range_buttons: Dict[str, QPushButton] = {}
         for key, (label, _) in TIME_RANGES.items():
             btn = QPushButton(label)
-            btn.setFixedHeight(24)
+            btn.setFixedHeight(28)
             btn.setCheckable(True)
             btn.setChecked(key == self._current_range)
             btn.setStyleSheet(self._range_button_style(key == self._current_range))
@@ -97,6 +97,7 @@ class TrendChartWidget(QWidget):
 
         # PyQtGraph 绘图控件（使用 TimeAxisItem 格式化 X 轴时间戳）
         self._plot_widget = pg.PlotWidget(axisItems={'bottom': TimeAxisItem(orientation='bottom')})
+        self._plot_widget.setBackground(DT.C.CHART_BACKGROUND)
         self._plot_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._plot_widget.setMinimumHeight(150)
 

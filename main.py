@@ -10,10 +10,10 @@
     6. 初始化系统控制器
     7. 可选启动模拟器（用于无硬件时的演示）
 用法:
-    python pd_main.py                          # 正常模式
-    python pd_main.py --simulator              # 模拟器模式（无需 FPGA）
-    python pd_main.py --simulator --sim-type ae  # AE 模拟器模式
-    python pd_main.py --simulator --pd-type corona  # 指定局放类型
+    python main.py                          # 正常模式
+    python main.py --simulator              # 模拟器模式（无需 FPGA）
+    python main.py --simulator --sim-type ae  # AE 模拟器模式
+    python main.py --simulator --pd-type corona  # 指定局放类型
 """
 
 # ── 编码修复（必须在所有 import 之前）──
@@ -75,8 +75,8 @@ def main() -> int:
 
     from core.utils.logger import get_logger, setup_logging
 
-    setup_logging(log_level=args.log_level, log_file="logs/pd_system/pd_monitor.log")
-    logger = get_logger("pd_system")
+    setup_logging(log_level=args.log_level, log_file="logs/system/monitor.log")
+    logger = get_logger("system")
     logger.info("=" * 50)
     logger.info("超高频超声波局部放电检测系统 v1.0.7 启动中..")
     logger.info("=" * 50)
@@ -84,7 +84,7 @@ def main() -> int:
                 args.simulator, args.sim_type, args.pd_type, args.fps)
 
     _PROJECT_ROOT = Path(__file__).resolve().parent
-    config_path = _PROJECT_ROOT / "config" / "pd_default_config.json"
+    config_path = _PROJECT_ROOT / "config" / "default_config.json"
 
     config = {}
     if config_path.exists():
@@ -100,7 +100,7 @@ def main() -> int:
     from core.data import DatabaseManager
 
     try:
-        db_path = config.get("database", {}).get("path", "data/pd_monitor.db")
+        db_path = config.get("database", {}).get("path", "data/monitor.db")
         db_manager = DatabaseManager(db_path)
         logger.info("PD 数据库初始化完成: %s", db_path)
     except Exception as e:
@@ -137,7 +137,7 @@ def main() -> int:
     theme_manager = ThemeManager()
     theme_manager.apply_theme()
 
-    from ui.pd_main_window import PDMainWindow
+    from ui.main_window import PDMainWindow
 
     window = PDMainWindow(db_manager=db_manager)
 
@@ -153,7 +153,7 @@ def main() -> int:
     window.show()
 
     # 初始化系统控制器
-    from ui.pd_controller import PDSystemController
+    from ui.controller import PDSystemController
 
     controller = PDSystemController(db_manager=db_manager, parent=window)
     controller.initialize(pages=window.pages)

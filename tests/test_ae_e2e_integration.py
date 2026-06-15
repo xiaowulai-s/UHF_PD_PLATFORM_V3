@@ -26,7 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.foundation.pd_data_bus import PDDataBus
+from core.foundation.signal_bus import PDDataBus
 from core.processing.ae_localizer import AELocalizer, LocalizationResult, SensorPosition
 from core.processing.fft_processor import FFTProcessor
 from core.services import AcquisitionService

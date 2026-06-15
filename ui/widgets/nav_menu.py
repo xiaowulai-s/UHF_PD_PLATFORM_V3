@@ -199,10 +199,12 @@ class NavMenu(QFrame):
         for item in self._items:
             item.selected = item.key == key
 
-    def _toggle_collapse(self) -> None:
-        """切换折叠/展开"""
-        self._collapsed = not self._collapsed
-        target_width = 60 if self._collapsed else 200
+    def set_collapsed(self, collapsed: bool) -> None:
+        """设置折叠/展开状态（供外部调用，如窗口 resizeEvent）"""
+        if self._collapsed == collapsed:
+            return
+        self._collapsed = collapsed
+        target_width = 60 if collapsed else 200
 
         self._animating = True
         self._animation = QPropertyAnimation(self, b"menu_width")
@@ -214,10 +216,14 @@ class NavMenu(QFrame):
         self._animation.start()
 
         for item in self._items:
-            item.collapsed = self._collapsed
+            item.collapsed = collapsed
 
         # 更新折叠按钮图标
-        self._collapse_btn.setText("»" if self._collapsed else "«")
+        self._collapse_btn.setText("»" if collapsed else "«")
+
+    def _toggle_collapse(self) -> None:
+        """切换折叠/展开"""
+        self.set_collapsed(not self._collapsed)
 
     def _on_animation_done(self) -> None:
         self._animating = False

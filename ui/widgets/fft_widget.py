@@ -105,6 +105,7 @@ class FFTWidget(QWidget):
         # 频谱图
         plot_container = QVBoxLayout()
         self._plot_widget = pg.PlotWidget()
+        self._plot_widget.setBackground(DT.C.CHART_BACKGROUND)
         self._plot_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._plot_widget.setMinimumHeight(150)
 

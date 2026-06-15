@@ -28,7 +28,7 @@ from PySide6.QtCore import QObject, Signal
 
 from core.communication.fpga_protocol import FpgaProtocol
 from core.communication.udp_driver import UDPDriver
-from core.services.pd_acquisition_service import AcquisitionService
+from core.services.acquisition_service import AcquisitionService
 
 from .hardware_config import DeviceConnectionConfig
 

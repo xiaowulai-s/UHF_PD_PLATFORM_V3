@@ -37,7 +37,7 @@ from ui.design_tokens import DT
 from ui.pages import AlarmPage, AEAnalysisPage, AnalysisPage, DashboardPage, DevicePage, RealtimeMonitorPage, SettingsPage, TrendPage
 from ui.widgets.nav_menu import NavMenu
 
-logger = get_logger("pd_main_window")
+logger = get_logger("main_window")
 
 
 class PDMainWindow(QMainWindow):
@@ -329,6 +329,12 @@ class PDMainWindow(QMainWindow):
 
     # ── 生命周期 ─────────────────────────────────────
 
+    def resizeEvent(self, event) -> None:
+        """窗口大小变化时自动折叠/展开导航栏"""
+        super().resizeEvent(event)
+        should_collapse = event.size().width() < 1200
+        self._nav_menu.set_collapsed(should_collapse)
+
     def closeEvent(self, event) -> None:
         """窗口关闭事件"""
         if self._controller:
@@ -477,6 +483,39 @@ class PDMainWindow(QMainWindow):
 
         layout.addLayout(tab_layout)
         dialog.exec()
+
+    # ── 键盘快捷键 ───────────────────────────────────
+
+    def keyPressEvent(self, event) -> None:
+        """键盘快捷键处理"""
+        key = event.key()
+        PAGE_KEYS = ["dashboard", "monitor", "analysis", "trend", "alarm", "device", "ae", "settings"]
+
+        # F1-F8 切换页面
+        if Qt.Key.Key_F1 <= key <= Qt.Key.Key_F8:
+            idx = key - Qt.Key.Key_F1
+            if idx < len(PAGE_KEYS):
+                self._nav_menu.select_item(PAGE_KEYS[idx])
+                self._on_page_changed(PAGE_KEYS[idx])
+                event.accept()
+                return
+
+        # Space 暂停/继续波形
+        if key == Qt.Key.Key_Space:
+            if "monitor" in self._pages:
+                monitor = self._pages["monitor"]
+                if hasattr(monitor, 'toggle_pause'):
+                    monitor.toggle_pause()
+                    event.accept()
+                    return
+
+        # Ctrl+Q 退出程序
+        if key == Qt.Key.Key_Q and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self.close()
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
 
     # ── 菜单栏 ───────────────────────────────────────
 

@@ -2,22 +2,11 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PySide6](https://img.shields.io/badge/PySide6-6.6%2B-green.svg)](https://pypi.org/project/PySide6/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-超高频局部放电在线监测上位机软件，支持 UHF 超高频 + AE 超声波双模态局放检测与声源定位。
-
-| 系统 | 版本 | 入口 | 说明 |
-|------|------|------|------|
-| **UHF 局放监测系统** | v1.0.7 | `pd_main.py` | 超高频局部放电在线监测 |
-
----
-
-# UHF 局部放电在线监测系统 (UHF-PD-Monitor)
-
 [![PyQtGraph](https://img.shields.io/badge/PyQtGraph-0.14%2B-green.svg)](https://pypi.org/project/pyqtgraph/)
 [![NumPy](https://img.shields.io/badge/NumPy-1.24%2B-blue.svg)](https://numpy.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-基于 **PySide6 + PyQtGraph + NumPy** 的工业级超高频局部放电在线监测上位机软件。
+基于 **PySide6 + PyQtGraph + NumPy** 的工业级局部放电在线监测上位机软件，支持 **UHF 超高频** + **AE 超声波** 双模态局放检测与声源定位。
 
 > **v1.0.7** — MCGS 系统全量移除、UI 配色统一优化、样式代码去重、双模态通道切换
 
@@ -93,16 +82,16 @@ UDP 接收 -> FpgaProtocol.feed() -> 波形数据
 
 ```bash
 # 电晕放电 (270-330 负半周集中)
-python pd_main.py --simulator --pd-type corona
+python main.py --simulator --pd-type corona
 
 # 沿面放电 (30-90 正半周集中)
-python pd_main.py --simulator --pd-type surface
+python main.py --simulator --pd-type surface
 
 # 内部放电 (0-60 正半周初期)
-python pd_main.py --simulator --pd-type internal
+python main.py --simulator --pd-type internal
 
 # 悬浮放电 (0-360 全相位分布)
-python pd_main.py --simulator --pd-type floating
+python main.py --simulator --pd-type floating
 ```
 
 ### 系统架构
@@ -138,8 +127,8 @@ python pd_main.py --simulator --pd-type floating
 ### 项目结构
 
 ```
-├── pd_main.py                     # PD 系统入口
-├── pd_build.spec                  # PyInstaller 打包配置
+├── main.py                       # 系统入口
+├── build.spec                  # PyInstaller 打包配置
 ├── core/
 │   ├── processing/                # 信号处理核心
 │   │   ├── fft_processor.py
@@ -155,18 +144,18 @@ python pd_main.py --simulator --pd-type floating
 │   │   ├── udp_driver.py
 │   │   ├── hardware_manager.py
 │   │   └── hardware_config.py
-│   ├── services/                  # PD 业务服务
-│   │   ├── pd_acquisition_service.py
-│   │   ├── pd_alarm_service.py
-│   │   └── pd_storage_service.py
-│   ├── data/pd_models.py          # PD 数据库模型
+│   ├── services/                  # 业务服务
+│   │   ├── acquisition_service.py
+│   │   ├── alarm_service.py
+│   │   └── storage_service.py
+│   ├── data/monitor_models.py     # 监测数据库模型
 │   └── foundation/                # 基础设施
-│       ├── pd_data_bus.py
+│       ├── signal_bus.py
 │       ├── data_bus.py
 │       └── sensor_types.py
 ├── ui/
-│   ├── pd_main_window.py          # PD 主窗口
-│   ├── pd_controller.py           # 系统总控制器
+│   ├── main_window.py             # 主窗口
+│   ├── controller.py              # 系统总控制器
 │   ├── design_tokens.py           # Fluent Design 设计令牌
 │   ├── theme_manager.py           # 主题管理器
 │   ├── pages/                     # 8 个功能页面
@@ -187,8 +176,8 @@ python pd_main.py --simulator --pd-type floating
 │       ├── ae_parameters_widget.py
 │       ├── ae_scatter_widget.py
 │       └── ae_localization_widget.py
-├── config/pd_default_config.json
-└── tests/test_pd_integration.py   # 25 个集成测试
+├── config/default_config.json
+└── tests/test_integration.py   # 25 个集成测试
 ```
 
 ## 安装与运行
@@ -201,10 +190,10 @@ pip install -e .
 pip install -e ".[full]"
 
 # 运行 PD 监测系统（需 FPGA 硬件）
-python pd_main.py
+python main.py
 
 # 模拟器模式（自动生成局放数据，无需硬件）
-python pd_main.py --simulator
+python main.py --simulator
 ```
 
 ---
@@ -227,13 +216,13 @@ Fluent Design 风格统一 UI 规范：
 
 | 数据库 | 表数量 | ORM |
 |--------|--------|-----|
-| `data/pd_monitor.db` | 5 表 | SQLAlchemy |
+| `data/monitor.db` | 5 表 | SQLAlchemy |
 
 ## 测试
 
 ```bash
 # PD 集成测试（25 个用例）
-pytest tests/test_pd_integration.py -v
+pytest tests/test_integration.py -v
 ```
 
 ---

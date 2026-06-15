@@ -26,7 +26,7 @@ from typing import Any, Optional
 
 from PySide6.QtCore import QObject, QTimer
 
-from core.foundation.pd_data_bus import PDDataBus
+from core.foundation.signal_bus import PDDataBus
 from core.services import AcquisitionService, PDAlarmService, PDStorageService
 
 logger = logging.getLogger(__name__)
@@ -505,7 +505,7 @@ class PDSystemController(QObject):
 
             self._simulator = sim
         else:
-            from core.utils.pd_simulator import PDSimulator
+            from core.utils.simulator import PDSimulator
 
             self._simulator = PDSimulator(
                 sample_rate=100_000_000,
@@ -541,7 +541,7 @@ class PDSystemController(QObject):
         启动硬件连接模式
 
         通过 HardwareManager 连接所有 FPGA 设备。
-        如果未传入 configs，自动从 config/pd_hardware_config.json 加载。
+        如果未传入 configs，自动从 config/hardware_config.json 加载。
 
         Args:
             configs: 设备连接配置列表
@@ -588,7 +588,7 @@ class PDSystemController(QObject):
         # 1. 优先从数据库加载
         if self._db_manager:
             try:
-                from core.data.repository.pd_device_repository import PDDeviceRepository
+                from core.data.repository.device_repository import PDDeviceRepository
                 from core.communication.hardware_config import DeviceConnectionConfig
 
                 repo = PDDeviceRepository(self._db_manager)
@@ -619,7 +619,7 @@ class PDSystemController(QObject):
 
     def _load_hardware_config_from_json(self) -> list:
         """
-        从 config/pd_hardware_config.json 加载硬件配置
+        从 config/hardware_config.json 加载硬件配置
 
         Returns:
             设备连接配置列表
@@ -627,7 +627,7 @@ class PDSystemController(QObject):
         import json
         from pathlib import Path
 
-        config_path = Path(__file__).resolve().parent.parent / "config" / "pd_hardware_config.json"
+        config_path = Path(__file__).resolve().parent.parent / "config" / "hardware_config.json"
         if not config_path.exists():
             return []
 
@@ -667,7 +667,7 @@ class PDSystemController(QObject):
             return
 
         try:
-            from core.data.repository.pd_device_repository import PDDeviceRepository
+            from core.data.repository.device_repository import PDDeviceRepository
 
             repo = PDDeviceRepository(self._db_manager)
             devices = repo.get_all_devices()

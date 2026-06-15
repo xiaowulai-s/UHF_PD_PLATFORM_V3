@@ -160,7 +160,7 @@ class PRPDWidget(QWidget):
         if heatmap_idx >= 0:
             self._mode_combo.setCurrentIndex(heatmap_idx)
         self._mode_combo.blockSignals(False)
-        self._mode_combo.setFixedHeight(26)
+        self._mode_combo.setFixedHeight(32)
         self._mode_combo.setStyleSheet(
             f"""
             QComboBox {{
@@ -186,7 +186,7 @@ class PRPDWidget(QWidget):
         header.addWidget(self._mode_combo)
 
         btn_reset = QPushButton("重置")
-        btn_reset.setFixedHeight(26)
+        btn_reset.setFixedHeight(32)
         btn_reset.setStyleSheet(self._button_style())
         btn_reset.clicked.connect(self._on_reset)
         header.addWidget(btn_reset)
@@ -195,6 +195,7 @@ class PRPDWidget(QWidget):
 
         # PyQtGraph 绘图控件（2D 视图）
         self._plot_widget = pg.PlotWidget()
+        self._plot_widget.setBackground(DT.C.CHART_BACKGROUND)
         self._plot_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._plot_widget.setMinimumHeight(150)
         self._plot_widget.setLabel("left", "幅值", units="mV")

@@ -80,7 +80,7 @@ class AEAnalysisPage(QWidget):
         header.addStretch()
 
         # 通道选择
-        header.addWidget(QLabel("通道:", styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px;"))
+        header.addWidget(QLabel("通道:", styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px;"))
         self._ch_combo = QComboBox()
         self._ch_combo.setStyleSheet(DT.sheet.sheet_combo())
         self._ch_combo.addItems(["全部", "CH-01", "CH-02", "CH-03", "CH-04"])
@@ -167,12 +167,12 @@ class AEAnalysisPage(QWidget):
             c.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             title = QLabel(name, alignment=Qt.AlignmentFlag.AlignCenter,
-                           styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: 11px;")
+                           styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.CAPTION}px;")
             c.addWidget(title)
 
             lbl = QLabel(default)
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl.setStyleSheet(f"color: {color}; font-size: 20px; font-weight: 700;")
+            lbl.setStyleSheet(f"color: {color}; font-size: {DT.FS.DATA}px; font-weight: 700;")
             c.addWidget(lbl)
             self._stat_labels[name] = lbl
             cards.addWidget(card, 1)
@@ -350,14 +350,14 @@ class AEAnalysisPage(QWidget):
                 QPushButton {{
                     background: {DT.C.ACCENT_PRIMARY}; color: white;
                     border: none; border-radius: 4px; padding: 4px 12px;
-                    font-size: 11px; font-weight: 600;
+                    font-size: {DT.FS.CAPTION}px; font-weight: 600;
                 }}
             """
         return f"""
             QPushButton {{
                 background: {DT.C.BG_SECONDARY}; color: {DT.C.TEXT_SECONDARY};
                 border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px;
-                padding: 4px 12px; font-size: 11px;
+                padding: 4px 12px; font-size: {DT.FS.CAPTION}px;
             }}
             QPushButton:hover {{ background: {DT.C.BG_HOVER}; }}
         """

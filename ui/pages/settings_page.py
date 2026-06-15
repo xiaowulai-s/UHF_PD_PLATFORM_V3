@@ -52,6 +52,7 @@ class SettingsPage(QWidget):
         self._build_header(layout)
         self._build_network_section(layout)
         self._build_database_section(layout)
+        self._build_display_section(layout)
         self._build_save_section(layout)
 
         scroll.setWidget(container)
@@ -67,7 +68,7 @@ class SettingsPage(QWidget):
             base = Path(sys._MEIPASS)  # PyInstaller 打包路径
         except AttributeError:
             base = Path(__file__).resolve().parent.parent.parent
-        return base / "config" / "pd_default_config.json"
+        return base / "config" / "default_config.json"
 
     # ── 配置加载 ─────────────────────────────────────
 
@@ -117,11 +118,11 @@ class SettingsPage(QWidget):
         header.addStretch()
 
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet(f"color: {DT.C.STATUS_SUCCESS}; font-size: 12px;")
+        self._status_label.setStyleSheet(f"color: {DT.C.STATUS_SUCCESS}; font-size: {DT.FS.BODY_SMALL}px;")
         header.addWidget(self._status_label)
 
         layout.addLayout(header)
-        subtitle = QLabel("网络配置 · 数据库配置")
+        subtitle = QLabel("网络配置 · 数据库配置 · 显示配置")
         subtitle.setFont(DT.T.get_font(*DT.T.BODY[:2]))
         subtitle.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY};")
         layout.addWidget(subtitle)
@@ -176,7 +177,7 @@ class SettingsPage(QWidget):
         form.setSpacing(10)
         form.setContentsMargins(DT.S.LG, DT.S.LG, DT.S.LG, DT.S.LG)
 
-        db_path = self._get("database", "path", default="data/pd_monitor.db")
+        db_path = self._get("database", "path", default="data/monitor.db")
         db_row = QHBoxLayout()
         self._db_path = QLineEdit(db_path)
         self._db_path.setStyleSheet(DT.sheet.sheet_input())
@@ -190,7 +191,7 @@ class SettingsPage(QWidget):
 
         self._db_backup = QCheckBox("启动时自动备份")
         self._db_backup.setChecked(self._get("database", "backup_on_startup", default=True))
-        self._db_backup.setStyleSheet(f"color: {DT.C.TEXT_PRIMARY}; font-size: 13px;")
+        self._db_backup.setStyleSheet(f"color: {DT.C.TEXT_PRIMARY}; font-size: {DT.FS.BODY}px;")
         form.addRow("", self._db_backup)
 
         self._db_retention = QSpinBox()
@@ -206,6 +207,33 @@ class SettingsPage(QWidget):
         self._db_max_events.setSuffix(" 百万条")
         self._db_max_events.setStyleSheet(DT.sheet.sheet_spin())
         form.addRow("最大事件数:", self._db_max_events)
+
+        layout.addWidget(group)
+
+    # ── 显示配置 ─────────────────────────────────────
+
+    def _build_display_section(self, layout: QVBoxLayout) -> None:
+        group = QGroupBox("显示配置")
+        group.setStyleSheet(self._group_style())
+        form = QFormLayout(group)
+        form.setSpacing(10)
+        form.setContentsMargins(DT.S.LG, DT.S.LG, DT.S.LG, DT.S.LG)
+
+        theme_row = QHBoxLayout()
+        theme_label = QLabel("深色模式")
+        theme_label.setStyleSheet(f"color: {DT.C.TEXT_PRIMARY}; font-size: {DT.FS.BODY}px;")
+        theme_row.addWidget(theme_label)
+        theme_row.addStretch()
+
+        self._theme_toggle = QCheckBox()
+        self._theme_toggle.setChecked(DT.Theme.is_dark())
+        self._theme_toggle.setStyleSheet(
+            f"QCheckBox {{ spacing: 0; }}"
+            f"QCheckBox::indicator {{ width: 16px; height: 16px; }}"
+        )
+        self._theme_toggle.toggled.connect(self._on_theme_toggle)
+        theme_row.addWidget(self._theme_toggle)
+        form.addRow("", theme_row)
 
         layout.addWidget(group)
 
@@ -228,8 +256,18 @@ class SettingsPage(QWidget):
 
     # ── 事件 ─────────────────────────────────────────
 
+    def _on_theme_toggle(self, checked: bool) -> None:
+        """切换深色/亮色主题"""
+        DT.Theme.set_dark(checked)
+        # 提示用户重启以完整应用主题
+        QMessageBox.information(
+            self,
+            "主题已切换",
+            "主题已切换，部分样式需要重启应用后完整生效。",
+        )
+
     def _on_browse_db(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(self, "选择数据库路径", "data/pd_monitor.db", "SQLite DB (*.db)")
+        path, _ = QFileDialog.getSaveFileName(self, "选择数据库路径", "data/monitor.db", "SQLite DB (*.db)")
         if path:
             self._db_path.setText(path)
 
@@ -267,7 +305,7 @@ class SettingsPage(QWidget):
             self._net_udp.setValue(6000)
             self._net_timeout.setValue(5)
             self._net_buffer.setValue(64)
-            self._db_path.setText("data/pd_monitor.db")
+            self._db_path.setText("data/monitor.db")
             self._db_backup.setChecked(True)
             self._db_retention.setValue(365)
             self._db_max_events.setValue(10)
@@ -284,7 +322,7 @@ class SettingsPage(QWidget):
                 border-radius: {DT.R.LG}px;
                 margin-top: 12px;
                 padding-top: 20px;
-                font-size: 14px;
+                font-size: {DT.FS.BODY_LARGE}px;
                 font-weight: 600;
                 color: {DT.C.TEXT_PRIMARY};
             }}
@@ -305,7 +343,7 @@ class SettingsPage(QWidget):
             QPushButton {{
                 background: {DT.C.BG_PRIMARY}; color: {DT.C.TEXT_SECONDARY};
                 border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px;
-                padding: 4px 10px; font-size: 11px;
+                padding: 4px 10px; font-size: {DT.FS.CAPTION}px;
             }}
             QPushButton:hover {{ background: {DT.C.BG_HOVER}; }}
         """

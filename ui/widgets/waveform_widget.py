@@ -96,7 +96,7 @@ class WaveformWidget(QWidget):
 
         # 工具栏按钮
         self._btn_auto_range = QPushButton("自动量程")
-        self._btn_auto_range.setFixedHeight(26)
+        self._btn_auto_range.setFixedHeight(32)
         self._btn_auto_range.setCheckable(True)
         self._btn_auto_range.setChecked(True)
         self._btn_auto_range.setStyleSheet(self._button_style(DT.C.ACCENT_PRIMARY))
@@ -104,14 +104,14 @@ class WaveformWidget(QWidget):
         header.addWidget(self._btn_auto_range)
 
         self._btn_cursor = QPushButton("游标")
-        self._btn_cursor.setFixedHeight(26)
+        self._btn_cursor.setFixedHeight(32)
         self._btn_cursor.setCheckable(True)
         self._btn_cursor.setStyleSheet(self._button_style())
         self._btn_cursor.clicked.connect(self._toggle_cursor)
         header.addWidget(self._btn_cursor)
 
         self._btn_pause = QPushButton("暂停")
-        self._btn_pause.setFixedHeight(26)
+        self._btn_pause.setFixedHeight(32)
         self._btn_pause.setCheckable(True)
         self._btn_pause.setStyleSheet(self._button_style())
         self._btn_pause.clicked.connect(self._toggle_pause)
@@ -121,6 +121,7 @@ class WaveformWidget(QWidget):
 
         # PyQtGraph 绘图控件
         self._plot_widget = pg.PlotWidget()
+        self._plot_widget.setBackground(DT.C.CHART_BACKGROUND)
         self._plot_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._plot_widget.setMinimumHeight(150)
 

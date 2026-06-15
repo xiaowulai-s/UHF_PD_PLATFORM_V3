@@ -24,7 +24,7 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 
 from core.communication import WaveformData
-from core.foundation.pd_data_bus import PDDataBus
+from core.foundation.signal_bus import PDDataBus
 from core.processing import FFTProcessor, PeakDetector, PRPDProcessor, PRPSProcessor, RingBuffer
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@
 PyInstaller 打包配置 - 超高频局部放电在线监测系统
 
 用法:
-    pyinstaller pd_build.spec
+    pyinstaller build.spec
 
 输出:
     dist/UHF-PD-Monitor/UHF-PD-Monitor.exe
@@ -15,12 +15,12 @@ import os
 block_cipher = None
 
 a = Analysis(
-    ['pd_main.py'],  # PD 系统入口
+    ['main.py'],  # PD 系统入口
     pathex=[],
     binaries=[],
     datas=[
         # 配置文件
-        ('config/pd_default_config.json', 'config'),
+        ('config/default_config.json', 'config'),
 
         # UI 样式文件
         ('ui/styles', 'ui/styles'),

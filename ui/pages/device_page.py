@@ -61,7 +61,7 @@ class DevicePage(QWidget):
 
         # 统计
         self._ch_info = QLabel("")
-        self._ch_info.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px;")
+        self._ch_info.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px;")
         h.addWidget(self._ch_info)
 
         layout.addLayout(h)
@@ -100,7 +100,7 @@ class DevicePage(QWidget):
         btn_layout.addWidget(self._btn_add)
 
         self._btn_delete = GhostButton("删除设备")
-        self._btn_delete.setStyleSheet(f"color: {DT.C.STATUS_ERROR}; font-size: 12px;")
+        self._btn_delete.setStyleSheet(f"color: {DT.C.STATUS_ERROR}; font-size: {DT.FS.BODY_SMALL}px;")
         self._btn_delete.clicked.connect(self._on_delete_device)
         btn_layout.addWidget(self._btn_delete)
 
@@ -185,7 +185,7 @@ class DevicePage(QWidget):
         """创建带标签的输入框，返回 (QLineEdit, QHBoxLayout)"""
         h = QHBoxLayout()
         lbl = QLabel(label_text)
-        lbl.setStyleSheet(f"color: {DT.C.TEXT_SECONDARY}; font-size: 12px; font-weight: 500;")
+        lbl.setStyleSheet(f"color: {DT.C.TEXT_SECONDARY}; font-size: {DT.FS.BODY_SMALL}px; font-weight: 500;")
         h.addWidget(lbl)
         inp = QLineEdit()
         inp.setPlaceholderText(placeholder)
@@ -197,7 +197,7 @@ class DevicePage(QWidget):
         """创建带标签的 SpinBox，返回 (QSpinBox, QHBoxLayout)"""
         h = QHBoxLayout()
         lbl = QLabel(label_text)
-        lbl.setStyleSheet(f"color: {DT.C.TEXT_SECONDARY}; font-size: 12px; font-weight: 500;")
+        lbl.setStyleSheet(f"color: {DT.C.TEXT_SECONDARY}; font-size: {DT.FS.BODY_SMALL}px; font-weight: 500;")
         h.addWidget(lbl)
         sp = QSpinBox()
         sp.setRange(min_val, max_val)
@@ -312,7 +312,7 @@ class DevicePage(QWidget):
             coupling_combo.setCurrentIndex(i % len(coupling_options))
             coupling_combo.setStyleSheet(
                 f"QComboBox {{ background: {DT.C.BG_PRIMARY}; border: 1px solid {DT.C.BORDER_DEFAULT}; "
-                f"border-radius: 3px; padding: 2px 4px; font-size: 11px; color: {DT.C.TEXT_PRIMARY}; }}"
+                f"border-radius: 3px; padding: 2px 4px; font-size: {DT.FS.CAPTION}px; color: {DT.C.TEXT_PRIMARY}; }}"
             )
             self._ch_table.setCellWidget(row, 2, coupling_combo)
             self._ch_table.setItem(row, 3, QTableWidgetItem(f"{20 + i * 2}"))
@@ -363,7 +363,7 @@ class DevicePage(QWidget):
         # 持久化到数据库
         if self._db_manager:
             try:
-                from core.data.pd_models import PDDeviceModel
+                from core.data.monitor_models import PDDeviceModel
                 from sqlalchemy import select
 
                 session = self._db_manager.get_session()

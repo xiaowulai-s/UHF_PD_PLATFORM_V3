@@ -27,7 +27,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.data import DatabaseManager
-from core.data.pd_models import PDAlarmModel, PDDeviceModel, PDEventModel, PDTrendDataModel
+from core.data.monitor_models import PDAlarmModel, PDDeviceModel, PDEventModel, PDTrendDataModel
 from core.processing import FFTProcessor, PeakDetector, PRPDProcessor, PRPSProcessor, RingBuffer
 from core.services import PDAlarmService  # noqa: F401 (used by all alarm tests)
 
@@ -366,7 +366,7 @@ class TestSimulator:
     """数据模拟器测试"""
 
     def test_waveform_generation(self):
-        from core.utils.pd_simulator import PDSimulator
+        from core.utils.simulator import PDSimulator
 
         sim = PDSimulator(sample_rate=100_000_000, waveform_points=4096)
         wf = sim.generate_waveform()
@@ -380,7 +380,7 @@ class TestSimulator:
         assert np.max(np.abs(samples)) > 1.0  # 应该有信号
 
     def test_different_pd_types(self):
-        from core.utils.pd_simulator import PDSimulator
+        from core.utils.simulator import PDSimulator
 
         sim = PDSimulator(pulse_rate=100)
         for pd_type in ["corona", "surface", "internal", "floating"]:
@@ -389,7 +389,7 @@ class TestSimulator:
             assert len(wf.samples) > 0
 
     def test_batch_generation(self):
-        from core.utils.pd_simulator import PDSimulator
+        from core.utils.simulator import PDSimulator
 
         sim = PDSimulator()
         batch = sim.generate_waveform_batch(20)
@@ -397,7 +397,7 @@ class TestSimulator:
         assert all(len(w.samples) > 0 for w in batch)
 
     def test_configurability(self):
-        from core.utils.pd_simulator import PDSimulator
+        from core.utils.simulator import PDSimulator
 
         sim = PDSimulator(pulse_rate=0, noise_level=0.1)
         wf = sim.generate_waveform()
@@ -501,7 +501,7 @@ class TestSystemController:
     def test_simulator_integration(self):
         """模拟器 → 采集服务 管线测试"""
         from core.services import AcquisitionService
-        from core.utils.pd_simulator import PDSimulator
+        from core.utils.simulator import PDSimulator
 
         acq = AcquisitionService(sample_rate=100_000_000)
         sim = PDSimulator(pulse_rate=20)

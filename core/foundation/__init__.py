@@ -12,9 +12,9 @@ from core.foundation.data_bus import DataBus, DeadbandFilter, SubscriptionManage
 from core.foundation.config_store import ConfigStore
 from core.foundation.plugin_registry import PluginRegistry, DevicePlugin
 
-# PD DataBus（可选）
+# Signal Bus（信号总线）
 try:
-    from core.foundation.pd_data_bus import PDDataBus, PDDataBusSignals
+    from core.foundation.signal_bus import PDDataBus, PDDataBusSignals
 except ImportError:
     PDDataBus = None  # type: ignore
     PDDataBusSignals = None  # type: ignore

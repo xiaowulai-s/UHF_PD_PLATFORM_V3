@@ -47,7 +47,7 @@ class DashboardPage(QWidget):
         title_row.addStretch()
 
         hint = QLabel("提示: 详细分析请进入「实时监测」页面")
-        hint.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 11px;")
+        hint.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.CAPTION}px;")
         title_row.addWidget(hint)
         layout.addLayout(title_row)
 
@@ -79,12 +79,12 @@ class DashboardPage(QWidget):
             title_lbl = QLabel(
                 name,
                 alignment=Qt.AlignmentFlag.AlignCenter,
-                styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: 11px;",
+                styleSheet=f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.CAPTION}px;",
             )
             c.addWidget(title_lbl)
             lbl = QLabel(value)
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl.setStyleSheet(f"color: {color}; font-size: 22px; font-weight: 700;")
+            lbl.setStyleSheet(f"color: {color}; font-size: {DT.FS.DATA_MEDIUM}px; font-weight: 700;")
             c.addWidget(lbl)
             self._metric_labels[name] = lbl
             cards.addWidget(card, 1)
@@ -142,7 +142,7 @@ class DashboardPage(QWidget):
         fl.setContentsMargins(DT.S.MD, DT.S.SM, DT.S.MD, DT.S.SM)
 
         lbl = QLabel(title)
-        lbl.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 11px; font-weight: 600;")
+        lbl.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.CAPTION}px; font-weight: 600;")
         fl.addWidget(lbl)
 
         pw = pg.PlotWidget()
@@ -215,25 +215,17 @@ class DashboardPage(QWidget):
     def _build_alarm_bar(self, layout: QVBoxLayout) -> None:
         alarm_frame = QFrame()
         alarm_frame.setObjectName("cardContainer")
-        alarm_frame.setStyleSheet(
-            f"""
-            QFrame#cardContainer {{
-                background: {DT.C.BG_PRIMARY};
-                border: 1px solid {DT.C.BORDER_DEFAULT};
-                border-radius: {DT.R.LG}px;
-            }}
-        """
-        )
+        alarm_frame.setStyleSheet(DT.sheet.sheet_card())
         alarm_frame.setMinimumHeight(42)
         alarm_layout = QHBoxLayout(alarm_frame)
         alarm_layout.setContentsMargins(DT.S.LG, DT.S.SM, DT.S.LG, DT.S.SM)
 
         icon = QLabel("⚠")
-        icon.setStyleSheet(f"color: {DT.C.STATUS_WARNING}; font-size: 14px;")
+        icon.setStyleSheet(f"color: {DT.C.STATUS_WARNING}; font-size: {DT.FS.BODY_LARGE}px;")
         alarm_layout.addWidget(icon)
 
         self._alarm_label = QLabel("暂无报警信息")
-        self._alarm_label.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px;")
+        self._alarm_label.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px;")
         alarm_layout.addWidget(self._alarm_label, 1)
 
         layout.addWidget(alarm_frame)

@@ -53,7 +53,7 @@ class RealtimeMonitorPage(QWidget):
         h.addWidget(title)
         h.addStretch()
         self._ch_label = QLabel("通道: CH-01  |  设备: —")
-        self._ch_label.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 13px;")
+        self._ch_label.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY}px;")
         h.addWidget(self._ch_label)
         layout.addLayout(h)
 
@@ -189,6 +189,10 @@ class RealtimeMonitorPage(QWidget):
             self._peak_table.setItem(row, 2, ti)
 
         self._peak_table.resizeColumnsToContents()
+
+    def toggle_pause(self) -> None:
+        """暂停/继续波形采集（快捷键 Space 调用）"""
+        self._waveform._toggle_pause()
 
     # ── 属性 ─────────────────────────────────────────
 

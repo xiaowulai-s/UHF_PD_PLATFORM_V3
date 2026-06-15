@@ -16,7 +16,7 @@ from .models import (
 )
 
 # PD 监测模型
-from .pd_models import (
+from .monitor_models import (
     PDAlarmModel,
     PDChannelModel,
     PDDeviceModel,
@@ -26,7 +26,7 @@ from .pd_models import (
 
 # PD 设备仓库
 try:
-    from .repository.pd_device_repository import PDDeviceRepository
+    from .repository.device_repository import PDDeviceRepository
 except ImportError:
     PDDeviceRepository = None  # type: ignore
 

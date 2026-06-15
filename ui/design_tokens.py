@@ -501,6 +501,36 @@ class DT:
     Z = ZIndex
     Theme = ThemeManager
 
+    # 字号快捷访问 (纯数字，用于内联样式)
+    class FS:
+        """Font Sizes - 纯数字字号令牌"""
+        # 标题
+        TITLE_XLARGE = 28
+        TITLE_LARGE = 20
+        TITLE_MEDIUM = 16
+        TITLE_SMALL = 14
+        TITLE_XSMALL = 12
+        # 正文
+        BODY_LARGE = 14
+        BODY = 13
+        BODY_SMALL = 12
+        BODY_XSMALL = 11
+        # 标签/说明
+        LABEL = 12
+        CAPTION = 11
+        CAPTION_SMALL = 10
+        # 数据显示
+        DATA_LARGE = 28
+        DATA_MEDIUM = 22
+        DATA = 18
+        DATA_SMALL = 14
+        # 按钮
+        BTN_LARGE = 36
+        BTN_MEDIUM = 32
+        BTN_SMALL = 28
+        # 工具栏
+        TOOLBAR_BTN = 32
+
 
 # ═══════════════════════════════════════════════════════════
 # 预定义样式字符串 (Predefined Style Strings)

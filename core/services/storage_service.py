@@ -21,7 +21,7 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from core.data.pd_models import PDAlarmModel, PDEventModel, PDTrendDataModel
+from core.data.monitor_models import PDAlarmModel, PDEventModel, PDTrendDataModel
 
 logger = logging.getLogger(__name__)
 

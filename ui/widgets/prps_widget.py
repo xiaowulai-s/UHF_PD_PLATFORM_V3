@@ -63,6 +63,7 @@ class PRPSWidget(QWidget):
 
         # PyQtGraph 绘图控件
         self._plot_widget = pg.PlotWidget()
+        self._plot_widget.setBackground(DT.C.CHART_BACKGROUND)
         self._plot_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._plot_widget.setMinimumHeight(150)
 

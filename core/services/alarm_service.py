@@ -26,8 +26,8 @@ from datetime import datetime
 from threading import RLock
 from typing import Any, Dict, List, Optional, Set
 
-from core.data.pd_models import PDAlarmModel
-from core.foundation.pd_data_bus import PDDataBus
+from core.data.monitor_models import PDAlarmModel
+from core.foundation.signal_bus import PDDataBus
 
 logger = logging.getLogger(__name__)
 

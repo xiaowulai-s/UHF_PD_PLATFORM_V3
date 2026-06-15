@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
-from core.data.pd_models import PDChannelModel, PDDeviceModel
+from core.data.monitor_models import PDChannelModel, PDDeviceModel
 
 logger = logging.getLogger(__name__)
 
