@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+# TODO: 文件过大(624行)，建议拆分 2D/3D/控制栏
 PRPD 图谱控件 - PRPDWidget
 
 基于 PyQtGraph + Matplotlib 实现 Phase Resolved Partial Discharge 图谱。

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+# TODO: 文件过大(747行)，建议拆分 service/UI/event 职责
 PD 系统总控制器 - PDSystemController
 
 整合所有服务层组件并连接 UI 页面:

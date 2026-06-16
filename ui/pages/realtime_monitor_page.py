@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """实时监测页面 - 波形/PRPD/FFT + 独立峰值列表"""
+# TODO: 小窗口适配 - 1024px以下三栏布局需调整比例
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor

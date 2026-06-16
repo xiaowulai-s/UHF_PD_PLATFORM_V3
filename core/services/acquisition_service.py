@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+# TODO: 文件过大(824行)，建议拆分 UHF/AE 管线到独立模块
 PD 数据采集服务 - AcquisitionService
 
 管理 FPGA 采集主机的数据采集流程。

@@ -46,7 +46,7 @@ class DashboardPage(QWidget):
         title_row.addWidget(title)
         title_row.addStretch()
 
-        hint = QLabel("提示: 详细分析请进入「实时监测」页面")
+        hint = QLabel("启动模拟器或连接 FPGA 以查看实时数据  |  详细分析请进入「实时监测」页面")
         hint.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.CAPTION}px;")
         title_row.addWidget(hint)
         layout.addLayout(title_row)
