@@ -18,6 +18,7 @@ PD 专用事件:
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any, Callable, Dict, List, Optional
 
 from PySide6.QtCore import QObject, Signal
@@ -77,7 +78,7 @@ class PDDataBus:
     """
 
     _instance = None
-    _instance_lock = __import__("threading").Lock()
+    _instance_lock = threading.Lock()
 
     def __init__(self):
         self._data_bus = DataBus.instance()

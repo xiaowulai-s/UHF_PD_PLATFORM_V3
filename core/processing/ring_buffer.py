@@ -56,11 +56,11 @@ class RingBuffer:
             return list(self._buffer)
 
     def get_last(self, n: int) -> List[Any]:
-        """获取最后 n 个数据点"""
+        """获取最后 n 个数据点（TODO: 大缓冲区下可用 islice 优化避免全量复制）"""
         with self._lock:
             if n >= len(self._buffer):
                 return list(self._buffer)
-            return list(self._buffer)[-n:]
+            return [self._buffer[i] for i in range(len(self._buffer) - n, len(self._buffer))]
 
     def get_range(self, start: int, end: int) -> List[Any]:
         """获取指定范围 [start, end) 的数据"""

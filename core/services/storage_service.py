@@ -123,8 +123,13 @@ class PDStorageService:
         Args:
             device_id: 设备 ID
             channel_id: 通道 ID
-            event: 事件字典 (需包含 amplitude, 可选 phase/energy/polarity/frequency)
+            event: 事件字典 (需包含 amplitude)
         """
+        # 基本字段校验
+        if not isinstance(event, dict) or "amplitude" not in event:
+            logger.warning("无效的局放事件数据: %s", type(event))
+            return
+
         self._event_queue.append(
             {
                 "device_id": device_id,

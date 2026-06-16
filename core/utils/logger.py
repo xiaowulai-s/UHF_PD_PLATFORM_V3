@@ -14,7 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import structlog
+try:
+    import structlog
+except ImportError:
+    structlog = None  # type: ignore
 from sqlalchemy.exc import SQLAlchemyError
 
 from core.data.models import DatabaseManager, SystemLogModel

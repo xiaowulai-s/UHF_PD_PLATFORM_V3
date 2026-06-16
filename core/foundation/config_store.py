@@ -116,8 +116,9 @@ class ConfigStore(QObject):
                 config = self._db_repo.get(device_id)
                 if config is not None:
                     return config
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug("DB 查询设备配置失败: %s", e)
 
         config = self._json_devices.get(device_id)
         if config is not None:
@@ -132,8 +133,9 @@ class ConfigStore(QObject):
                 for dev in self._db_repo.list_all():
                     if isinstance(dev, dict) and "id" in dev:
                         ids.add(dev["id"])
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug("DB 查询设备配置失败: %s", e)
         return list(ids)
 
     def get_devices_from_json(self) -> Dict[str, Dict]:

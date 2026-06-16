@@ -114,6 +114,10 @@ class PDAlarmService:
         Returns:
             报警字典，无报警则返回 None
         """
+        # NaN/Inf 防护
+        if not isinstance(amplitude, (int, float)) or amplitude != amplitude or amplitude == float('inf') or amplitude == float('-inf'):
+            return None
+
         # 按通道阈值优先 (AE 通道独立配置), 再设备阈值, 最后全局默认
         ch_key = f"{device_id}:{channel_id}"
         ch_max = self._amplitude_thresholds.get("channel_max", {}).get(ch_key)

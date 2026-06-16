@@ -1,63 +1,91 @@
 {
-  "database": {
-    "path": "data/monitor.db",
-    "echo": false,
-    "pool_size": 5
-  },
-  "sensors": {
-    "uhf": {
-      "sample_rate_hz": 100000000,
-      "frequency_min_mhz": 300,
-      "frequency_max_mhz": 3000,
-      "pipeline": ["peak_detect", "fft", "prpd", "prps"],
-      "description": "UHF 超高频传感器"
+    "database": {
+        "path": "data/monitor.db",
+        "echo": false,
+        "pool_size": 5,
+        "backup_on_startup": true
     },
-    "ae": {
-      "sample_rate_hz": 2000000,
-      "frequency_min_hz": 20000,
-      "frequency_max_hz": 200000,
-      "pipeline": ["hit_detect", "param_extract", "envelope"],
-      "description": "AE 超声波传感器"
+    "sensors": {
+        "uhf": {
+            "sample_rate_hz": 100000000,
+            "frequency_min_mhz": 300,
+            "frequency_max_mhz": 3000,
+            "pipeline": [
+                "peak_detect",
+                "fft",
+                "prpd",
+                "prps"
+            ],
+            "description": "UHF 超高频传感器"
+        },
+        "ae": {
+            "sample_rate_hz": 2000000,
+            "frequency_min_hz": 20000,
+            "frequency_max_hz": 200000,
+            "pipeline": [
+                "hit_detect",
+                "param_extract",
+                "envelope"
+            ],
+            "description": "AE 超声波传感器"
+        },
+        "hfct": {
+            "sample_rate_hz": 50000000,
+            "frequency_min_mhz": 1,
+            "frequency_max_mhz": 30,
+            "pipeline": [
+                "peak_detect",
+                "fft",
+                "prpd"
+            ],
+            "description": "HFCT 高频电流传感器"
+        },
+        "tev": {
+            "sample_rate_hz": 100000000,
+            "frequency_min_mhz": 10,
+            "frequency_max_mhz": 1000,
+            "pipeline": [
+                "peak_detect",
+                "fft"
+            ],
+            "description": "TEV 暂态地电压传感器"
+        }
     },
-    "hfct": {
-      "sample_rate_hz": 50000000,
-      "frequency_min_mhz": 1,
-      "frequency_max_mhz": 30,
-      "pipeline": ["peak_detect", "fft", "prpd"],
-      "description": "HFCT 高频电流传感器"
+    "alarm": {
+        "amplitude_thresholds": {
+            "warning": 50.0,
+            "critical": 80.0
+        },
+        "debounce_count": 3,
+        "check_interval_ms": 1000
     },
-    "tev": {
-      "sample_rate_hz": 100000000,
-      "frequency_min_mhz": 10,
-      "frequency_max_mhz": 1000,
-      "pipeline": ["peak_detect", "fft"],
-      "description": "TEV 暂态地电压传感器"
+    "network": {
+        "tcp_port": 502,
+        "udp_port": 6000,
+        "timeout_ms": 3000,
+        "retry_count": 3
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "logs/monitor.log",
+        "max_bytes": 10485760,
+        "backup_count": 5
+    },
+    "display": {
+        "refresh_rate_fps": 20,
+        "waveform_points": 1024,
+        "prpd_bins_phase": 360,
+        "prpd_bins_amplitude": 256
+    },
+    "communication": {
+        "host": "0.0.0.0",
+        "tcp_port": 5000,
+        "udp_port": 6000,
+        "default_timeout": 5,
+        "buffer_size": 8192
+    },
+    "storage": {
+        "retention_days": 365,
+        "max_pd_events": 10000000
     }
-  },
-  "alarm": {
-    "amplitude_thresholds": {
-      "warning": 50.0,
-      "critical": 80.0
-    },
-    "debounce_count": 3,
-    "check_interval_ms": 1000
-  },
-  "network": {
-    "tcp_port": 502,
-    "udp_port": 6000,
-    "timeout_ms": 3000,
-    "retry_count": 3
-  },
-  "logging": {
-    "level": "INFO",
-    "file": "logs/monitor.log",
-    "max_bytes": 10485760,
-    "backup_count": 5
-  },
-  "display": {
-    "refresh_rate_fps": 20,
-    "waveform_points": 1024,
-    "prpd_bins_phase": 360,
-    "prpd_bins_amplitude": 256
-  }
 }
