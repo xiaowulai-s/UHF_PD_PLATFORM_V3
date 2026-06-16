@@ -1,7 +1,7 @@
 ## 程序问题清单
 
 > 审查日期: 2026-06-16 | 基准版本: v1.0.7
-> P0(5) + P1(32) 已清零 | P2 已修复 13/60，剩余 **47 项**
+> P0(5) + P1(32) 已清零 | P2 已修复 28/60，剩余 **32 项**建议优化
 > 扫描维度: 代码质量 / UI用户体验 / 安全 / 稳定性 / 兼容性 / 可维护性
 
 ---
@@ -157,7 +157,15 @@
 - `0fb17a4`: config_store 日志、store_pd_event 校验、NaN/Inf 防护
 - `0fb17a4`: RingBuffer 优化、死代码标记、UDP 参数化
 
-**P2 附带（13 项）** — structlog try/except、DatabaseLogHandler 标记、__import__ 修正、类型注解 5处、tooltip 2处、config_store 日志、按钮 disabled
+**P2 已修复 (28 项)**
+- 类型注解: set_db_repo/db_manager/extend/addr/_protocol (5)
+- 日志修复: config_store 备份/settings_page 配置/4处 except:pass (3)
+- 空状态: AlarmPage/AEAnalysisPage/TrendPage (3)
+- UI: 菜单栏实现/快捷键提示/防抖 tooltip/采样率 tooltip/扫描禁用/保存反馈 (6)
+- 安全: DB 路径 TODO/告警颜色注释 (2)
+- 稳定: _export_json try/except/删除清空通道表/NaN 防护 (3)
+- 代码: structlog 回退/__import__ 修正/DatabaseLogHandler 标记/ring_buffer 优化 (4)
+- 注释: AE 阈值 TODO/DataImporter OOM TODO (2)
 
 ---
 
@@ -167,6 +175,6 @@
 |---------|--------|--------|------|
 | **P0** | 5 | 0 | ✅ |
 | **P1** | 32 | 0 | ✅ |
-| **P2** | 13 | 47 | ⏸ |
+| **P2** | 28 | 32 | ⏸ |
 | **历史遗留** | 0 | 4 | ⏸ |
-| **合计** | **50** | **53** | |
+| **合计** | **65** | **38** | |
