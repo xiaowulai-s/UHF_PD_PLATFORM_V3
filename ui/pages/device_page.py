@@ -419,3 +419,5 @@ class DevicePage(QWidget):
     @property
     def online_device_count(self) -> int:
         return sum(1 for d in self._devices.values() if d.get("status") == 1)
+
+# TODO(L-3): 设备列表网格列数响应式适配

@@ -1,4 +1,4 @@
-__version__ = "1.1.0"
+__version__ = "1.0.7"
 
 VERSION_INFO = {
     "major": 1,

@@ -359,7 +359,7 @@ class PDMainWindow(QMainWindow):
         """显示关于对话框"""
         dialog = QDialog(self)
         dialog.setWindowTitle("关于")
-        dialog.setMinimumSize(600, 500)
+        dialog.setMinimumSize(550, 440)  # 适配 1024x680 窗口
 
         layout = QVBoxLayout(dialog)
 
@@ -492,7 +492,7 @@ class PDMainWindow(QMainWindow):
     # ── 键盘快捷键 ───────────────────────────────────
 
     def keyPressEvent(self, event) -> None:
-        """键盘快捷键处理"""
+        """键盘快捷键处理（TODO(P2-34): 添加 setTabOrder 完善 Tab 键导航）"""
         key = event.key()
         PAGE_KEYS = ["dashboard", "monitor", "analysis", "trend", "alarm", "device", "ae", "settings"]
 

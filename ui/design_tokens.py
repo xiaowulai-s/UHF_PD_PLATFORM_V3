@@ -767,3 +767,5 @@ if __name__ == "__main__":
     print(f"  DT.T.BODY → {DT.T.BODY}")
     print(f"  DT.S.MD → {DT.S.MD}px")
     print(f"  DT.R.MD → {DT.R.MD}px")
+
+# TODO(P2-25): 消除绕过 DT 令牌的内联字号

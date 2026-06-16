@@ -485,3 +485,5 @@ try:
 except ImportError as e:
     import logging
     logging.getLogger(__name__).warning("部分 PD 分析控件加载失败: %s", e)
+
+# TODO(P2-24): 统一按钮样式定义，消除4处重复
