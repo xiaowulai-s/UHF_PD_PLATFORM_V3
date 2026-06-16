@@ -470,6 +470,49 @@ class ActionCard(QFrame):
 
 
 # ═══════════════════════════════════════════════════════════
+# 共享按钮样式 (消除 waveform/prpd/trend/ae 四处重复)
+# ═══════════════════════════════════════════════════════════
+
+class ButtonStyles:
+    """统一按钮 QSS 样式"""
+
+    @staticmethod
+    def toolbar_button(accent: bool = False) -> str:
+        """工具栏小型按钮"""
+        if accent:
+            return (
+                f"QPushButton {{ background: {DT.C.ACCENT_PRIMARY}; color: white; "
+                f"border: none; border-radius: 4px; padding: 4px 10px; "
+                f"font-size: 11px; font-weight: 600; }}"
+                f"QPushButton:hover {{ background: {DT.C.ACCENT_HOVER}; }}"
+            )
+        return (
+            f"QPushButton {{ background: transparent; color: {DT.C.TEXT_SECONDARY}; "
+            f"border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px; "
+            f"padding: 4px 10px; font-size: 11px; }}"
+            f"QPushButton:hover {{ background: {DT.C.BG_HOVER}; "
+            f"border-color: {DT.C.BORDER_HOVER}; }}"
+        )
+
+    @staticmethod
+    def range_selector(active: bool) -> str:
+        """时间范围选择按钮"""
+        if active:
+            return (
+                f"QPushButton {{ background: {DT.C.ACCENT_PRIMARY}; color: white; "
+                f"border: none; border-radius: 4px; padding: 4px 12px; "
+                f"font-size: {DT.FS.CAPTION}px; font-weight: 600; }}"
+            )
+        return (
+            f"QPushButton {{ background: {DT.C.BG_SECONDARY}; "
+            f"color: {DT.C.TEXT_SECONDARY}; "
+            f"border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px; "
+            f"padding: 4px 12px; font-size: {DT.FS.CAPTION}px; }}"
+            f"QPushButton:hover {{ background: {DT.C.BG_HOVER}; }}"
+        )
+
+
+# ═══════════════════════════════════════════════════════════
 # 可视化组件 (从 visual 模块导入)
 # ═══════════════════════════════════════════════════════════
 

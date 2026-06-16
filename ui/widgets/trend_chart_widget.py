@@ -254,14 +254,6 @@ class TrendChartWidget(QWidget):
 
     @staticmethod
     def _range_button_style(active: bool) -> str:
-        if active:
-            return (
-                f"QPushButton {{ background: {DT.C.ACCENT_PRIMARY}; color: white; border: none; "
-                f"border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: 600; }}"
-            )
-        return (
-            f"QPushButton {{ background: transparent; color: {DT.C.TEXT_SECONDARY}; "
-            f"border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px; padding: 3px 10px; "
-            f"font-size: 11px; }}"
-            f"QPushButton:hover {{ background: {DT.C.BG_HOVER}; }}"
-        )
+        """时间范围按钮样式（委托给共享 ButtonStyles）"""
+        from ui.widgets import ButtonStyles
+        return ButtonStyles.range_selector(active)

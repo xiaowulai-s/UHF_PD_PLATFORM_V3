@@ -313,18 +313,6 @@ class WaveformWidget(QWidget):
 
     @staticmethod
     def _button_style(accent: str = None) -> str:
-        """按钮样式"""
-        if accent:
-            return (
-                f"QPushButton {{ background: {accent}; color: white; border: none; "
-                f"border-radius: 4px; padding: 4px 10px; font-size: 11px; font-weight: 600; }}"
-                f"QPushButton:hover {{ background: {DT.C.ACCENT_HOVER}; }}"
-            )
-        return (
-            f"QPushButton {{ background: transparent; color: {DT.C.TEXT_SECONDARY}; "
-            f"border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px; padding: 4px 10px; "
-            f"font-size: 11px; }}"
-            f"QPushButton:hover {{ background: {DT.C.BG_HOVER}; border-color: {DT.C.BORDER_HOVER}; }}"
-            f"QPushButton:checked {{ background: {DT.C.ACCENT_SUBTLE}; color: {DT.C.ACCENT_PRIMARY}; "
-            f"border-color: {DT.C.ACCENT_PRIMARY}; }}"
-        )
+        """按钮样式（委托给共享 ButtonStyles）"""
+        from ui.widgets import ButtonStyles
+        return ButtonStyles.toolbar_button(accent is not None)

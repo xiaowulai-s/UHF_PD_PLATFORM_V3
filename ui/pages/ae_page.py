@@ -208,7 +208,7 @@ class AEAnalysisPage(QWidget):
         # 空状态提示
         self._ae_empty_hint = QLabel("暂无 Hit 数据，连接 AE 设备或启动模拟器后将自动填充")
         self._ae_empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._ae_empty_hint.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px; padding: 16px;")
+        self._ae_empty_hint.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px; padding: 16px;")
         fl.addWidget(self._ae_empty_hint)
 
         layout.addWidget(frame, 1)
@@ -354,19 +354,6 @@ class AEAnalysisPage(QWidget):
     # ── 样式 ─────────────────────────────────────────
 
     def _range_btn_style(self, active: bool) -> str:
-        if active:
-            return f"""
-                QPushButton {{
-                    background: {DT.C.ACCENT_PRIMARY}; color: white;
-                    border: none; border-radius: 4px; padding: 4px 12px;
-                    font-size: {DT.FS.CAPTION}px; font-weight: 600;
-                }}
-            """
-        return f"""
-            QPushButton {{
-                background: {DT.C.BG_SECONDARY}; color: {DT.C.TEXT_SECONDARY};
-                border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px;
-                padding: 4px 12px; font-size: {DT.FS.CAPTION}px;
-            }}
-            QPushButton:hover {{ background: {DT.C.BG_HOVER}; }}
-        """
+        """时间范围按钮样式（委托给共享 ButtonStyles）"""
+        from ui.widgets import ButtonStyles
+        return ButtonStyles.range_selector(active)

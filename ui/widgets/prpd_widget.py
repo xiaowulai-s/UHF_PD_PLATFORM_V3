@@ -618,9 +618,6 @@ class PRPDWidget(QWidget):
 
     @staticmethod
     def _button_style() -> str:
-        return (
-            f"QPushButton {{ background: transparent; color: {DT.C.TEXT_SECONDARY}; "
-            f"border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px; padding: 4px 10px; "
-            f"font-size: 11px; }}"
-            f"QPushButton:hover {{ background: {DT.C.BG_HOVER}; border-color: {DT.C.BORDER_HOVER}; }}"
-        )
+        """按钮样式（委托给共享 ButtonStyles）"""
+        from ui.widgets import ButtonStyles
+        return ButtonStyles.toolbar_button(accent=False)
