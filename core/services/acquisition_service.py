@@ -78,6 +78,8 @@ class AcquisitionService:
     """
 
     PRPD_DECAY_FACTOR = 0.995  # PRPD 矩阵指数衰减系数
+    PRPD_DECAY_INTERVAL = 20    # 衰减帧间隔
+    PRPD_PUBLISH_INTERVAL = 50  # PRPD 发布帧间隔
 
     def __init__(
         self,
@@ -358,39 +360,8 @@ class AcquisitionService:
         try:
             prpd_proc = self.get_or_create_prpd(device_id, channel_id)
             prpd_proc.add_waveform(samples, phase_offset=0)
-
-            # 动态调整 max_amplitude：根据观测到的峰值幅值自适应扩展范围，
-            # 避免固定 max_amplitude 导致大幅值事件被截断到顶部 bin。
-            if pd_events:
-                frame_max_amp = max(abs(p.amplitude) for p in pd_events)
-                prev_max = self._observed_max_amp.get(key, 0.0)
-                if frame_max_amp > prev_max:
-                    self._observed_max_amp[key] = frame_max_amp
-                    # 当观测幅值超过当前处理器范围的 80% 时，扩展到 1.2 倍观测值
-                    if frame_max_amp > prpd_proc.max_amplitude * 0.8:
-                        new_max = frame_max_amp * 1.2
-                        prpd_proc.max_amplitude = new_max
-                        # 关键：扩展后必须重建矩阵，否则旧事件仍停留在被截断的bin中
-                        prpd_proc.rebuild_matrix()
-
-            # 每 20 帧应用一次指数衰减（独立计数器，不与发布计数器共享）
-            if key not in self._prpd_decay_count:
-                self._prpd_decay_count[key] = 0
-            self._prpd_decay_count[key] += 1
-            if self._prpd_decay_count[key] >= 20:
-                self._prpd_decay_count[key] = 0
-                prpd_proc.decay(self.PRPD_DECAY_FACTOR)
-
-            # 定期发布 PRPD（每 50 帧，按通道独立计数）
-            if key not in self._prpd_frame_count:
-                self._prpd_frame_count[key] = 0
-            self._prpd_frame_count[key] += 1
-            if self._prpd_frame_count[key] >= 50:
-                self._prpd_frame_count[key] = 0
-                prpd_result = prpd_proc.compute()
-                # 将当前有效 max_amplitude 传递给 UI 控件同步 Y 轴范围
-                effective_max = prpd_proc.max_amplitude
-                self._data_bus.publish_prpd_result(device_id, channel_id, prpd_result)
+            max_amp = max(abs(p.amplitude) for p in pd_events) if pd_events else 0.0
+            self._prpd_publish_cycle(device_id, channel_id, key, prpd_proc, max_amp)
         except Exception as e:
             logger.warning("[%s] PRPD 异常: %s", device_id, e)
 
@@ -399,23 +370,10 @@ class AcquisitionService:
             prps_proc = self.get_or_create_prps(device_id, channel_id)
             phase_binned = np.zeros(360)
             for peak in pd_events[:360]:
-                # 相位映射：将峰值位置线性映射到 0~360°
-                # TODO: 当前假设波形覆盖恰好一个工频周期。若采样率非工频整数倍
-                #       或波形跨越多周期，应通过过零检测(zero-crossing)或外部同步信号
-                #       精确定位工频周期边界，再计算相对相位。
+                # TODO: 相位映射假设波形恰好一个工频周期，需过零检测
                 phase_deg = (peak.position / max(len(samples), 1)) * 360.0
-                phase_idx = int(phase_deg) % 360
-                phase_binned[phase_idx] = max(phase_binned[phase_idx], abs(peak.amplitude))
-            prps_proc.add_cycle(phase_binned)
-
-            # 节流：每 _prps_publish_interval 帧发布一次
-            if key not in self._prps_frame_count:
-                self._prps_frame_count[key] = 0
-            self._prps_frame_count[key] += 1
-            if self._prps_frame_count[key] >= self._prps_publish_interval:
-                self._prps_frame_count[key] = 0
-                prps_result = prps_proc.compute()
-                self._data_bus.publish_prps_result(device_id, channel_id, prps_result)
+                phase_binned[int(phase_deg) % 360] = max(phase_binned[int(phase_deg) % 360], abs(peak.amplitude))
+            self._prps_publish_cycle(device_id, channel_id, key, prps_proc, phase_binned)
         except Exception as e:
             logger.warning("[%s] PRPS 异常: %s", device_id, e)
 
@@ -532,56 +490,22 @@ class AcquisitionService:
         except Exception as e:
             logger.warning("[%s] AE FFT 异常: %s", device_id, e)
 
-        # PRPD 定期发布
+        # PRPD 定期发布（复用 UHF 管线）
         try:
             prpd_proc = self.get_or_create_prpd(device_id, channel_id)
-
-            # 动态幅值扩展
-            if hits:
-                frame_max_amp = max(h.peak_amplitude for h in hits)
-                prev_max = self._observed_max_amp.get(key, 0.0)
-                if frame_max_amp > prev_max:
-                    self._observed_max_amp[key] = frame_max_amp
-                    if frame_max_amp > prpd_proc.max_amplitude * 0.8:
-                        new_max = frame_max_amp * 1.2
-                        prpd_proc.max_amplitude = new_max
-                        prpd_proc.rebuild_matrix()
-
-            # 每 20 帧衰减
-            if key not in self._prpd_decay_count:
-                self._prpd_decay_count[key] = 0
-            self._prpd_decay_count[key] += 1
-            if self._prpd_decay_count[key] >= 20:
-                self._prpd_decay_count[key] = 0
-                prpd_proc.decay(self.PRPD_DECAY_FACTOR)
-
-            # 每 50 帧发布
-            if key not in self._prpd_frame_count:
-                self._prpd_frame_count[key] = 0
-            self._prpd_frame_count[key] += 1
-            if self._prpd_frame_count[key] >= 50:
-                self._prpd_frame_count[key] = 0
-                prpd_result = prpd_proc.compute()
-                self._data_bus.publish_prpd_result(device_id, channel_id, prpd_result)
+            max_amp = max(h.peak_amplitude for h in hits) if hits else 0.0
+            self._prpd_publish_cycle(device_id, channel_id, key, prpd_proc, max_amp)
         except Exception as e:
             logger.warning("[%s] AE PRPD 异常: %s", device_id, e)
 
-        # PRPS 更新
+        # PRPS 更新（复用 UHF 管线）
         try:
             prps_proc = self.get_or_create_prps(device_id, channel_id)
             phase_binned = np.zeros(360)
             for hit in hits[:360]:
                 phase_idx = int(hit.phase_deg) % 360
                 phase_binned[phase_idx] = max(phase_binned[phase_idx], hit.peak_amplitude)
-            prps_proc.add_cycle(phase_binned)
-
-            if key not in self._prps_frame_count:
-                self._prps_frame_count[key] = 0
-            self._prps_frame_count[key] += 1
-            if self._prps_frame_count[key] >= self._prps_publish_interval:
-                self._prps_frame_count[key] = 0
-                prps_result = prps_proc.compute()
-                self._data_bus.publish_prps_result(device_id, channel_id, prps_result)
+            self._prps_publish_cycle(device_id, channel_id, key, prps_proc, phase_binned)
         except Exception as e:
             logger.warning("[%s] AE PRPS 异常: %s", device_id, e)
 
@@ -756,6 +680,46 @@ class AcquisitionService:
         for k in self._stats:
             if k != "start_time":
                 self._stats[k] = 0
+
+    # ── PRPD/PRPS 公共管线 (UHF/AE 共用) ────────────
+
+    def _prpd_publish_cycle(self, device_id: str, channel_id: int, key: str, prpd_proc: Any, max_amplitude_val: float) -> None:
+        """PRPD 衰减 + 动态幅值扩展 + 发布节流 (UHF/AE 共用)"""
+        # 动态幅值扩展
+        prev_max = self._observed_max_amp.get(key, 0.0)
+        if max_amplitude_val > prev_max:
+            self._observed_max_amp[key] = max_amplitude_val
+            if max_amplitude_val > prpd_proc.max_amplitude * 0.8:
+                prpd_proc.max_amplitude = max_amplitude_val * 1.2
+                prpd_proc.rebuild_matrix()
+
+        # 每 N 帧衰减
+        if key not in self._prpd_decay_count:
+            self._prpd_decay_count[key] = 0
+        self._prpd_decay_count[key] += 1
+        if self._prpd_decay_count[key] >= self.PRPD_DECAY_INTERVAL:
+            self._prpd_decay_count[key] = 0
+            prpd_proc.decay(self.PRPD_DECAY_FACTOR)
+
+        # 每 N 帧发布
+        if key not in self._prpd_frame_count:
+            self._prpd_frame_count[key] = 0
+        self._prpd_frame_count[key] += 1
+        if self._prpd_frame_count[key] >= self.PRPD_PUBLISH_INTERVAL:
+            self._prpd_frame_count[key] = 0
+            self._data_bus.publish_prpd_result(device_id, channel_id, prpd_proc.compute())
+
+    def _prps_publish_cycle(self, device_id: str, channel_id: int, key: str, prps_proc: Any, phase_binned: np.ndarray) -> None:
+        """PRPS 节流发布 (UHF/AE 共用)"""
+        prps_proc.add_cycle(phase_binned)
+        if key not in self._prps_frame_count:
+            self._prps_frame_count[key] = 0
+        self._prps_frame_count[key] += 1
+        if self._prps_frame_count[key] >= self._prps_publish_interval:
+            self._prps_frame_count[key] = 0
+            self._data_bus.publish_prps_result(device_id, channel_id, prps_proc.compute())
+
+    # ═══════════════════════════════════════════════════
 
     def release_channel(self, device_id: str, channel_id: int) -> None:
         key = self._channel_key(device_id, channel_id)
