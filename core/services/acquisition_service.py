@@ -90,7 +90,7 @@ class AcquisitionService:
         self._waveform_points = waveform_points
 
         # 协议解析器
-        self._protocol: Any = None
+        self._protocol: Any = None  # TODO: Optional[FpgaProtocol]
 
         # 信号处理器（每个通道一个实例）
         self._fft_processors: Dict[str, FFTProcessor] = {}

@@ -168,6 +168,8 @@ class DevicePage(QWidget):
         # 通道操作按钮
         ch_btn_layout = QHBoxLayout()
         self._btn_scan = SecondaryButton("扫描设备")
+        self._btn_scan.setToolTip("自动扫描局域网内 FPGA/AE 采集设备（功能开发中）")
+        self._btn_scan.setEnabled(False)  # 功能未实现
         self._btn_scan.clicked.connect(self._on_scan)
         ch_btn_layout.addWidget(self._btn_scan)
         ch_btn_layout.addStretch()

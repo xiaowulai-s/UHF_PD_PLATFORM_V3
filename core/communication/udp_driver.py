@@ -226,7 +226,7 @@ class UDPDriver(BaseDriver):
 
         logger.info("UDP 接收线程结束")
 
-    def _on_packet_received(self, data: bytes, addr: tuple) -> None:
+    def _on_packet_received(self, data: bytes, addr: tuple[str, int]) -> None:
         """处理接收到的 UDP 数据包"""
         self._packets_received += 1
         self._bytes_received += len(data)

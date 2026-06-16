@@ -236,6 +236,7 @@ class AlarmPage(QWidget):
         row4 = QHBoxLayout()
         row4.addWidget(QLabel("防抖次数:"))
         self._sp_hysteresis = QSpinBox()
+        self._sp_hysteresis.setToolTip("连续超阈值次数，达到后才触发报警（防止瞬时干扰误报）")
         self._sp_hysteresis.setRange(1, 20)
         self._sp_hysteresis.setValue(3)
         self._sp_hysteresis.setFixedHeight(28)

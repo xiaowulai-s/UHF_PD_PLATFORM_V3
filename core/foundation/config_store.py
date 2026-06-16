@@ -51,7 +51,7 @@ class ConfigStore(QObject):
         with cls._lock:
             cls._instance = None
 
-    def set_db_repo(self, repo):
+    def set_db_repo(self, repo: Any) -> None:
         self._db_repo = repo
 
     def load_global_config(self, config_path: str) -> bool:
@@ -155,8 +155,9 @@ class ConfigStore(QObject):
             if self._devices_json_path.exists():
                 try:
                     shutil.copy2(self._devices_json_path, backup_path)
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).debug("备份文件复制失败: %s", e)
 
             output = {"devices": list(devices_data.values()) if isinstance(devices_data, dict) else devices_data}
 

@@ -42,7 +42,7 @@ class PDStorageService:
 
     def __init__(
         self,
-        db_manager=None,
+        db_manager: Any = None,
         flush_interval: float = 5.0,
         batch_size: int = 100,
         retention_days: int = 365,
