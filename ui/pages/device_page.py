@@ -138,6 +138,7 @@ class DevicePage(QWidget):
         self._inp_udp, lay = self._create_spin("UDP 端口:", 6000, 1, 65535)
         fl.addLayout(lay)
         self._inp_sample_rate, lay = self._create_spin("采样率 (MHz):", 100, 1, 500)
+        self._inp_sample_rate.setToolTip("UHF 设备典型值 100 MHz，AE 设备典型值 2 MHz")
         fl.addLayout(lay)
         self._inp_channels, lay = self._create_spin("通道数:", 4, 1, 16)
         fl.addLayout(lay)
@@ -300,6 +301,7 @@ class DevicePage(QWidget):
         self._inp_udp.setValue(6000)
         self._inp_sample_rate.setValue(100)
         self._inp_channels.setValue(4)
+        self._ch_table.setRowCount(0)  # 清空通道表
 
     def _update_channel_table(self, n_channels: int) -> None:
         """更新通道表"""

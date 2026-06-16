@@ -235,6 +235,7 @@ class PDAlarmModel(Base):
         Index("idx_pd_alarm_ack", "acknowledged"),
     )
 
+    # NOTE: 告警颜色以 core/services/alarm_service.py:ALARM_LEVELS 为准
     LEVEL_COLORS = {
         "critical": "#CF222E",
         "warning": "#D29922",

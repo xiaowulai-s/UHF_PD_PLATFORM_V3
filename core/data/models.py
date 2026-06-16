@@ -493,7 +493,7 @@ class DatabaseManager:
         if os.getenv("PYTEST_CURRENT_TEST"):
             return ":memory:"
 
-        return os.path.join("data", "equipment_management.db")
+        return os.path.join("data", "equipment_management.db")  # TODO: 打包后路径需使用 appdirs
 
     @staticmethod
     def _configure_sqlite_connection(dbapi_connection: Any, _: Any) -> None:

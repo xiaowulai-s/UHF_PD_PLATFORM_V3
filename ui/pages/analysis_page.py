@@ -56,6 +56,7 @@ except ImportError:
 # ═══════════════════════════════════════════════════════
 
 
+# TODO: 大文件全量加载有 OOM 风险，建议改为流式解析
 class DataImporter:
     """PRPD 实验数据导入器"""
 
@@ -1550,8 +1551,11 @@ class AnalysisPage(QWidget):
             return
         path, _ = QFileDialog.getSaveFileName(self, "导出 JSON", "prpd_report.json", "JSON (*.json)")
         if path:
-            ReportExporter.export_json(self._analysis_result, path)
-            self._status_label.setText(f"报告已导出: {path}")
+            try:
+                ReportExporter.export_json(self._analysis_result, path)
+                self._status_label.setText(f"报告已导出: {path}")
+            except Exception as e:
+                QMessageBox.warning(self, "导出失败", f"JSON 导出失败: {str(e)[:200]}")
 
     def _export_excel(self) -> None:
         if not self._analysis_result:

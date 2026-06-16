@@ -111,6 +111,7 @@ class AcquisitionService:
         self._ae_noise_counters: Dict[str, int] = {}  # 噪声超标连续帧计数
         self._ae_alarm_state: Dict[str, set] = {}  # "dev:ch" -> {"signal_loss", "noise_floor"}
         self._AE_SIGNAL_LOSS_THRESHOLD = 20  # 连续 20 帧无 hit → 信号丢失报警
+        # TODO: AE 阈值应从配置文件读取，适配不同传感器型号
         self._AE_NOISE_THRESHOLD = 10.0  # RMS > 10mV → 噪声超标
         self._AE_NOISE_CLEAR = 5.0  # RMS < 5mV → 清除噪声报警
         self._AE_NOISE_FRAME_THRESHOLD = 10  # 持续 10 帧 → 触发/清除
