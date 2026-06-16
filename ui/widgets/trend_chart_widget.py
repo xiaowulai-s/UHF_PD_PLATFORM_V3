@@ -101,7 +101,8 @@ class TrendChartWidget(QWidget):
         self._plot_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._plot_widget.setMinimumHeight(150)
 
-        self._plot_widget.setLabel("left", "幅值", units="mV")
+        # NOTE: 多系列图表 Y 轴标签无法覆盖所有单位，以图例为准
+        self._plot_widget.setLabel("left", "值")
         self._plot_widget.setLabel("bottom", "时间")
         self._plot_widget.showGrid(x=True, y=True, alpha=0.2)
 

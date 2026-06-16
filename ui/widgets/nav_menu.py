@@ -22,6 +22,7 @@ from ui.design_tokens import DT
 MenuItem = Tuple[str, str, str]
 
 
+# NOTE: 菜单图标使用 Unicode 字符，跨平台渲染可能不一致，建议后续替换为 SVG 图标文件
 DEFAULT_MENU_ITEMS: List[MenuItem] = [
     ("dashboard", "首页", "⌂"),  # ⌂
     ("monitor", "实时监测", "◉"),  # ◉
