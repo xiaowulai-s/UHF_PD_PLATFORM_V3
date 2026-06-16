@@ -118,7 +118,8 @@ class AEAnalysisPage(QWidget):
         sl.setContentsMargins(DT.S.MD, DT.S.SM, DT.S.MD, DT.S.SM)
         self._scatter = AEScatterWidget()
         sl.addWidget(self._scatter)
-        charts.addWidget(scatter_frame, 1)
+        scatter_frame.setMinimumWidth(280)
+        charts.addWidget(scatter_frame, 2)
 
         # 中: AE 趋势图
         trend_frame = QFrame()
@@ -131,7 +132,8 @@ class AEAnalysisPage(QWidget):
         self._trend.add_series("幅值", QColor(DT.C.STATUS_WARNING))
         self._trend.add_series("能量", QColor(DT.C.STATUS_SUCCESS))
         tl.addWidget(self._trend)
-        charts.addWidget(trend_frame, 1)
+        trend_frame.setMinimumWidth(250)
+        charts.addWidget(trend_frame, 2)
 
         # 右: AE 声源定位图
         loc_frame = QFrame()
@@ -141,6 +143,8 @@ class AEAnalysisPage(QWidget):
         ll.setContentsMargins(DT.S.MD, DT.S.SM, DT.S.MD, DT.S.SM)
         self._localization = AELocalizationWidget(title="TDOA 声源定位")
         ll.addWidget(self._localization)
+        loc_frame.setMinimumWidth(200)
+        loc_frame.setMaximumWidth(320)  # 正方形定位图无需过大宽度
         charts.addWidget(loc_frame, 1)
 
         layout.addLayout(charts, 2)

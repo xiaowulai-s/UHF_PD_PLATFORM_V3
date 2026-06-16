@@ -136,6 +136,7 @@ class RealtimeMonitorPage(QWidget):
         self._right_stack.setCurrentIndex(0)
 
         fl.addWidget(self._right_stack)
+        frame.setMinimumWidth(200)  # 1024px 下保证峰值列表可用
         parent.addWidget(frame, 1)  # 峰值/AE 面板 权重 1/6
 
     def switch_to_uhf_mode(self) -> None:
