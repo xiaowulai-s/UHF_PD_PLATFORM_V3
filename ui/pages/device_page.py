@@ -96,6 +96,7 @@ class DevicePage(QWidget):
         # 设备操作按钮
         btn_layout = QHBoxLayout()
         self._btn_add = PrimaryButton("添加设备")
+        self._btn_add.setToolTip("添加新的 FPGA 或 AE 采集设备")
         self._btn_add.clicked.connect(self._on_add_device)
         btn_layout.addWidget(self._btn_add)
 
@@ -174,6 +175,7 @@ class DevicePage(QWidget):
         ch_btn_layout.addWidget(self._btn_scan)
         ch_btn_layout.addStretch()
         self._btn_save = PrimaryButton("保存参数")
+        self._btn_save.setToolTip("将当前设备参数保存到内存并持久化到数据库")
         self._btn_save.clicked.connect(self._on_save_params)
         ch_btn_layout.addWidget(self._btn_save)
         rl.addLayout(ch_btn_layout)

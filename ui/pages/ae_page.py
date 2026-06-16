@@ -204,6 +204,12 @@ class AEAnalysisPage(QWidget):
         self._table.horizontalHeader().setStretchLastSection(True)
         fl.addWidget(self._table)
 
+        # 空状态提示
+        self._ae_empty_hint = QLabel("暂无 Hit 数据，连接 AE 设备或启动模拟器后将自动填充")
+        self._ae_empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._ae_empty_hint.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px; padding: 16px;")
+        fl.addWidget(self._ae_empty_hint)
+
         layout.addWidget(frame, 1)
 
     # ── 公开接口 ─────────────────────────────────────
@@ -342,6 +348,7 @@ class AEAnalysisPage(QWidget):
                 self._table.setItem(row, col, item)
 
         self._table.resizeColumnsToContents()
+        self._ae_empty_hint.setVisible(len(shown) == 0)
 
     # ── 样式 ─────────────────────────────────────────
 

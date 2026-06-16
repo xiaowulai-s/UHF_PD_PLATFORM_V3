@@ -204,6 +204,12 @@ class PDMainWindow(QMainWindow):
         self._lbl_online.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY};")
         status.addPermanentWidget(self._lbl_online)
 
+        # 快捷键提示
+        self._lbl_shortcut = QLabel("F1-F8 切换页面 | Space 暂停")
+        self._lbl_shortcut.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 11px;")
+        self._lbl_shortcut.setVisible(True)  # 快捷键提示
+        status.addPermanentWidget(self._lbl_shortcut)
+
         # 最新报警
         self._lbl_alarm = QLabel("最新报警: —")
         self._lbl_alarm.setStyleSheet(f"color: {DT.C.STATUS_WARNING};")
@@ -519,5 +525,14 @@ class PDMainWindow(QMainWindow):
     # ── 菜单栏 ───────────────────────────────────────
 
     def _setup_menu(self) -> None:
-        """构建菜单栏（预留）"""
-        pass
+        """构建菜单栏"""
+        menubar = self.menuBar()
+        file_menu = menubar.addMenu("文件(&F)")
+        exit_action = QAction("退出(&X)", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        help_menu = menubar.addMenu("帮助(&H)")
+        about_action = QAction("关于(&A)", self)
+        about_action.triggered.connect(self._show_about)
+        help_menu.addAction(about_action)
