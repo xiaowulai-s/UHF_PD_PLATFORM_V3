@@ -77,7 +77,7 @@ class SettingsPage(QWidget):
             if self._config_path.exists():
                 with open(self._config_path, "r", encoding="utf-8") as f:
                     self._config = json.load(f)
-        except Exception:
+        except Exception as e:
             self._config = {}
 
     def _save_config(self) -> None:

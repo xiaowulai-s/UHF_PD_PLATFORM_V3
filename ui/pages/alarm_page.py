@@ -161,6 +161,14 @@ class AlarmPage(QWidget):
         self._alarm_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
         list_layout.addWidget(self._alarm_table)
 
+        # 空状态提示（有数据时自动隐藏）
+        self._alarm_empty_hint = QLabel("暂无报警记录，系统运行正常")
+        self._alarm_empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._alarm_empty_hint.setStyleSheet(
+            f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px; padding: 16px;"
+        )
+        list_layout.addWidget(self._alarm_empty_hint)
+
         # 按钮行
         btn_row = QHBoxLayout()
         self._btn_ack = SecondaryButton("确认选中")
@@ -324,6 +332,9 @@ class AlarmPage(QWidget):
         if not getattr(self, '_batch_mode', False):
             self._refresh_stats()
 
+        # 更新空状态提示
+        self._alarm_empty_hint.setVisible(self._alarm_table.rowCount() == 0)
+
     def begin_batch(self) -> None:
         """开始批量插入模式"""
         self._batch_mode = True
@@ -358,6 +369,7 @@ class AlarmPage(QWidget):
             rows.add(item.row())
         for row in sorted(rows, reverse=True):
             self._alarm_table.removeRow(row)
+        self._alarm_empty_hint.setVisible(self._alarm_table.rowCount() == 0)
 
     def _on_clear_all(self) -> None:
         reply = QMessageBox.question(
@@ -368,6 +380,7 @@ class AlarmPage(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
         self._alarm_table.setRowCount(0)
+        self._alarm_empty_hint.setVisible(True)
         if self._alarm_service:
             self._alarm_service.clear_all_alarms()
         self._refresh_stats()
