@@ -317,7 +317,8 @@ class AcquisitionService:
         # 按通道独立存储采样率
         sr = getattr(wf_data, "sample_rate", self._default_sample_rate) or self._default_sample_rate
         key = self._channel_key(device_id, channel_id)
-        self._sample_rates[key] = sr
+        with self._lock:
+            self._sample_rates[key] = sr
 
         # 存入环形缓冲区
         buffer = self.get_or_create_buffer(device_id, channel_id)
@@ -454,7 +455,8 @@ class AcquisitionService:
         # 采样率
         sr = getattr(wf_data, "sample_rate", 2_000_000) or 2_000_000
         key = self._channel_key(device_id, channel_id)
-        self._sample_rates[key] = sr
+        with self._lock:
+            self._sample_rates[key] = sr
 
         # 存入环形缓冲区
         buffer = self.get_or_create_buffer(device_id, channel_id)
@@ -775,50 +777,19 @@ class AcquisitionService:
             self._ae_alarm_state.pop(key, None)
 
     def release_device(self, device_id: str) -> None:
+        """释放设备所有资源"""
         prefix = f"{device_id}:"
+        dicts = [
+            self._fft_processors, self._prpd_processors, self._prps_processors,
+            self._ring_buffers, self._peak_detectors, self._sample_rates,
+            self._prpd_frame_count, self._prps_frame_count,
+            self._ae_envelope_processors, self._ae_peak_detectors,
+            self._ae_param_extractors, self._channel_coupling_types,
+            self._ae_signal_loss_counters, self._ae_noise_counters,
+            self._ae_alarm_state,
+        ]
         with self._lock:
-            for d in list(self._fft_processors.keys()):
-                if d.startswith(prefix):
-                    del self._fft_processors[d]
-            for d in list(self._prpd_processors.keys()):
-                if d.startswith(prefix):
-                    del self._prpd_processors[d]
-            for d in list(self._prps_processors.keys()):
-                if d.startswith(prefix):
-                    del self._prps_processors[d]
-            for d in list(self._ring_buffers.keys()):
-                if d.startswith(prefix):
-                    del self._ring_buffers[d]
-            for d in list(self._peak_detectors.keys()):
-                if d.startswith(prefix):
-                    del self._peak_detectors[d]
-            for d in list(self._sample_rates.keys()):
-                if d.startswith(prefix):
-                    del self._sample_rates[d]
-            for d in list(self._prpd_frame_count.keys()):
-                if d.startswith(prefix):
-                    del self._prpd_frame_count[d]
-            for d in list(self._prps_frame_count.keys()):
-                if d.startswith(prefix):
-                    del self._prps_frame_count[d]
-            for d in list(self._ae_envelope_processors.keys()):
-                if d.startswith(prefix):
-                    del self._ae_envelope_processors[d]
-            for d in list(self._ae_peak_detectors.keys()):
-                if d.startswith(prefix):
-                    del self._ae_peak_detectors[d]
-            for d in list(self._ae_param_extractors.keys()):
-                if d.startswith(prefix):
-                    del self._ae_param_extractors[d]
-            for d in list(self._channel_coupling_types.keys()):
-                if d.startswith(prefix):
-                    del self._channel_coupling_types[d]
-            for d in list(self._ae_signal_loss_counters.keys()):
-                if d.startswith(prefix):
-                    del self._ae_signal_loss_counters[d]
-            for d in list(self._ae_noise_counters.keys()):
-                if d.startswith(prefix):
-                    del self._ae_noise_counters[d]
-            for d in list(self._ae_alarm_state.keys()):
-                if d.startswith(prefix):
-                    del self._ae_alarm_state[d]
+            for dct in dicts:
+                for key in list(dct.keys()):
+                    if key.startswith(prefix):
+                        del dct[key]

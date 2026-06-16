@@ -1,79 +1,73 @@
 ## 程序问题清单
 
 > 审查日期: 2026-06-16 | 基准版本: v1.0.7
-> 已修复: P0(5) + P1(7) = 12 项 | 当前待解决: **99 项**
+> 已修复: P0(5) + P1(15) = 20 项 | 当前待解决: **91 项**
 > 扫描维度: 代码质量 / UI用户体验 / 安全 / 稳定性 / 兼容性 / 可维护性
 
 ---
 
-## P1 — 应当修复（32 项）
+## P1 — 应当修复（25 项）
 
 ### 用户可见问题
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
 | P1-1 | `ui/pages/dashboard_page.py` | — | 无设备连接时指标显示 0，无"请连接设备"引导提示 |
-| P1-2 | `ui/pages/trend_page.py` | — | 无数据时图表空白，无"暂无数据"占位 |
-| P1-3 | `ui/pages/alarm_page.py` | — | 无报警时表格空白 |
-| P1-4 | `ui/pages/device_page.py` | 399-401 | "扫描设备"可点击但未实现，应禁用+tooltip |
-| P1-5 | `ui/pages/analysis_page.py` | 1311 | 错误提示直接显示 Python 异常原文 |
-| P1-6 | `ui/widgets/prpd_widget.py` | 281 | PRPD 信息标签格式不一致（热力图 vs 散点图） |
+| P1-2 | `ui/pages/alarm_page.py` | — | 无报警时表格空白 |
+| P1-3 | `ui/pages/device_page.py` | 399-401 | "扫描设备"可点击但未实现，应禁用+tooltip |
+| P1-3 | `ui/pages/analysis_page.py` | 1311 | 错误提示直接显示 Python 异常原文 |
+| P1-4 | `ui/widgets/prpd_widget.py` | 281 | PRPD 信息标签格式不一致（热力图 vs 散点图） |
 
 ### 代码重复
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P1-7 | `core/services/acquisition_service.py` | 356-565 | UHF/AE PRPD 管线 ~110 行重复（幅值扩展+衰减+发布） |
-| P1-8 | `core/services/acquisition_service.py` | 396-584 | UHF/AE PRPS 管线 ~24 行重复 |
-| P1-9 | `core/services/acquisition_service.py` | 779-824 | `release_device()` 15 个重复 `for d in list(dict.keys())` |
-| P1-10 | `ui/pages/analysis_page.py` vs `tools/prpd_analyzer.py` | — | CSV 格式检测逻辑重复 |
-| P1-11 | `core/utils/simulator.py` vs `ae_simulator.py` | — | 两个模拟器接口相同无共同基类 |
+| P1-5 | `core/services/acquisition_service.py` | 356-565 | UHF/AE PRPD 管线 ~110 行重复（幅值扩展+衰减+发布） |
+| P1-6 | `core/services/acquisition_service.py` | 396-584 | UHF/AE PRPS 管线 ~24 行重复 |
+| P1-7 | `core/services/acquisition_service.py` | 779-824 | `release_device()` 15 个重复 `for d in list(dict.keys())` |
+| P1-8 | `ui/pages/analysis_page.py` vs `tools/prpd_analyzer.py` | — | CSV 格式检测逻辑重复 |
+| P1-9 | `core/utils/simulator.py` vs `ae_simulator.py` | — | 两个模拟器接口相同无共同基类 |
 
 ### 线程安全
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P1-12 | `core/services/acquisition_service.py` | 317-320,457 | `_sample_rates` 无锁写入，与有锁读取形成竞态 |
-| P1-13 | `core/foundation/config_store.py` | 37-38,48-49 | `_json_devices`/`_global_config` 读写无锁 |
-| P1-14 | `core/foundation/config_store.py` | 115-116,131-132 | DB 查询异常静默 pass |
-| P1-15 | `core/foundation/plugin_registry.py` | 49-75 | `_plugins` 无锁保护 |
+| P1-10 | `core/services/acquisition_service.py` | 317-320,457 | `_sample_rates` 无锁写入，与有锁读取形成竞态 |
+| P1-11 | `core/foundation/config_store.py` | 37-38,48-49 | `_json_devices`/`_global_config` 读写无锁 |
+| P1-12 | `core/foundation/config_store.py` | 115-116,131-132 | DB 查询异常静默 pass |
+| P1-13 | `core/foundation/plugin_registry.py` | 49-75 | `_plugins` 无锁保护 |
 
 ### 错误处理 / 稳定性
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P1-16 | `ui/pages/analysis_page.py` | 89-90 | 空 CSV 文件导致 IndexError |
-| P1-17 | `core/services/storage_service.py` | 119-151 | `store_pd_event()` 不验证必填字段 |
-| P1-18 | `core/services/alarm_service.py` | 105-168 | `check_amplitude()` 未校验 NaN/Inf |
-| P1-19 | `ui/pages/analysis_page.py` | 1544 | `_export_json` 无 try/except，导出失败直接崩溃 |
-| P1-20 | `core/utils/serial_utils.py` | 149 | 串口读取 `except Exception: pass` 静默吞异常 |
-| P1-21 | `ui/pages/ae_page.py` | 285 | TDOA 定位 `except Exception: pass` |
-| P1-22 | `core/foundation/data_bus.py` | 335 | reset 清理 `except Exception: pass` |
-| P1-23 | `ui/main_window.py` | 258 | FlashWindow `except Exception: pass` |
+| P1-14 | `core/services/storage_service.py` | 119-151 | `store_pd_event()` 不验证必填字段 |
+| P1-15 | `core/services/alarm_service.py` | 105-168 | `check_amplitude()` 未校验 NaN/Inf |
+| P1-16 | `ui/pages/analysis_page.py` | 1544 | `_export_json` 无 try/except，导出失败直接崩溃 |
 
 ### 性能
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P1-24 | `core/processing/ring_buffer.py` | 56,62-63 | `get_last(n)` 千万级数据 O(n) 全量 list 转换 |
-| P1-25 | `core/services/acquisition_service.py` | 324,460-461 | `samples.tolist()` 每帧分配内存 |
+| P1-17 | `core/processing/ring_buffer.py` | 56,62-63 | `get_last(n)` 千万级数据 O(n) 全量 list 转换 |
+| P1-18 | `core/services/acquisition_service.py` | 324,460-461 | `samples.tolist()` 每帧分配内存 |
 
 ### 死代码 / 资源泄漏
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P1-26 | `core/services/acquisition_service.py` | 117-118,728-732 | `_on_waveform_cb`/`_on_pd_event_cb` 从未调用 |
-| P1-27 | `core/communication/udp_driver.py` | 175-197 | `send_to()` 无调用者 |
-| P1-28 | `core/services/storage_service.py` | 202-206 | session 无显式 commit |
-| P1-29 | `core/services/alarm_service.py` | 408-420 | session 无显式 commit |
+| P1-19 | `core/services/acquisition_service.py` | 117-118,728-732 | `_on_waveform_cb`/`_on_pd_event_cb` 从未调用 |
+| P1-20 | `core/communication/udp_driver.py` | 175-197 | `send_to()` 无调用者 |
+| P1-21 | `core/services/storage_service.py` | 202-206 | session 无显式 commit |
+| P1-22 | `core/services/alarm_service.py` | 408-420 | session 无显式 commit |
 
 ### 硬编码 / 配置
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P1-30 | `core/communication/udp_driver.py` | 56-57 | 远程主机 127.0.0.1:6000 硬编码 |
-| P1-31 | `ui/controller.py` | 82-83 | 采样率/波形点数硬编码 |
-| P1-32 | `core/services/acquisition_service.py` | 402-404 | **唯一 TODO**: 假设波形恰好一个工频周期 |
+| P1-23 | `core/communication/udp_driver.py` | 56-57 | ���程主机 127.0.0.1:6000 硬编码 |
+| P1-24 | `ui/controller.py` | 82-83 | 采样率/波形点数硬编码 |
+| P1-25 | `core/services/acquisition_service.py` | 402-404 | **唯一 TODO**: 假设波形恰好一个工频周期 |
 
 ---
 
@@ -226,11 +220,14 @@
 - ✅ 按钮文字：`_on_apply_rules` 正确修改 `btn_apply`
 - ✅ Tooltip：waveform 控件按钮添加提示
 
-**P1 — 已修复 (7/32)**
+**P1 — 已修复 (15/32)**
 - ✅ 设备保存参数 QMessageBox 反馈
 - ✅ PRPD "矩阵总和" → "总事件数"
 - ✅ acquisition_service 9处 `debug` → `warning`
-- ✅ 4项合并/归档
+- ✅ TrendPage 空状态提示
+- ✅ 4处 `except:pass` → `logger.debug`（serial_utils/ae_page/data_bus/main_window）
+- ✅ analysis_page 空 CSV 文件检测
+- ✅ 6项合并/归档
 
 ---
 
@@ -239,10 +236,10 @@
 | 严重程度 | 数量 |
 |---------|------|
 | **P0** | 0 ✅ |
-| **P1** | 32 |
+| **P1** | 25 |
 | **P2** | 63 |
 | **历史遗留** | 4 |
-| **合计** | **99** |
+| **合计** | **92** |
 
 | 维度 | P1 | P2 | 小计 |
 |------|----|----|------|
