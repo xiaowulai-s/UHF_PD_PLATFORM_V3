@@ -342,7 +342,7 @@ class AcquisitionService:
                 )
                 self._stats["pd_events_detected"] += 1
         except Exception as e:
-            logger.debug("[%s] 峰值检测异常: %s", device_id, e)
+            logger.warning("[%s] 峰值检测异常: %s", device_id, e)
 
         # FFT 计算
         try:
@@ -351,7 +351,7 @@ class AcquisitionService:
             self._data_bus.publish_fft_result(device_id, channel_id, fft_result, "uhf")
             self._stats["fft_computed"] += 1
         except Exception as e:
-            logger.debug("[%s] FFT 异常: %s", device_id, e)
+            logger.warning("[%s] FFT 异常: %s", device_id, e)
 
         # PRPD 更新 + 指数衰减 + 动态幅值范围
         try:
@@ -391,7 +391,7 @@ class AcquisitionService:
                 effective_max = prpd_proc.max_amplitude
                 self._data_bus.publish_prpd_result(device_id, channel_id, prpd_result)
         except Exception as e:
-            logger.debug("[%s] PRPD 异常: %s", device_id, e)
+            logger.warning("[%s] PRPD 异常: %s", device_id, e)
 
         # PRPS 更新（每N帧发布一次，避免UI过载）
         try:
@@ -416,7 +416,7 @@ class AcquisitionService:
                 prps_result = prps_proc.compute()
                 self._data_bus.publish_prps_result(device_id, channel_id, prps_result)
         except Exception as e:
-            logger.debug("[%s] PRPS 异常: %s", device_id, e)
+            logger.warning("[%s] PRPS 异常: %s", device_id, e)
 
         # 发布波形到 UI
         self._data_bus.publish_waveform(device_id, channel_id, samples, "uhf")
@@ -515,7 +515,7 @@ class AcquisitionService:
                 )
                 self._stats["pd_events_detected"] += 1
             except Exception as e:
-                logger.debug("[%s] AE hit 处理异常: %s", device_id, e)
+                logger.warning("[%s] AE hit 处理异常: %s", device_id, e)
 
         # FFT 计算 (AE 频段)
         try:
@@ -528,7 +528,7 @@ class AcquisitionService:
             self._data_bus.publish_fft_result(device_id, channel_id, fft_result, "ae")
             self._stats["fft_computed"] += 1
         except Exception as e:
-            logger.debug("[%s] AE FFT 异常: %s", device_id, e)
+            logger.warning("[%s] AE FFT 异常: %s", device_id, e)
 
         # PRPD 定期发布
         try:
@@ -562,7 +562,7 @@ class AcquisitionService:
                 prpd_result = prpd_proc.compute()
                 self._data_bus.publish_prpd_result(device_id, channel_id, prpd_result)
         except Exception as e:
-            logger.debug("[%s] AE PRPD 异常: %s", device_id, e)
+            logger.warning("[%s] AE PRPD 异常: %s", device_id, e)
 
         # PRPS 更新
         try:
@@ -581,13 +581,13 @@ class AcquisitionService:
                 prps_result = prps_proc.compute()
                 self._data_bus.publish_prps_result(device_id, channel_id, prps_result)
         except Exception as e:
-            logger.debug("[%s] AE PRPS 异常: %s", device_id, e)
+            logger.warning("[%s] AE PRPS 异常: %s", device_id, e)
 
         # ── AE 报警检测 ────────────────────────────
         try:
             self._check_ae_alarms(device_id, channel_id, key, hits, filtered, env_proc)
         except Exception as e:
-            logger.debug("[%s] AE 报警检测异常: %s", device_id, e)
+            logger.warning("[%s] AE 报警检测异常: %s", device_id, e)
 
         # 发布包络波形到波形控件
         self._data_bus.publish_waveform(device_id, channel_id, envelope, "ae")

@@ -392,9 +392,13 @@ class DevicePage(QWidget):
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).warning("设备参数持久化失败: %s", e)
+                QMessageBox.warning(self, "保存失败", f"设备参数持久化失败:\n{str(e)[:200]}")
+                return
 
         import logging
         logging.getLogger(__name__).info("设备 %s 参数已保存", dev_id)
+        self.statusBar()  # 通过父级状态栏提示
+        QMessageBox.information(self, "保存成功", f"设备 {dev_id} 参数已保存")
 
     def _on_scan(self) -> None:
         """扫描设备（占位实现）"""

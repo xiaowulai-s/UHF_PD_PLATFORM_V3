@@ -29,6 +29,7 @@ class ConfigStore(QObject):
     config_changed = Signal(str)
 
     _instance = None
+    _lock = __import__("threading").Lock()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,12 +41,15 @@ class ConfigStore(QObject):
     @classmethod
     def instance(cls) -> "ConfigStore":
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     @classmethod
     def reset(cls):
-        cls._instance = None
+        with cls._lock:
+            cls._instance = None
 
     def set_db_repo(self, repo):
         self._db_repo = repo

@@ -63,7 +63,18 @@ class PDSystemController(QObject):
         self._stats_timer.timeout.connect(self._update_status_stats)
         self._stats_timer.setInterval(2000)
 
+        # 仪表板帧计数（用于快照节流）
+        self._waveform_frame_count = 0
+        self._ae_hit_count = 0
+
         logger.info("PDSystemController 已创建")
+
+    # ── 属性 ─────────────────────────────────────────
+
+    @property
+    def _main_window(self):
+        """获取主窗口引用（控制器作为 window 的子对象）"""
+        return self.parent()
 
     # ── 初始化 ───────────────────────────────────────
 
@@ -458,23 +469,35 @@ class PDSystemController(QObject):
     def _on_device_status_for_ui(self, device_id: str, status: int, status_data: dict) -> None:
         """设备状态 → UI 更新"""
         try:
-            if self._main_window:
-                # 更新状态栏在线设备数
+            main_window = self._main_window
+            if main_window:
                 online = sum(1 for d in status_data.values() if d == 1) if isinstance(status_data, dict) else 0
-                self._main_window._lbl_online.setText(f"在线设备: {online}")
+                if hasattr(main_window, "_lbl_online"):
+                    main_window._lbl_online.setText(f"在线设备: {online}")
         except Exception as e:
             logger.debug("设备状态UI更新异常: %s", e)
 
     def _update_status_stats(self) -> None:
-        """定时更新状态栏统计"""
+        """定时更新状态栏统计 + 仪表板指标"""
         try:
-            if self._main_window and hasattr(self._main_window, "_lbl_online"):
-                # 从设备页获取在线设备数
+            main_window = self._main_window
+            if main_window and hasattr(main_window, "_lbl_online"):
+                # 状态栏在线设备数
                 if "device" in self._pages:
                     count = self._pages["device"].online_device_count
-                    self._main_window._lbl_online.setText(f"在线设备: {count}")
+                    main_window._lbl_online.setText(f"在线设备: {count}")
+
+            # 仪表板指标卡片
+            if "dashboard" in self._pages and self._acquisition:
+                dashboard = self._pages["dashboard"]
+                stats = self._acquisition.stats if hasattr(self._acquisition, "stats") else {}
+                dashboard.update_metric("在线设备", f"{self._pages['device'].online_device_count} 台")
+                dashboard.update_metric("局放总数", f"{stats.get('pd_events_detected', 0)} 次")
+                dashboard.update_metric("报警总数", f"{stats.get('alarms_triggered', 0)}")
+                dashboard.update_metric("今日最大幅值", f"{stats.get('max_amplitude_today', 0):.1f} mV")
+                dashboard.update_metric("AE Hits", str(getattr(self, "_ae_hit_count", 0)))
         except Exception as e:
-            logger.debug("状态栏统计更新异常: %s", e)
+            logger.debug("状态统计更新异常: %s", e)
 
     # ── 模拟器 ───────────────────────────────────────
 

@@ -278,7 +278,7 @@ class PRPDWidget(QWidget):
             self._image_item.setColorMap(cmap)
 
         total = int(np.sum(matrix))
-        self._info_label.setText(f"矩阵总和 {total}")
+        self._info_label.setText(f"总事件数 {total}")
         self._sync_3d_view()
 
     def update_scatter(self, phases: List[float], amplitudes: List[float], cycles: Optional[List[int]] = None) -> None:

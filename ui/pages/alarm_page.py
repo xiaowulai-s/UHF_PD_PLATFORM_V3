@@ -251,9 +251,9 @@ class AlarmPage(QWidget):
 
         rule_layout.addWidget(form_frame)
 
-        btn_apply = PrimaryButton("应用规则")
-        btn_apply.clicked.connect(self._on_apply_rules)
-        rule_layout.addWidget(btn_apply)
+        self._btn_apply = PrimaryButton("应用规则")
+        self._btn_apply.clicked.connect(self._on_apply_rules)
+        rule_layout.addWidget(self._btn_apply)
 
         rule_layout.addStretch()
 
@@ -398,7 +398,7 @@ class AlarmPage(QWidget):
                     max_amplitude=max_amp,
                 )
             self._alarm_service.set_hysteresis(self._sp_hysteresis.value())
-        self._refresh_btn.setText("规则已应用 ✓")
+        self._btn_apply.setText("规则已应用 ✓")
 
     def _refresh_stats(self) -> None:
         """刷新统计"""
