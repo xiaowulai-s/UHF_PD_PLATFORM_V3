@@ -101,6 +101,7 @@ class DevicePage(QWidget):
         btn_layout.addWidget(self._btn_add)
 
         self._btn_delete = GhostButton("删除设备")
+        self._btn_delete.setEnabled(False)  # 无设备选中时禁用
         self._btn_delete.setStyleSheet(f"color: {DT.C.STATUS_ERROR}; font-size: {DT.FS.BODY_SMALL}px;")
         self._btn_delete.clicked.connect(self._on_delete_device)
         btn_layout.addWidget(self._btn_delete)
@@ -227,8 +228,12 @@ class DevicePage(QWidget):
             self._inp_sample_rate.setValue(dev.get("sample_rate", 100))
             self._inp_channels.setValue(dev.get("channel_count", 4))
             self._update_channel_table(dev.get("channel_count", 4))
+            self._btn_save.setEnabled(True)
+            self._btn_delete.setEnabled(True)
         else:
             self._selected_device_id = None
+            self._btn_save.setEnabled(False)
+            self._btn_delete.setEnabled(False)
 
     def add_sample_devices(self) -> None:
         """添加示例设备"""

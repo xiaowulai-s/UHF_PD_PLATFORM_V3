@@ -69,7 +69,7 @@ class AEScatterWidget(QWidget):
         header.setContentsMargins(0, 0, 0, 0)
 
         title = QLabel(self._title)
-        title.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px; font-weight: 600;")
+        title.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px; font-weight: 600;")
         header.addWidget(title)
         header.addStretch()
 

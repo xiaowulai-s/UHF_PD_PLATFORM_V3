@@ -64,7 +64,7 @@ class TrendPage(QWidget):
         # 空状态提示（有数据时自动隐藏）
         self._empty_hint = QLabel("暂无趋势数据，启动模拟器或连接 FPGA 后将自动填充")
         self._empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._empty_hint.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px; padding: 20px;")
+        self._empty_hint.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px; padding: 20px;")
         layout.addWidget(self._empty_hint)
 
     @property

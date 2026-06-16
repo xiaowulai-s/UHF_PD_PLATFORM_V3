@@ -58,7 +58,7 @@ class AELocalizationWidget(QWidget):
         header.setContentsMargins(0, 0, 0, 0)
 
         title = QLabel(self._title)
-        title.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px; font-weight: 600;")
+        title.setStyleSheet(f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px; font-weight: 600;")
         header.addWidget(title)
         header.addStretch()
 
@@ -203,11 +203,11 @@ class AELocalizationWidget(QWidget):
 
         # 置信度颜色
         if confidence >= 0.7:
-            self._conf_label.setStyleSheet(f"color: {DT.C.STATUS_SUCCESS}; font-size: 12px; font-weight: 600;")
+            self._conf_label.setStyleSheet(f"color: {DT.C.STATUS_SUCCESS}; font-size: {DT.FS.BODY_SMALL}px; font-weight: 600;")
         elif confidence >= 0.4:
-            self._conf_label.setStyleSheet(f"color: {DT.C.STATUS_WARNING}; font-size: 12px; font-weight: 600;")
+            self._conf_label.setStyleSheet(f"color: {DT.C.STATUS_WARNING}; font-size: {DT.FS.BODY_SMALL}px; font-weight: 600;")
         else:
-            self._conf_label.setStyleSheet(f"color: {DT.C.STATUS_ERROR}; font-size: 12px; font-weight: 600;")
+            self._conf_label.setStyleSheet(f"color: {DT.C.STATUS_ERROR}; font-size: {DT.FS.BODY_SMALL}px; font-weight: 600;")
 
         self._status_label.setText("定位中")
 

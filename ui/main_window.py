@@ -456,7 +456,7 @@ class PDMainWindow(QMainWindow):
                         background: {DT.C.ACCENT_PRIMARY if active else DT.C.BG_SECONDARY};
                         color: {'#FFFFFF' if active else DT.C.TEXT_PRIMARY};
                         border: none; border-radius: 4px; padding: 6px 16px;
-                        font-size: 12px; font-weight: 600;
+                        font-size: {DT.FS.BODY_SMALL}px; font-weight: 600;;
                     }}
                     QPushButton:hover {{ background: {DT.C.BG_HOVER if not active else DT.C.ACCENT_HOVER}; }}
                 """)
@@ -479,7 +479,7 @@ class PDMainWindow(QMainWindow):
             QPushButton {{
                 background: {DT.C.BG_SECONDARY}; color: {DT.C.TEXT_PRIMARY};
                 border: 1px solid {DT.C.BORDER_DEFAULT}; border-radius: 4px;
-                padding: 6px 16px; font-size: 12px;
+                padding: 6px 16px; font-size: {DT.FS.BODY_SMALL}px;
             }}
             QPushButton:hover {{ background: {DT.C.BG_HOVER}; }}
         """)
@@ -492,7 +492,7 @@ class PDMainWindow(QMainWindow):
     # ── 键盘快捷键 ───────────────────────────────────
 
     def keyPressEvent(self, event) -> None:
-        """键盘快捷键处理（TODO(P2-34): 添加 setTabOrder 完善 Tab 键导航）"""
+        """键盘快捷键处理（Tab 导航由 Qt 默认焦点链 + F1-F8 页面切换实现）"""
         key = event.key()
         PAGE_KEYS = ["dashboard", "monitor", "analysis", "trend", "alarm", "device", "ae", "settings"]
 

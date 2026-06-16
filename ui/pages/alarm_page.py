@@ -165,7 +165,7 @@ class AlarmPage(QWidget):
         self._alarm_empty_hint = QLabel("暂无报警记录，系统运行正常")
         self._alarm_empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._alarm_empty_hint.setStyleSheet(
-            f"color: {DT.C.TEXT_TERTIARY}; font-size: 12px; padding: 16px;"
+            f"color: {DT.C.TEXT_TERTIARY}; font-size: {DT.FS.BODY_SMALL}px; padding: 16px;"
         )
         list_layout.addWidget(self._alarm_empty_hint)
 
