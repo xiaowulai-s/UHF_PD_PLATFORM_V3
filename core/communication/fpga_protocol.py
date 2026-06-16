@@ -51,7 +51,7 @@ DATA_TYPE_AE_WAVEFORM = 0x07
 DATA_TYPE_AE_PARAMETERS = 0x08
 
 
-class DataType(IntEnum):
+class DataType(IntEnum):  # TODO: 充分利用枚举，当前主要使用 DATA_TYPE_* 常量
     """数据类型枚举"""
 
     WAVEFORM = DATA_TYPE_WAVEFORM

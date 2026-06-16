@@ -215,6 +215,7 @@ class PDStorageService:
             self._stats["errors"] += 1
             # 指数退避重试：计数+1，超过上限则转入死信队列
             for item in batch:
+                # TODO: 用 str(ts)+str(amp) 作 key 有冲突风险（同秒同幅值视为同事件）
                 item_key = str(item.get("timestamp", "")) + str(item.get("amplitude", ""))
                 count = self._retry_counts.get(item_key, 0) + 1
                 if count >= self._max_retries:

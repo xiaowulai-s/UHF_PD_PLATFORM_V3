@@ -527,12 +527,13 @@ class PRPDWidget(QWidget):
             self._plot_widget.setLabel("left", "幅值", units="mV")
             self._plot_widget.setLabel("bottom", "相位", units="°")
             if self._scatter_phases:
+                # TODO: [:5000] 硬截断应改为可配置上限
                 spots = [
                     {"pos": (p, a), "size": 4}
                     for p, a in zip(self._scatter_phases[:5000], self._scatter_amplitudes[:5000])
                 ]
                 self._scatter_plot.setData(spots)
-                y_max = max(self._scatter_amplitudes[:5000]) * 1.1
+                y_max = max(self._scatter_amplitudes[:5000]) * 1.1  # TODO: 硬截断应改为可配置上限
                 self._plot_widget.setXRange(0, 360)
                 self._plot_widget.setYRange(0, y_max)
             self._plot_widget.showGrid(x=True, y=True, alpha=0.2)
