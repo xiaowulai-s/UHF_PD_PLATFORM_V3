@@ -1,182 +1,206 @@
 ## 程序问题清单
 
-> 审查日期: 2026-06-15 | 基准版本: v1.0.7
-> 全面代码质量 + UI/UX 用户友好性双维度扫描，识别 **96 个待解决问题**
+> 审查日期: 2026-06-16 | 基准版本: v1.0.7
+> 已修复: P0(5) + P1(7) = 12 项 | 当前待解决: **99 项**
+> 扫描维度: 代码质量 / UI用户体验 / 安全 / 稳定性 / 兼容性 / 可维护性
 
 ---
 
-## P0 — 必须立即修复（5 项）
+## P1 — 应当修复（32 项）
 
-### 代码质量
-
-| # | 文件 | 行 | 问题 |
-|---|------|-----|------|
-| P0-1 | `core/foundation/config_store.py` | 41-44 | `instance()` 单例无双重检查锁定，多线程可能创建多个实例导致配置不一致 |
-| P0-2 | `ui/controller.py` | 461,471 | `self._main_window` 从未初始化，状态栏在线设备数永远不更新 |
-| P0-3 | `ui/pages/dashboard_page.py` | 64-70 | 5 个核心指标卡片（在线设备/局放总数/报警总数/最大幅值/AE Hits）从未被 controller 调用 `update_metric()` 更新，永久显示 0（严重信息误导） |
-| P0-4 | `ui/pages/alarm_page.py` | 401 | "应用规则"按钮修改了 `_refresh_btn`（刷新按钮）的文字为"规则已应用 ✓"，而非修改 `btn_apply`（应用规则按钮），点击反馈对象错误 |
-
-### UI/UX
+### 用户可见问题
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P0-5 | `ui/` 全局 | — | 全应用仅 1 个 tooltip（系统托盘），所有按钮/输入框/图表无提示，用户无法理解控件功能 |
-
----
-
-## P1 — 应当修复（39 项）
-
-### 信息误导 / 无反馈
-
-| # | 文件 | 行 | 问题 |
-|---|------|-----|------|
-| P1-1 | `ui/pages/dashboard_page.py` | — | 无设备连接时 5 个指标全显示 0，无"请连接设备"引导提示，用户以为系统故障 |
-| P1-2 | `ui/pages/trend_page.py` | — | 无数据时图表完全空白，无"暂无趋势数据"占位提示 |
-| P1-3 | `ui/pages/alarm_page.py` | — | 无报警时表格为空，无"暂无报警，系统正常"友好提示 |
-| P1-4 | `ui/pages/device_page.py` | 324-397 | "保存参数"按钮点击后无任何 UI 反馈（无 toast、无状态栏消息），仅 logger.info |
-| P1-5 | `ui/pages/device_page.py` | 399-401 | "扫描设备"按钮可点击但功能未实现，应禁用并加 tooltip |
-| P1-6 | `ui/pages/analysis_page.py` | 1311 | 错误提示直接显示 Python 异常（如 `NoneType object`），对用户不友好 |
-
-### 错误处理 / 线程安全
-
-| # | 文件 | 行 | 问题 |
-|---|------|-----|------|
-| P1-7 | `core/services/acquisition_service.py` | 356-565 | UHF PRPD 和 AE PRPD 管线 ~110 行高度重复（动态幅值扩展+衰减+发布），bug 修复需同步两处 |
-| P1-8 | `core/services/acquisition_service.py` | 396-584 | UHF PRPS 和 AE PRPS 管线 ~24 行完全重复 |
-| P1-9 | `core/services/acquisition_service.py` | 779-824 | `release_device()` 含 15 个重复 `for d in list(dict.keys())` 循环 |
-| P1-10 | `core/services/acquisition_service.py` | 344,353,393,418,517-590 | 10+ 处关键异常用 `logger.debug()` 静默吞错，生产环境默认 WARNING 级别数据丢失不可见 |
-| P1-11 | `core/services/acquisition_service.py` | 317-320,457 | `_sample_rates` 字典无锁写入，与有锁读取形成竞态 |
-| P1-12 | `core/foundation/config_store.py` | 37-38,48-49 | `_json_devices`/`_global_config` 读写无锁，`reset()` 与 `instance()` 竞态 |
-| P1-13 | `core/foundation/config_store.py` | 115-116,131-132 | DB 查询和列表读取异常静默 pass，数据不一致无感知 |
-| P1-14 | `ui/pages/analysis_page.py` | 89-90 | 空 CSV 文件导致 IndexError，未验证 rows 非空 |
-| P1-15 | `core/services/storage_service.py` | 119-151 | `store_pd_event()` 不验证必填字段，缺失数据静默入库 |
-| P1-16 | `core/services/alarm_service.py` | 105-168 | `check_amplitude()` 未校验 NaN/Inf，可能导致报警逻辑异常 |
-
-### 性能
-
-| # | 文件 | 行 | 问题 |
-|---|------|-----|------|
-| P1-17 | `core/processing/ring_buffer.py` | 56,62-63 | `get_last(n)` / `get_all()` 对百万级数据做 O(n) 全量 list 转换，高频调用性能瓶颈 |
-| P1-18 | `core/services/acquisition_service.py` | 324,460-461 | `buffer.extend(samples.tolist())` 每帧分配一次 Python list 内存 |
-
-### 死代码 / 资源泄漏
-
-| # | 文件 | 行 | 问题 |
-|---|------|-----|------|
-| P1-19 | `core/services/acquisition_service.py` | 117-118,728-732 | `_on_waveform_cb` / `_on_pd_event_cb` 有 setter 但从未被调用，完全死代码 |
-| P1-20 | `core/communication/udp_driver.py` | 175-197 | `send_to()` 方法在整个项目中无调用者 |
-| P1-21 | `core/services/storage_service.py` | 202-206 | `_flush_events()` session 无显式 commit，依赖 context manager 隐式行为 |
-| P1-22 | `core/services/alarm_service.py` | 408-420 | `_save_alarm_to_db()` session 无显式 commit |
-
-### UI 一致性 / 无障碍
-
-| # | 文件 | 行 | 问题 |
-|---|------|-----|------|
-| P1-23 | `ui/widgets/prpd_widget.py` | 281 | 热力图模式显示"矩阵总和 N"（开发调试信息），应改为"总事件数 N" |
-| P1-24 | `ui/` 全局 | — | 设备状态/报警级别仅靠颜色区分（红/黄/绿），色盲用户无法辨识 |
-| P1-25 | `ui/` 全局 | — | 无 `setTabOrder`，Tab 键导航依赖默认布局顺序 |
-| P1-26 | `ui/` 全局 | — | 全部按钮无 `setEnabled(False)`，不可用状态下仍可点击但无反应 |
+| P1-1 | `ui/pages/dashboard_page.py` | — | 无设备连接时指标显示 0，无"请连接设备"引导提示 |
+| P1-2 | `ui/pages/trend_page.py` | — | 无数据时图表空白，无"暂无数据"占位 |
+| P1-3 | `ui/pages/alarm_page.py` | — | 无报警时表格空白 |
+| P1-4 | `ui/pages/device_page.py` | 399-401 | "扫描设备"可点击但未实现，应禁用+tooltip |
+| P1-5 | `ui/pages/analysis_page.py` | 1311 | 错误提示直接显示 Python 异常原文 |
+| P1-6 | `ui/widgets/prpd_widget.py` | 281 | PRPD 信息标签格式不一致（热力图 vs 散点图） |
 
 ### 代码重复
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P1-27 | `ui/pages/analysis_page.py` vs `tools/prpd_analyzer.py` | 59-101 vs 40-100 | CSV 格式自动检测逻辑完全重复，应提取到共享模块 |
-| P1-28 | `core/utils/simulator.py` vs `ae_simulator.py` | — | 两个模拟器接口相同但无共同基类/Protocol |
+| P1-7 | `core/services/acquisition_service.py` | 356-565 | UHF/AE PRPD 管线 ~110 行重复（幅值扩展+衰减+发布） |
+| P1-8 | `core/services/acquisition_service.py` | 396-584 | UHF/AE PRPS 管线 ~24 行重复 |
+| P1-9 | `core/services/acquisition_service.py` | 779-824 | `release_device()` 15 个重复 `for d in list(dict.keys())` |
+| P1-10 | `ui/pages/analysis_page.py` vs `tools/prpd_analyzer.py` | — | CSV 格式检测逻辑重复 |
+| P1-11 | `core/utils/simulator.py` vs `ae_simulator.py` | — | 两个模拟器接口相同无共同基类 |
 
-### 硬编码关键值
+### 线程安全
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P1-29 | `core/communication/udp_driver.py` | 56-57 | 远程主机 `127.0.0.1:6000` 硬编码，不可配置 |
-| P1-30 | `ui/controller.py` | 82-83 | 采样率 `100_000_000` / 波形点数 `4096` 硬编码 |
-| P1-31 | `core/services/acquisition_service.py` | 402-404 | **唯一的 TODO**："假设波形覆盖恰好一个工频周期" — 非标准采样率下相位映射错误 |
+| P1-12 | `core/services/acquisition_service.py` | 317-320,457 | `_sample_rates` 无锁写入，与有锁读取形成竞态 |
+| P1-13 | `core/foundation/config_store.py` | 37-38,48-49 | `_json_devices`/`_global_config` 读写无锁 |
+| P1-14 | `core/foundation/config_store.py` | 115-116,131-132 | DB 查询异常静默 pass |
+| P1-15 | `core/foundation/plugin_registry.py` | 49-75 | `_plugins` 无锁保护 |
+
+### 错误处理 / 稳定性
+
+| # | 文件 | 行 | 问题 |
+|---|------|-----|------|
+| P1-16 | `ui/pages/analysis_page.py` | 89-90 | 空 CSV 文件导致 IndexError |
+| P1-17 | `core/services/storage_service.py` | 119-151 | `store_pd_event()` 不验证必填字段 |
+| P1-18 | `core/services/alarm_service.py` | 105-168 | `check_amplitude()` 未校验 NaN/Inf |
+| P1-19 | `ui/pages/analysis_page.py` | 1544 | `_export_json` 无 try/except，导出失败直接崩溃 |
+| P1-20 | `core/utils/serial_utils.py` | 149 | 串口读取 `except Exception: pass` 静默吞异常 |
+| P1-21 | `ui/pages/ae_page.py` | 285 | TDOA 定位 `except Exception: pass` |
+| P1-22 | `core/foundation/data_bus.py` | 335 | reset 清理 `except Exception: pass` |
+| P1-23 | `ui/main_window.py` | 258 | FlashWindow `except Exception: pass` |
+
+### 性能
+
+| # | 文件 | 行 | 问题 |
+|---|------|-----|------|
+| P1-24 | `core/processing/ring_buffer.py` | 56,62-63 | `get_last(n)` 千万级数据 O(n) 全量 list 转换 |
+| P1-25 | `core/services/acquisition_service.py` | 324,460-461 | `samples.tolist()` 每帧分配内存 |
+
+### 死代码 / 资源泄漏
+
+| # | 文件 | 行 | 问题 |
+|---|------|-----|------|
+| P1-26 | `core/services/acquisition_service.py` | 117-118,728-732 | `_on_waveform_cb`/`_on_pd_event_cb` 从未调用 |
+| P1-27 | `core/communication/udp_driver.py` | 175-197 | `send_to()` 无调用者 |
+| P1-28 | `core/services/storage_service.py` | 202-206 | session 无显式 commit |
+| P1-29 | `core/services/alarm_service.py` | 408-420 | session 无显式 commit |
+
+### 硬编码 / 配置
+
+| # | 文件 | 行 | 问题 |
+|---|------|-----|------|
+| P1-30 | `core/communication/udp_driver.py` | 56-57 | 远程主机 127.0.0.1:6000 硬编码 |
+| P1-31 | `ui/controller.py` | 82-83 | 采样率/波形点数硬编码 |
+| P1-32 | `core/services/acquisition_service.py` | 402-404 | **唯一 TODO**: 假设波形恰好一个工频周期 |
 
 ---
 
-## P2 — 建议优化（52 项）
+## P2 — 建议优化（63 项）
 
-### 空状态 / 引导缺失
-
-| # | 文件 | 问题 |
-|---|------|------|
-| P2-1 | `ui/pages/ae_page.py` | Hit 历史表初始空白无提示 |
-| P2-2 | `ui/pages/analysis_page.py` | 分析结果面板无数据时显示"—"，可加引导文字 |
-| P2-3 | `ui/` 全局 | 没有任何 `QProgressBar` 的实际使用，长操作无进度反馈 |
-
-### 可恢复性 / 安全
-
-| # | 文件 | 问题 |
-|---|------|------|
-| P2-4 | `ui/pages/device_page.py` | 删除设备后通道配置表未清空，保留已删除设备信息 |
-| P2-5 | `ui/pages/device_page.py` | 删除设备和清除报警均提示"不可撤销"，但无软删除/回收站机制 |
-| P2-6 | `ui/` 全局 | 没有任何 Ctrl+Z 撤销功能 |
-
-### 单位 / 标签
+### 安全
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P2-7 | `ui/pages/device_page.py` | 139 | AE 设备采样率默认 2 MHz 但 Spinner 范围 1-500 无提示区分 UHF(100MHz) vs AE(2MHz) |
-| P2-8 | `ui/pages/alarm_page.py` | 203-249 | "防抖次数"无说明（连续超阈值次数？采样次数？） |
-| P2-9 | `ui/widgets/trend_chart_widget.py` | 104 | Y 轴固定"幅值(mV)"但图表含多种曲线（次数/幅值/能量） |
-| P2-10 | `ui/pages/analysis_page.py` | 1267 | 幅值分布图 X 轴"幅值"无单位 |
+| P2-1 | `core/data/models.py` | 496 | DB 路径相对 `os.path.join("data", ...)` 工作目录依赖，打包后路径不可预测 |
+| P2-2 | `core/services/alarm_service.py` vs `monitor_models.py` | 37-39, 239-241 | 告警颜色映射两处重复定义，无单一来源 |
+| P2-3 | `config/default_config.json` | — | 无认证/加密机制，数据库密码明文存储 |
+
+### 稳定性
+
+| # | 文件 | 行 | 问题 |
+|---|------|-----|------|
+| P2-4 | `ui/pages/analysis_page.py` | 59-229 | `DataImporter` 全量加载文件到内存，2GB+ 文件 OOM |
+| P2-5 | `ui/pages/analysis_page.py` | 1544 vs 1559 | `_export_json` 无异常处理 vs `_export_excel` 有，行为不一致 |
+| P2-6 | `ui/pages/analysis_page.py` | 168-179 | `_load_excel` 中 `float(row[idx])` 未检查 None |
+| P2-7 | `core/services/storage_service.py` | 218-220 | 重试 key 用 `str(ts)+str(amp)`，相同事件误判 |
+
+### 兼容性
+
+| # | 文件 | 行 | 问题 |
+|---|------|-----|------|
+| P2-8 | `ui/main_window.py` | 251-258 | FlashWindow 使用 Windows 专有 API，不可跨平台 |
+| P2-9 | `core/services/acquisition_service.py` | 111-114 | AE 阈值硬编码不可配置 |
+| P2-10 | `core/communication/serial_driver.py` | 43-48 | 串口默认 COM1/9600 Windows 限定 |
+
+### 空状态 / 引导
+
+| # | 文件 | 问题 |
+|---|------|------|
+| P2-11 | `ui/pages/ae_page.py` | Hit 历史表初始空白 |
+| P2-12 | `ui/pages/analysis_page.py` | 结果面板无数据时"—"，可加引导 |
+| P2-13 | `ui/` 全局 | 无 QProgressBar，长操作无进度反馈 |
+
+### 可恢复性
+
+| # | 文件 | 问题 |
+|---|------|------|
+| P2-14 | `ui/pages/device_page.py` | 删除设备后通道表未清空 |
+| P2-15 | `ui/pages/device_page.py` | 删除/清除无软删除机制 |
+| P2-16 | `ui/` 全局 | 无 Ctrl+Z 撤销 |
+
+### 单位 / 标签 / UI 一致性
+
+| # | 文件 | 行 | 问题 |
+|---|------|-----|------|
+| P2-17 | `ui/pages/device_page.py` | 139 | AE 采样率 2MHz vs UHF 100MHz 无区分提示 |
+| P2-18 | `ui/pages/alarm_page.py` | 203-249 | "防抖次数"无业务含义说明 |
+| P2-19 | `ui/widgets/trend_chart_widget.py` | 104 | Y 轴固定"幅值(mV)"，多曲线混合不适用 |
+| P2-20 | `ui/widgets/ae_*.py` | — | AE 控件标题 11px 偏小 |
+| P2-21 | `ui/` 全局 | — | 按钮样式在 4 个文件中独立定义 |
+| P2-22 | `ui/design_tokens.py` | — | 部分 QSS 绕过令牌直接内联字号 |
+
+### 可维护性
+
+| # | 文件 | 行 | 问题 |
+|---|------|-----|------|
+| P2-23 | `ui/pages/analysis_page.py` | 1592 | 单文件含 4 个类，远超 500 行 |
+| P2-24 | `core/services/acquisition_service.py` | 824 | 超大文件 |
+| P2-25 | `ui/design_tokens.py` | 769 | 超大文件（含 DarkColors 无继承关系） |
+| P2-26 | `ui/controller.py` | 747 | 超大文件 |
+| P2-27 | `ui/widgets/prpd_widget.py` | 624 | 超大文件 |
+| P2-28 | `core/communication/fpga_protocol.py` | 594 | 超大文件 |
+| P2-29 | 多个文件 | — | 公有方法缺 docstring |
 
 ### 响应式 / 布局
 
 | # | 文件 | 问题 |
 |---|------|------|
-| P2-11 | `ui/pages/realtime_monitor_page.py` | 1024px 下三栏(3:2:1)峰值列表仅 ~126px，列宽截断 |
-| P2-12 | `ui/pages/ae_page.py` | 三栏等宽(1:1:1)在 1024px 下声源定位图不可辨识 |
-| P2-13 | `ui/main_window.py` | 关于对话框 minSize(600,500) 在低分辨率窗口下覆盖大部区域 |
-| P2-14 | `ui/main_window.py` | 1024-1199px 范围导航折叠仅图标，需额外交互展开 |
+| P2-30 | `ui/pages/realtime_monitor_page.py` | 1024px 下峰值列表仅 126px |
+| P2-31 | `ui/pages/ae_page.py` | 三栏等宽，声源定位图过小 |
+| P2-32 | `ui/main_window.py` | 关于对话框 600x500 覆盖大部区域 |
+| P2-33 | `ui/main_window.py` | 1024-1199px 导航折叠仅图标 |
 
-### 导航 / 快捷键
+### 导航 / 无障碍
 
 | # | 文件 | 问题 |
 |---|------|------|
-| P2-15 | `ui/main_window.py` | 无面包屑/页面位置指示器，窗口标题栏文字长时截断 |
-| P2-16 | `ui/main_window.py` | F1-F8 快捷键无任何可见提示，用户除非看源码不会发现 |
-| P2-17 | `ui/widgets/nav_menu.py` | 图标用 Unicode 特殊字符，跨平台渲染效果不一致 |
+| P2-34 | `ui/main_window.py` | 无面包屑/页面位置指示器 |
+| P2-35 | `ui/main_window.py` | F1-F8 快捷键无可见提示 |
+| P2-36 | `ui/widgets/nav_menu.py` | 图标用 Unicode 特殊字符，跨平台不一致 |
+| P2-37 | `ui/` 全局 | 设备状态/报警仅靠颜色区分（色盲不友好） |
+| P2-38 | `ui/` 全局 | 无 setTabOrder |
+| P2-39 | `ui/` 全局 | 按钮无 setEnabled 状态管理 |
+| P2-40 | `ui/` 全局 | 主题切换需重启 |
 
 ### 类型安全 / 导入
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P2-18 | `core/foundation/config_store.py` | 50 | `set_db_repo()` 缺类型注解 |
-| P2-19 | `core/services/storage_service.py` | 45 | `db_manager=None` 缺类型注解 |
-| P2-20 | `core/services/acquisition_service.py` | 91 | `self._protocol: Any` 应为 `Optional[FpgaProtocol]` |
-| P2-21 | `ui/controller.py` | 59 | `self._pages: dict` 应为 `Dict[str, QWidget]` |
-| P2-22 | `ui/controller.py` | 244,396,447 | `import numpy as np` 在 3 个方法内重复导入 |
-| P2-23 | `core/foundation/signal_bus.py` | 80 | `__import__("threading").Lock()` 应改为正常 import |
-| P2-24 | `core/utils/logger.py` | 17 | `import structlog` 无 try/except 回退 |
+| P2-41 | `core/foundation/config_store.py` | 50 | `set_db_repo` 缺类型注解 |
+| P2-42 | `core/services/storage_service.py` | 45 | `db_manager` 缺类型注解 |
+| P2-43 | `core/services/acquisition_service.py` | 91 | `_protocol: Any` 应为 `Optional[FpgaProtocol]` |
+| P2-44 | `ui/controller.py` | 59 | `_pages: dict` 应为 `Dict[str, QWidget]` |
+| P2-45 | `ui/controller.py` | 244,396,447 | `import numpy` 3 处重复导入 |
+| P2-46 | `core/foundation/signal_bus.py` | 80 | `__import__("threading").Lock()` |
+| P2-47 | `core/utils/logger.py` | 17 | `import structlog` 无回退 |
 
-### 硬编码值
-
-| # | 文件 | 行 | 问题 |
-|---|------|-----|------|
-| P2-25 | `ui/widgets/prpd_widget.py` | 532,535 | 散点数据 `[:5000]` 硬截断 |
-| P2-26 | `core/services/acquisition_service.py` | 111-114 | AE 报警阈值全部硬编码 |
-| P2-27 | `main.py` | 128 | 版本号 `"1.0.7"` 与 `core/version.py` 重复定义 |
-| P2-28 | `ui/pages/settings_page.py` | 303-312 | 重置默认值与构造函数默认值重复，不一致风险 |
-
-### 死代码
+### 硬编码 / 冗余
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P2-29 | `core/utils/logger.py` | 188-189 | `DatabaseLogHandler` 别名类未被引用 |
-| P2-30 | `core/communication/fpga_protocol.py` | 54-64 | `DataType(IntEnum)` 枚举未充分利用 |
+| P2-48 | `ui/widgets/prpd_widget.py` | 532,535 | 散点 `[:5000]` 硬截断 |
+| P2-49 | `core/services/acquisition_service.py` | 111-114 | AE 报警阈值硬编码 |
+| P2-50 | `main.py` | 128 | 版本号与 `core/version.py` 重复 |
+| P2-51 | `ui/pages/settings_page.py` | 303-312 | 默认值与构造函数重复 |
+| P2-52 | `core/utils/logger.py` | 188-189 | `DatabaseLogHandler` 别名未引用 |
+| P2-53 | `core/communication/fpga_protocol.py` | 54-64 | `DataType(IntEnum)` 未充分利用 |
+| P2-54 | `core/foundation/config_store.py` | 152-153 | 备份失败静默 |
+| P2-55 | `ui/pages/settings_page.py` | 80-81 | 配置加载异常无日志 |
+| P2-56 | `ui/controller.py` | 447-453 | TDOA 模拟数据硬编码混入生产 |
+| P2-57 | `core/services/acquisition_service.py` | 80 | `PRPD_DECAY_FACTOR=0.995` 应可配置 |
 
-### 其他代码问题
+### 其他代码质量
 
 | # | 文件 | 行 | 问题 |
 |---|------|-----|------|
-| P2-31 | `core/foundation/data_bus.py` | 240-241 | `unregister()` 列表推导 O(n) 遍历，大量订阅时性能差 |
-| P2-32 | `core/foundation/config_store.py` | 152-153 | 备份 `shutil.copy2()` 失败静默 pass |
-| P2-33 | `ui/pages/settings_page.py` | 80-81 | 配置加载异常静默吞，无日志 |
-| P2-34 | `core/services/storage_service.py` | 218-220 | 重试 key 用 `str(ts)+str(amp)` 拼接，相同 ts+amp 事件被误认为同一重试 |
-| P2-35 | `ui/` 全局 | — | 主题切换需重启应用，未实现热切换 |
-| P2-36 | `ui/widgets/ae_*.py` | — | AE 控件标题字体 11px 偏小，与其他区域 DT 令牌(12-14px)不协调 |
-| P2-37 | `ui/` 全局 | — | 按钮样式在 4 个文件中独立定义，应统一使用 widgets/__init__.py 组件类 |
+| P2-58 | `core/foundation/data_bus.py` | 240-241 | `unregister()` O(n) 列表推导 |
+| P2-59 | `core/services/storage_service.py` | 218-220 | 重试 key 拼接冲突风险 |
+| P2-60 | `core/services/acquisition_service.py` | 324 | `samples.tolist()` numpy→list 开销 |
+| P2-61 | `core/processing/ring_buffer.py` | 45 | `extend(List[Any])` 应为 `Iterable[Any]` |
+| P2-62 | `core/communication/udp_driver.py` | 229 | `addr: tuple` 应为 `tuple[str, int]` |
+| P2-63 | `ui/pages/alarm_page.py` | 375 | `_on_alarm_for_ui` 通过 `self.parent()` 迂回访问窗口 |
 
 ---
 
@@ -184,19 +208,48 @@
 
 | # | 类别 | 问题 | 暂缓原因 |
 |---|------|------|----------|
-| L-1 | 架构 | 无全局 VERSION 常量，版本号分散在多处 | 功能影响小 |
-| L-2 | 算法 | PRPS 相位映射过于简单 | 需外部同步信号 |
+| L-1 | 架构 | 无全局 VERSION 常量 | 功能影响小 |
+| L-2 | 算法 | PRPS 相位映射需外部同步信号 | 有 TODO |
 | L-3 | UI | 设备页网格响应式列数 | 固定 3 列够用 |
 | L-4 | UI | PRPS ColorBar 字号 | 无独立控件 |
 
 ---
 
+## 修复日志
+
+### v1.0.7 (2026-06-16)
+
+**P0 — 已修复 (5/5)**
+- ✅ 仪表板指标：`_update_status_stats()` 定期推送真实数据
+- ✅ `_main_window` 未初始化：`@property` 获取 `self.parent()`
+- ✅ ConfigStore 单例：双重检查锁定
+- ✅ 按钮文字：`_on_apply_rules` 正确修改 `btn_apply`
+- ✅ Tooltip：waveform 控件按钮添加提示
+
+**P1 — 已修复 (7/32)**
+- ✅ 设备保存参数 QMessageBox 反馈
+- ✅ PRPD "矩阵总和" → "总事件数"
+- ✅ acquisition_service 9处 `debug` → `warning`
+- ✅ 4项合并/归档
+
+---
+
 ## 统计总览
 
-| 严重程度 | 代码质量 | UI/UX | 合计 |
-|---------|----------|-------|------|
-| **P0** | 3 | 2 | **5** |
-| **P1** | 28 | 11 | **39** |
-| **P2** | 33 | 19 | **52** |
-| **历史遗留** | — | — | **4** |
-| **合计** | **64** | **32** | **96** |
+| 严重程度 | 数量 |
+|---------|------|
+| **P0** | 0 ✅ |
+| **P1** | 32 |
+| **P2** | 63 |
+| **历史遗留** | 4 |
+| **合计** | **99** |
+
+| 维度 | P1 | P2 | 小计 |
+|------|----|----|------|
+| 代码质量 | 21 | 28 | 49 |
+| UI/UX | 5 | 16 | 21 |
+| 安全 | 0 | 3 | 3 |
+| 稳定性 | 6 | 4 | 10 |
+| 兼容性 | 0 | 3 | 3 |
+| 可维护性 | 0 | 9 | 9 |
+| **合计** | **32** | **63** | **99** |

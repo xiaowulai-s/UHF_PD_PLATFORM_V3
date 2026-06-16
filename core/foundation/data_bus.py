@@ -332,8 +332,9 @@ class DataBus(QObject):
                 try:
                     cls._instance._deadband_filter.clear_all()
                     cls._instance._subscription_mgr.release_all()
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).debug("DataBus reset 清理异常: %s", e)
             cls._instance = None
 
     # ==================== 发布API（规范 Step 5）====================

@@ -282,8 +282,9 @@ class AEAnalysisPage(QWidget):
                     "confidence": result.confidence,
                     "sensors_used": result.sensors_used,
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).debug("TDOA 定位计算异常: %s", e)
 
     # ── 内部 ─────────────────────────────────────────
 

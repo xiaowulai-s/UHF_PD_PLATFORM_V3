@@ -146,8 +146,9 @@ def test_serial_port(
             connection.write(test_data)
             try:
                 connection.read(100)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug("清空串口缓冲区异常: %s", e)
         finally:
             connection.close()
 

@@ -86,6 +86,9 @@ class DataImporter:
             reader = csv.reader(f)
             rows = [r for r in reader if r and not r[0].startswith(("#", "%", "//"))]
 
+        if not rows:
+            raise ValueError("文件为空或不包含有效数据行")
+
         header = [h.strip().lower() for h in rows[0]]
         data_rows = rows[1:]
 

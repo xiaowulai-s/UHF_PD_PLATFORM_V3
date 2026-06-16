@@ -247,16 +247,15 @@ class PDMainWindow(QMainWindow):
             self._flash_status_bar(level)
 
     def _flash_status_bar(self, level: str) -> None:
-        """状态栏闪烁提示"""
+        """状态栏闪烁提示（Windows 任务栏闪烁，非 Windows 平台使用托盘图标提示）"""
         import platform
         if platform.system() == "Windows":
             try:
                 import ctypes
-                # Windows 任务栏闪烁
                 hwnd = int(self.winId())
                 ctypes.windll.user32.FlashWindow(hwnd, True)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("任务栏闪烁失败: %s", e)
 
     # ── 页面初始化 ───────────────────────────────────
 
