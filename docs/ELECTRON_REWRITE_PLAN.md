@@ -113,17 +113,38 @@
 
 ---
 
-## M2 · 前端工程骨架 — 4 pd
+## M2 · 前端工程骨架 — 4 pd ✅ 已完成
 
-| # | 任务 | 验收 |
-|---|---|---|
-| 2.1 | Vite + Vue 3 + TS + Electron 33 脚手架，主/渲染进程分离，`contextIsolation: true`、`nodeIntegration: false` | 空白窗口起得来 |
-| 2.2 | `better-sqlite3` 不需要——所有持久化留在 Python 侧，前端零原生模块 | 无 `electron-rebuild` 依赖 |
-| 2.3 | Tailwind v4 接入，`.design/uhf-pd-light/colors_and_type.css` 的令牌转成 CSS variables | 令牌与稿子逐色对齐 |
-| 2.4 | `partials/project-shell.html` 翻译成 Vue 布局壳 + lucide 图标 + F1–F9 路由 | 9 个空路由可切换 |
-| 2.5 | sidecar ws 客户端（读 `frames.ts` 契约）：hello/订阅/RPC 代理/断线重连 | 能收到波形帧并打印 seq |
+代码在 `desktop/`（**不复用已归档的 `next-app/`**）。
 
-**说明**：Electron 33 = Node 20.x，无 `node:sqlite`。把数据库留在 Python 侧，既避免原生模块 ABI 矩阵，也让前端包体更干净。
+| # | 任务 | 验收 | 状态 |
+|---|---|---|---|
+| 2.1 | Vite 7 + Vue 3.5 + TS + Electron 33，主/渲染分离，`contextIsolation:true`、`nodeIntegration:false`、`sandbox:true` | 空白窗口起得来 | ✅ |
+| 2.2 | 持久化全留 Python 侧，前端零原生模块 | 无 `electron-rebuild` | ✅ |
+| 2.3 | Tailwind v4 + 设计令牌 | 令牌与稿子逐色对齐 | ✅ 主色 `#4B3FE3` 已核对一致 |
+| 2.4 | 应用壳 + lucide 图标 + 9 路由（hash 模式）+ F1–F9 | 9 个路由可切换 | ✅ |
+| 2.5 | sidecar ws 客户端：hello/订阅/RPC/退避重连/端点热切换 | 收到实时帧 | ✅ |
+
+**说明**：Electron 33 = Node 20.x，无 `node:sqlite`。把数据库留在 Python 侧，既避免原生模块 ABI 矩阵，也让前端包体更干净。`src/shared/protocol.ts` 是 `core/protocol/frames.ts` 的前端镜像，改一边必须改另一边。
+
+### M2 实测（浏览器 + 真 sidecar 端到端）
+
+仪表盘显示"已连接"，实时帧计数 waveform 673 / fft 674 / prpd 19 / prps 94 / stats 152，
+服务端累计推送 **17,861 帧、因滞后丢弃 0 帧**；指标卡读数与 Python 侧一致。计算样式核对：
+`--color-background` → `rgb(255,255,255)`、主色 → `rgb(75,63,227)`、边框 →
+`rgba(115,115,115,.12)`、侧栏 → `rgb(245,245,245)`。控制台零错误。
+
+### M2 踩到并修掉的三个坑
+
+1. **设计稿令牌是 `--color-*` 前缀命名**（`--color-background` / `--color-primary` /
+   `--color-surface` / `--color-error`），不是 shadcn 的裸名。按裸名引用会全部静默落空，
+   表现为背景透明、边框纯黑而**不报任何错**——只有查计算样式才发现。现经 `style.css`
+   的 `app-` 别名层映射。
+2. **CSP 的 `connect-src` 少了 `'self'`**，会把同源 `fetch` 一起挡掉。
+3. **`sandbox:true` 的 preload 不能是 ESM**，故 preload 手写为 `.cjs`。
+
+另验证到一条运行期性质：sidecar 重启后 token 会变，浏览器预览模式下前端拿不回新凭证、
+只能无限退避；Electron 下由主进程经 `sidecar:endpoint` 推送（已实现）。
 
 ---
 
@@ -208,8 +229,8 @@
 | 里程碑 | 人日 | 状态 |
 |---|---|---|
 | M0 边界协议 | 6 | ✅ 已完成（实测 1.81 MB/s，负载全对） |
-| M1 sidecar 生产化 | 3 | ✅ 1.1–1.4 完成；仅剩 1.5（依赖 M2） |
-| M2 前端骨架 | 4 | ⬜ 未开始 |
+| M1 sidecar 生产化 | 3 | ✅ 1.1–1.4 完成；仅剩 1.5（已并入 M2 的 SidecarSupervisor） |
+| M2 前端骨架 | 4 | ✅ 已完成（端到端实测） |
 | M3 第一批页面 | 8 | ⬜ 未开始 |
 | M4 流式渲染层 | 10 | ⬜ 未开始 |
 | M5 第二批页面 | 8 | ⬜ 未开始 |
