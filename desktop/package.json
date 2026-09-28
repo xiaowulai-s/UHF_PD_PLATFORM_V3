@@ -1,0 +1,33 @@
+{
+  "name": "uhf-pd-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "局部放电检测上位机 — Electron 前端 + Python 处理内核 sidecar",
+  "type": "module",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "npm run build:electron && concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"node scripts/dev-electron.mjs\"",
+    "build": "vue-tsc --noEmit && vite build && npm run build:electron",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "typecheck": "vue-tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "preview": "vite preview",
+    "start": "npm run build && electron ."
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.2",
+    "lucide-vue-next": "^0.545.0",
+    "vue": "^3.5.22",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/node": "^24.19.0",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "electron": "^33.4.11",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "vue-tsc": "^3.1.1"
+  }
+}
