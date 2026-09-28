@@ -60,6 +60,10 @@ Thumbs.db
 # Project specific
 data/*.db
 data/*.db-journal
+# SQLite WAL 边车文件：最后连接干净关闭时会被 SQLite 删除，纳入版本控制只会
+# 让工作区反复出现伪"已删除"。
+data/*.db-wal
+data/*.db-shm
 config/*.json
 
 # Temporary files
