@@ -19,12 +19,16 @@ export const PAGES = [
 
 const views = import.meta.glob("./views/*.vue", { eager: true }) as Record<string, { default: Component }>;
 
-const routes: RouteRecordRaw[] = PAGES.map((page) => ({
+const routes: RouteRecordRaw[] = [
+  // 渲染探针是诊断工具，不出现在侧栏导航里
+  { path: "/probe", name: "probe", component: () => import("./views/probe-view.vue") },
+  ...PAGES.map((page) => ({
   path: page.path,
   name: page.key,
   component: views[`./views/${page.key}-view.vue`]!.default,
-  meta: { label: page.label, shortcut: page.shortcut },
-}));
+    meta: { label: page.label, shortcut: page.shortcut },
+  })),
+];
 
 export const router = createRouter({
   history: createWebHashHistory(),

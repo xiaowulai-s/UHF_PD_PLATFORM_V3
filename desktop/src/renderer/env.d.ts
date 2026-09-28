@@ -8,6 +8,10 @@ declare module "*.vue" {
   export default component;
 }
 
+interface ProbeBridge {
+  report(result: unknown): void;
+}
+
 interface SidecarBridge {
   port: number;
   token: string;
@@ -19,6 +23,7 @@ declare global {
   interface Window {
     /** 由 preload 经 contextBridge 暴露；纯浏览器预览时为 undefined。 */
     sidecar?: SidecarBridge;
+    probe?: ProbeBridge;
   }
 }
 

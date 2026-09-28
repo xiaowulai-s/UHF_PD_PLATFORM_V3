@@ -2,3 +2,7 @@ node_modules/
 dist/
 dist-electron/
 *.tsbuildinfo
+
+# 渲染探针输出
+render-probe.json
+probe-*.json

@@ -15,7 +15,8 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 const PORT_RE = /ws:\/\/127\.0\.0\.1:(\d+)\/stream/;
-const TOKEN_RE = /^token\s+(\S+)/;
+// sidecar 打印的是 "  token     XXX"，带前导缩进，锚定行首会永远匹配不到
+const TOKEN_RE = /^\s*token\s+(\S+)\s*$/;
 
 export type SidecarState = "starting" | "ready" | "restarting" | "dead";
 

@@ -1,6 +1,12 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { SidecarSupervisor } from "./sidecar.js";
+
+/** `--probe[=秒]` 进入渲染能力探针模式，跑完写报告并退出，用于现场工控机实测。 */
+const PROBE_ARG = process.argv.find((a) => a === "--probe" || a.startsWith("--probe="));
+const PROBE_SECONDS = PROBE_ARG ? Number(PROBE_ARG.split("=")[1] ?? 20) : 0;
+const PROBE_REPORT = process.env.PD_PROBE_REPORT ?? "render-probe.json";
 
 const PRELOAD = fileURLToPath(new URL("../preload/preload.cjs", import.meta.url));
 // 编译产物在 dist-electron/main/，渲染层在 desktop/dist/
@@ -38,14 +44,33 @@ function createWindow(endpoint: { port: number; token: string }): void {
     return { action: "deny" };
   });
 
+  window.webContents.on("did-fail-load", (_e, code, description, url) => {
+    console.error(`[main] 渲染层加载失败 ${code} ${description}: ${url}`);
+  });
+  window.webContents.on("did-finish-load", () => console.log("[main] 渲染层已加载"));
+  window.webContents.on("render-process-gone", (_e, details) => {
+    console.error(`[main] 渲染进程消失: ${details.reason} exit=${details.exitCode}`);
+  });
+
   const devUrl = process.env.VITE_DEV_SERVER_URL;
+  // hash 路由：参数要写在 # 之后，形如 index.html#probe?probeMs=20000
+  const probeHash = PROBE_ARG ? `probe?probeMs=${Math.round(PROBE_SECONDS * 1000)}` : "";
   if (devUrl) {
-    void window.loadURL(devUrl);
+    void window.loadURL(devUrl.replace(/\/$/, "") + "/" + (probeHash ? `#/${probeHash}` : ""));
     window.webContents.openDevTools({ mode: "detach" });
   } else {
-    void window.loadFile(RENDERER_INDEX);
+    void window.loadFile(RENDERER_INDEX, probeHash ? { hash: probeHash } : undefined);
   }
 }
+
+ipcMain.on("probe:done", (_event, result) => {
+  const gpu = (result as { gpu?: { renderer?: string } })?.gpu;
+  console.log(`[probe] GPU renderer: ${gpu?.renderer ?? "<unknown>"}`);
+  writeFileSync(PROBE_REPORT, JSON.stringify({ ...result, electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node, platform: process.platform, arch: process.arch }, null, 2), "utf-8");
+  console.log(`[probe] 报告已写入 ${PROBE_REPORT}`);
+  sidecar.stop();
+  app.quit();
+});
 
 sidecar.on("endpoint", (endpoint) => {
   if (!window) {

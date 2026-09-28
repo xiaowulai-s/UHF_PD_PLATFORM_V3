@@ -25,6 +25,10 @@ ipcRenderer.on("sidecar:state", (_e, state) => {
   for (const fn of listeners.state) fn(state);
 });
 
+contextBridge.exposeInMainWorld("probe", {
+  report: (result) => ipcRenderer.send("probe:done", result),
+});
+
 contextBridge.exposeInMainWorld("sidecar", {
   port,
   token,
