@@ -16,6 +16,7 @@ function metric(key: string): string {
   return "—";
 }
 
+const waveFrame = computed(() => latest.value.waveform ?? null);
 const transport = computed(() => stats.value?.transport ?? null);
 const uptime = computed(() => {
   const s = transport.value?.uptime_s;
@@ -71,12 +72,12 @@ const received = computed(() =>
       </div>
     </section>
 
-    <section v-if="latest.waveform" class="rounded-lg border border-app-border bg-app-surface p-3">
+    <section v-if="waveFrame" class="rounded-lg border border-app-border bg-app-surface p-3">
       <div class="text-[13px] font-medium">最新波形</div>
       <div class="mt-1 text-[11px] text-app-muted">
-        {{ (latest.waveform.m as { shape: number[] }).shape }} ·
-        {{ (latest.waveform.m as { sensor_type: string }).sensor_type }} ·
-        {{ (latest.waveform.m as { sample_rate: number }).sample_rate }} Hz
+        {{ (waveFrame.m as { shape: number[] }).shape }} ·
+        {{ (waveFrame.m as { sensor_type: string }).sensor_type }} ·
+        {{ (waveFrame.m as { sample_rate: number }).sample_rate }} Hz
       </div>
     </section>
   </div>

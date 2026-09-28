@@ -2,6 +2,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import { router, PAGES } from "./router";
 import { connect, retarget, sidecarState } from "./lib/store";
+import { persistPrefs } from "./lib/prefs";
 import "./style.css";
 
 function bootstrapEndpoint() {
@@ -35,5 +36,6 @@ function bindShortcuts(): void {
   });
 }
 
+persistPrefs();
 bindShortcuts();
 createApp(App).use(router).mount("#app");

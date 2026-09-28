@@ -79,6 +79,7 @@ class WriteRpc:
         if self._alarm is not None:
             out.append(("config.set_amplitude_threshold", self.set_amplitude_threshold))
             out.append(("config.set_channel_max_amplitude", self.set_channel_max_amplitude))
+            out.append(("config.get_thresholds", lambda _p: self._alarm.get_thresholds()))
         return out
 
     def storage_handlers(self) -> list[tuple[str, Callable[[dict], Any]]]:
@@ -112,19 +113,30 @@ class WriteRpc:
         return kwargs
 
     def set_amplitude_threshold(self, params: dict) -> dict:
-        device_id = str(_require(params, "device_id"))
+        """设置 PD 幅值量程。
+
+        scope=global 改全局量程（设置页的那个字段就是全局项，且 config
+        .get_thresholds 报告的也是全局值）；否则改指定设备的覆盖值。两者写入的
+        不是同一份状态，混用会造成"写一处读另一处"。
+        """
         max_amplitude = _positive(params.get("max_amplitude"), "max_amplitude")
-        if "critical" in params:
-            self._alarm.set_amplitude_thresholds(
-                critical=float(params["critical"]),
-                high=float(params["high"]),
-                medium=float(params["medium"]),
-                low=float(params["low"]),
-                max_amplitude=max_amplitude,
-            )
-        else:
-            self._alarm.set_amplitude_threshold(device_id, max_amplitude=max_amplitude)
-        return {"device_id": device_id, "max_amplitude": max_amplitude}
+        # 未显式给 scope 时按 device_id 推断：传了设备却静默改到全局，是最难查的那种错
+        scope = str(params.get("scope") or ("device" if params.get("device_id") else "global"))
+        if scope == "global":
+            self._alarm.set_global_max_amplitude(max_amplitude)
+            if "critical" in params:
+                self._alarm.set_amplitude_thresholds(
+                    critical=float(params["critical"]),
+                    high=float(params["high"]),
+                    medium=float(params["medium"]),
+                    low=float(params["low"]),
+                    max_amplitude=max_amplitude,
+                )
+            return {"scope": "global", "max_amplitude": max_amplitude}
+
+        device_id = str(_require(params, "device_id"))
+        self._alarm.set_amplitude_threshold(device_id, max_amplitude=max_amplitude)
+        return {"scope": "device", "device_id": device_id, "max_amplitude": max_amplitude}
 
     def set_channel_max_amplitude(self, params: dict) -> dict:
         device_id = str(_require(params, "device_id"))

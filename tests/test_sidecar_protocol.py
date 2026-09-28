@@ -856,3 +856,51 @@ def test_validation_error_is_not_reported_as_serialization_failure(sidecar, spin
         assert "序列化失败" not in hit[0]["e"]
     finally:
         ctrl.close()
+
+
+def test_global_threshold_scope_roundtrip():
+    """设置页的幅值阈值是全局项：写全局、读全局必须是同一份状态。
+
+    曾经 set_amplitude_threshold 写的是按设备覆盖值，而 get_thresholds 报告全局
+    量程，导致前端提示"已下发 250"但读回仍是旧值。
+    """
+    from unittest.mock import MagicMock
+
+    from core.protocol.write_rpc import WriteRpc
+
+    alarm = MagicMock()
+    alarm.get_thresholds.return_value = {"max_amplitude": 250.0}
+    rpc = WriteRpc(alarm=alarm)
+
+    out = rpc.set_amplitude_threshold({"scope": "global", "max_amplitude": 250})
+    assert out == {"scope": "global", "max_amplitude": 250.0}
+    alarm.set_global_max_amplitude.assert_called_once_with(250.0)
+    alarm.set_amplitude_threshold.assert_not_called()
+
+    per_dev = rpc.set_amplitude_threshold({"device_id": "d1", "max_amplitude": 80})
+    assert per_dev["scope"] == "device"
+    alarm.set_amplitude_threshold.assert_called_once_with("d1", max_amplitude=80.0)
+
+    with pytest.raises(ValueError, match="device_id"):
+        rpc.set_amplitude_threshold({"scope": "device", "max_amplitude": 80})
+    with pytest.raises(ValueError):
+        rpc.set_amplitude_threshold({"scope": "global", "max_amplitude": 0})
+
+
+def test_alarm_service_threshold_percent_to_absolute():
+    from core.services.alarm_service import PDAlarmService
+
+    svc = PDAlarmService()
+    defaults = svc.get_thresholds()
+    assert defaults["max_amplitude"] == 100.0
+    assert defaults["custom_absolute_mv"]["critical"] == pytest.approx(80.0)
+    assert defaults["hysteresis"] == 3
+    assert defaults["per_device"] == {}
+
+    svc.set_global_max_amplitude(250.0)
+    after = svc.get_thresholds()
+    assert after["custom_absolute_mv"]["critical"] == pytest.approx(200.0)
+    assert after["custom_absolute_mv"]["low"] == pytest.approx(75.0)
+    # 返回的必须是拷贝，前端拿到手不能反过来改内核状态
+    after["custom_percent"]["critical"] = 1.0
+    assert svc.get_thresholds()["custom_absolute_mv"]["critical"] == pytest.approx(200.0)
