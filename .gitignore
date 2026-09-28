@@ -17,6 +17,11 @@ wheels/
 .installed.cfg
 *.egg
 
+# 上面 Python 块里的裸 lib/ 会匹配任意深度，连带吞掉前端源码目录
+# desktop/src/renderer/lib/（导致 store.ts 等文件静默不入库）。定向放行。
+!desktop/src/renderer/lib/
+!desktop/src/renderer/lib/**
+
 # Virtual environments
 venv/
 ENV/
