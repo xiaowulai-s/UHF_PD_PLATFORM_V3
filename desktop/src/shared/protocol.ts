@@ -119,6 +119,7 @@ export interface StatsSnapshot {
   source_count?: number;
   online_count?: number;
   active_source?: string | null;
+  sources?: Record<string, { id?: string; name?: string; type?: string; status?: string; generated?: number; fps?: number }>;
   storage?: Record<string, number>;
   transport?: { sent_frames: number; dropped_frames: number; clients: number; uptime_s: number };
 }
