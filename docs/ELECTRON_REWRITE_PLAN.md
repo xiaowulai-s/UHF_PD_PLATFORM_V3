@@ -546,6 +546,50 @@ number 而不是 string，`(draft ?? "").trim()` 直接抛 `TypeError`，速率�
   计数时刻本就落后；而 log 的接入补历史走 `_send_raw`，不计入发送数。页面已就地写明，
   免得下次再查一遍。
 
+### 间歇性路由漂移：已定性为外部鼠标输入，不是应用缺陷（2026-09-29 关闭）
+
+M4 期间多次拍到"错页面"，当时记成了"游离的 F6/F3 keydown 把页面跳走"——**那个诊断是错的**。
+在截图模式里给渲染层装了导航探针（按时序记录 keydown / hashchange / pointerdown），
+装机版复现到的序列是：
+
+```
+3.80s pointerdown BUTTON → 5.37s BUTTON → 5.97s BUTTON → 6.48s BUTTON
+→ 8.15s SPAN → 10.36s A → 12.05s hashchange #/monitor <- #/alarm
+```
+
+一长串真实鼠标点击打在侧栏元素上。根因是截图窗口带 `alwaysOnTop: true`，
+谁在机器前动鼠标就会点到它并把它点走；开发态两次跑探针全空、路由稳定，也印证了这点。
+
+所以不必改前端跳转逻辑。`snap()` 现在先分诊再纠正，日志会写明是"外部鼠标点击"
+还是"无 pointerdown 的跳转"——只有后者才需要查应用。
+
+### M5.2 的前置发现：趋势数据通路在 sidecar 里不存在
+
+`store_trend_data` 的**唯一调用者是 `ui/controllers/signal_router.py:124`**，
+即旧 PySide6 控制器；sidecar 路径完全不写趋势。只把页面移植过来会得到一个
+永远空白的趋势页。另外三条实测事实决定了 M5.2 不能按"对齐旧版"验收：
+
+- 旧版趋势页**不查库**，画的是 `get_example_trend_data(points=100)` 的**未播种随机数**，
+  每次启动都不一样 → 验收项"数据点与旧版一致"无法成立，必须重述。
+- 旧版切时窗**不做任何查询或聚合**（`_set_time_range` 只是重渲染，
+  `_refresh_plot` 在内存 deque 上按时间过滤），根本没有"1h→60 个一分钟箱"这种概念。
+- 现存写入路径存的不是分箱统计而是**累计/派生值**：`pd_count` 是累计计数、
+  `max_amplitude` 是运行最大值、`avg_amplitude = max*0.6`、
+  `total_energy = count*max*0.1`、`noise_level = 0`（后三个是**编造的常量关系**）。
+  库里 19789 行全是 `period='1h'`，所以 24h/7d/30d 查询恒空。
+
+结论：M5.2 要先在**内核侧**补一条真实的按箱聚合写入通路，前端才有东西可画；
+`avg_amplitude/total_energy/noise_level` 在修好之前不应作为测量值展示。
+
+### 另一处配置级静默失效（同日发现并修复）
+
+`.pre-commit-config.yaml` 的 flake8 args 写成
+`--ignore=E203, --ignore=E402, --ignore=E501, --ignore=C901`，而 flake8 的 `--ignore`
+重复出现只有最后一个生效 → 实际只忽略了 C901，且把 `.flake8` 的 ignore 表整个覆盖掉。
+E203 与 black 天然冲突（black 就是要在切片冒号前加空格），手工删必被加回。
+已改为单个**加引号**的 `--extend-ignore`——不加引号会被 YAML 流式序列按逗号拆开，
+后三项变成待检查的文件名，报 `E902 FileNotFoundError: 'C901'`。
+
 ---
 
 ## M5 · 第二批页面（实时与趋势） — 8 pd

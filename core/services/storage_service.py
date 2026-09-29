@@ -17,11 +17,17 @@ from __future__ import annotations
 import logging
 import threading
 import time
+import uuid
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from core.data.monitor_models import PDAlarmModel, PDEventModel, PDTrendDataModel
+
+try:
+    from sqlalchemy.exc import DatabaseError
+except ImportError:
+    DatabaseError = Exception  # 回退到通用异常
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +71,10 @@ class PDStorageService:
         self._trend_buffer: Dict[str, List[dict]] = {}
         self._last_trend_time: Dict[str, float] = {}
 
+        # 数据留存清理周期 (秒, 默认每天检查一次)
+        self._cleanup_interval = 86400
+        self._last_cleanup_time: float = 0.0
+
         # 线程控制
         self._is_running = False
         self._thread: Optional[threading.Thread] = None
@@ -92,6 +102,9 @@ class PDStorageService:
                 return True
             self._is_running = True
             self._stats["start_time"] = time.time()
+            # 初值必须是当前时间：留 0.0 会让 now-0 > 86400 恒成立，
+            # 于是第一个 flush tick 就无条件全表清理，而不是按天。
+            self._last_cleanup_time = time.time()
 
         self._thread = threading.Thread(target=self._flush_loop, daemon=True, name="PDStorageFlush")
         self._thread.start()
@@ -135,6 +148,7 @@ class PDStorageService:
                 "device_id": device_id,
                 "channel_id": channel_id,
                 "timestamp": datetime.now(timezone.utc),
+                "sensor_type": event.get("sensor_type", "uhf"),
                 "phase": event.get("phase"),
                 "amplitude": event.get("amplitude", 0),
                 "energy": event.get("energy"),
@@ -206,21 +220,33 @@ class PDStorageService:
         try:
             with self._db_manager.session() as session:
                 for data in batch:
+                    # 移除内部使用的重试 key，避免污染模型构造
+                    data.pop("_retry_key", None)
                     event = PDEventModel(**data)
                     session.add(event)
             self._stats["events_stored"] += len(batch)
             self._stats["flushes"] += 1
+        except (OSError, PermissionError) as e:
+            logger.error("局放事件批量写入失败 - IO错误 (%d 条): %s", len(batch), e, exc_info=True)
+            self._stats["errors"] += 1
+            # IO错误直接转入死信队列，无法通过重试恢复
+            for item in batch:
+                self._dead_letter.append(item)
+        except (ValueError, TypeError, KeyError) as e:
+            logger.error("局放事件批量写入失败 - 数据格式错误 (%d 条): %s", len(batch), e, exc_info=True)
+            self._stats["errors"] += 1
+            # 数据格式错误无法通过重试恢复，直接丢弃
         except Exception as e:
-            logger.error("局放事件批量写入失败 (%d 条): %s", len(batch), e)
+            logger.error("局放事件批量写入失败 - 未知错误 (%d 条): %s", len(batch), e, exc_info=True)
             self._stats["errors"] += 1
             # 指数退避重试：计数+1，超过上限则转入死信队列
             for item in batch:
-                # TODO: 用 str(ts)+str(amp) 作 key 有冲突风险（同秒同幅值视为同事件）
-                item_key = str(item.get("timestamp", "")) + str(item.get("amplitude", ""))
+                # 使用 uuid 作为重试 key，避免同秒同幅值事件冲突
+                item_key = item.setdefault("_retry_key", uuid.uuid4().hex)
                 count = self._retry_counts.get(item_key, 0) + 1
                 if count >= self._max_retries:
                     self._dead_letter.append(item)
-                    logger.warning("事件写入失败超过上限，转入死信队列: %s", item_key[:40])
+                    logger.warning("事件写入失败超过上限，转入死信队列: %s", item_key[:8])
                 else:
                     self._retry_counts[item_key] = count
                     self._event_queue.append(item)
@@ -244,8 +270,14 @@ class PDStorageService:
                     trend = PDTrendDataModel(**data)
                     session.add(trend)
             self._stats["trends_stored"] += len(batch)
+        except (OSError, PermissionError) as e:
+            logger.error("趋势数据批量写入失败 - IO错误 (%d 条): %s", len(batch), e, exc_info=True)
+            self._stats["errors"] += 1
+        except (ValueError, TypeError, KeyError) as e:
+            logger.error("趋势数据批量写入失败 - 数据格式错误 (%d 条): %s", len(batch), e, exc_info=True)
+            self._stats["errors"] += 1
         except Exception as e:
-            logger.error("趋势数据批量写入失败 (%d 条): %s", len(batch), e)
+            logger.error("趋势数据批量写入失败 - 未知错误 (%d 条): %s", len(batch), e, exc_info=True)
             self._stats["errors"] += 1
 
     def _flush_all(self) -> None:
@@ -259,8 +291,16 @@ class PDStorageService:
             time.sleep(self._flush_interval)
             try:
                 self._flush_all()
-            except Exception as e:
-                logger.error("存储刷新循环异常: %s", e)
+                # 定期清理过期数据
+                now = time.time()
+                if now - self._last_cleanup_time > self._cleanup_interval:
+                    self._last_cleanup_time = now
+                    deleted = self.cleanup_old_data()
+                    if deleted > 0:
+                        logger.info("数据留存清理: 清除 %d 条过期记录", deleted)
+            except (OSError, DatabaseError) as e:
+                logger.error("存储服务刷新循环异常: %s", e, exc_info=True)
+                time.sleep(1)  # 出错后暂停1秒再试
                 self._stats["errors"] += 1
 
     # ── 数据查询 ─────────────────────────────────────
@@ -301,8 +341,11 @@ class PDStorageService:
                 query = query.order_by(PDEventModel.timestamp.desc()).limit(limit)
                 results = [e.to_dict() for e in query.all()]
             return results
+        except (OSError, DatabaseError) as e:
+            logger.error("查询局放事件失败 - 数据库错误: %s", e, exc_info=True)
+            return []
         except Exception as e:
-            logger.error("查询局放事件失败: %s", e)
+            logger.error("查询局放事件失败: %s", e, exc_info=True)
             return []
 
     def query_trends(
@@ -337,8 +380,116 @@ class PDStorageService:
                 query = query.order_by(PDTrendDataModel.timestamp.asc()).limit(limit)
                 results = [t.to_dict() for t in query.all()]
             return results
+        except (OSError, DatabaseError) as e:
+            logger.error("查询趋势数据失败 - 数据库错误: %s", e, exc_info=True)
+            return []
         except Exception as e:
-            logger.error("查询趋势数据失败: %s", e)
+            logger.error("查询趋势数据失败: %s", e, exc_info=True)
+            return []
+
+    #: 时窗 -> 秒数。与旧版 trend_chart_widget.TIME_RANGES 的四个窗口一致。
+    TREND_WINDOWS = {"1h": 3600, "24h": 86400, "7d": 604800, "30d": 2592000}
+
+    def query_trend_series(
+        self,
+        device_id: str,
+        window: str = "1h",
+        bins: int = 120,
+        channel_id: Optional[int] = None,
+        sensor_type: Optional[str] = None,
+    ) -> List[dict]:
+        """按等宽时间箱即时聚合 pd_events，返回连续序列（空箱补 0）。
+
+        为什么不读 pd_trend_data 表：那里的行是旧 signal_router 每 50 帧写一次的
+        **累计值与派生常量**（avg=max*0.6、energy=count*max*0.1、noise=0），
+        不是分箱统计。直接画会把"累计计数"当成"每箱事件数"，读数不可信。
+        从事件表现算，数值含义和图上的纵轴天然一致。
+
+        Args:
+            device_id: 设备 ID（必要过滤条件，缺省会得到空集）
+            window: 1h / 24h / 7d / 30d
+            bins: 分箱数，钳制在 [10, 500]
+            channel_id: 可选通道过滤
+            sensor_type: 可选 'uhf' / 'ae' 过滤
+
+        Returns:
+            每箱 {t, iso, count, max_amplitude, avg_amplitude, total_energy,
+            positive_count, negative_count}，按时间升序。t 是箱起点的 epoch 秒，
+            iso 是同一点的 UTC ISO 串——列里存的是 naive UTC，这里统一按 UTC 解释，
+            换算本地时间交给前端，避免服务端猜时区。
+        """
+        from sqlalchemy import Integer as _Int
+        from sqlalchemy import case, func
+
+        if not self._db_manager:
+            return []
+        seconds = self.TREND_WINDOWS.get(window)
+        if seconds is None:
+            raise ValueError(f"非法 window: {window}")
+
+        try:
+            bins = max(10, min(int(bins), 500))
+        except (TypeError, ValueError):
+            bins = 120
+        width = seconds / bins
+
+        now = datetime.now(timezone.utc)
+        start = now - timedelta(seconds=seconds)
+        # 列里是 naive UTC：比较与 julianday 锚点都用 naive，避免 tz-aware 参数
+        # 被渲染成带 +00:00 的字符串后与 naive 值做字典序比较。
+        start_naive = start.replace(tzinfo=None)
+        end_naive = now.replace(tzinfo=None)
+        anchor = start_naive.strftime("%Y-%m-%d %H:%M:%S.%f")
+
+        ts = PDEventModel.timestamp
+        abs_amp = func.abs(PDEventModel.amplitude)
+        bin_idx = func.cast((func.julianday(ts) - func.julianday(anchor)) * 86400.0 / width, _Int)
+
+        try:
+            with self._db_manager.session() as session:
+                query = session.query(
+                    bin_idx.label("b"),
+                    func.count(),
+                    func.max(abs_amp),
+                    func.avg(abs_amp),
+                    func.sum(func.coalesce(PDEventModel.energy, 0.0)),
+                    func.sum(case((PDEventModel.polarity == 0, 1), else_=0)),
+                    func.sum(case((PDEventModel.polarity == 1, 1), else_=0)),
+                ).filter(
+                    PDEventModel.device_id == device_id,
+                    ts >= start_naive,
+                    ts < end_naive,
+                )
+                if channel_id is not None:
+                    query = query.filter(PDEventModel.channel_id == int(channel_id))
+                if sensor_type:
+                    query = query.filter(PDEventModel.sensor_type == str(sensor_type))
+                grouped = {int(r[0]): r for r in query.group_by("b").all()}
+
+            out: List[dict] = []
+            for i in range(bins):
+                row = grouped.get(i)
+                t = start + timedelta(seconds=i * width)
+                out.append(
+                    {
+                        "t": round(t.timestamp(), 3),
+                        "iso": t.replace(tzinfo=None).isoformat(sep=" ", timespec="seconds"),
+                        "count": int(row[1]) if row else 0,
+                        "max_amplitude": float(row[2]) if row and row[2] is not None else 0.0,
+                        "avg_amplitude": float(row[3]) if row and row[3] is not None else 0.0,
+                        "total_energy": float(row[4]) if row and row[4] is not None else 0.0,
+                        "positive_count": int(row[5]) if row else 0,
+                        "negative_count": int(row[6]) if row else 0,
+                        "bin_seconds": round(width, 3),
+                        "window": window,
+                    }
+                )
+            return out
+        except (OSError, DatabaseError) as e:
+            logger.error("查询趋势序列失败 - 数据库错误: %s", e, exc_info=True)
+            return []
+        except Exception as e:
+            logger.error("查询趋势序列失败: %s", e, exc_info=True)
             return []
 
     def query_alarms(
@@ -360,8 +511,11 @@ class PDStorageService:
                     query = query.filter(PDAlarmModel.level == level)
                 results = [a.to_dict() for a in query.limit(limit).all()]
             return results
+        except (OSError, DatabaseError) as e:
+            logger.error("查询报警记录失败 - 数据库错误: %s", e, exc_info=True)
+            return []
         except Exception as e:
-            logger.error("查询报警记录失败: %s", e)
+            logger.error("查询报警记录失败: %s", e, exc_info=True)
             return []
 
     # ── 数据维护 ─────────────────────────────────────
@@ -390,8 +544,10 @@ class PDStorageService:
                     total += deleted
                     if deleted > 0:
                         logger.info("清理 %s 数据 %d 条", name, deleted)
+        except (OSError, DatabaseError) as e:
+            logger.error("数据清理失败 - 数据库错误: %s", e, exc_info=True)
         except Exception as e:
-            logger.error("数据清理失败: %s", e)
+            logger.error("数据清理失败: %s", e, exc_info=True)
 
         return total
 

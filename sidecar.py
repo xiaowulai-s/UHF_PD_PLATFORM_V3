@@ -63,6 +63,7 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
 
     db_manager = None
     storage = None
+    persistence = None
     if not args.no_db:
         from core.data import DatabaseManager
         from core.services.storage_service import PDStorageService
@@ -72,6 +73,12 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
         # 只读模式下也构造 storage（query_* 走它），但不启动刷写线程
         if args.with_storage:
             storage.start()
+            # 光有刷写线程不够：得有人把总线事件塞进它的队列。
+            # 原先这件事在 ui/controllers/signal_router.py 里，sidecar 用不到。
+            from core.services.persistence_service import PersistenceSubscriber
+
+            persistence = PersistenceSubscriber(bus, storage)
+            persistence.start()
             logger.info("SQLite 批量写入已启用: %s", args.db)
         else:
             # 注意：告警落库与确认走 alarm_service 的直写路径，不受此开关影响
@@ -92,7 +99,7 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
         db_manager=db_manager,
         alarm_service=alarm,
     )
-    return bus, acquisition, sources, storage, db_manager, alarm
+    return bus, acquisition, sources, storage, db_manager, alarm, persistence
 
 
 def _anchor(path: str | None, *default_parts: str) -> str:
@@ -126,7 +133,7 @@ def main() -> int:
     from core.protocol import SidecarServer
     from core.protocol.storage_rpc import register_storage_rpc
 
-    bus, acquisition, sources, storage, db_manager, alarm = _build_services(args, logger)
+    bus, acquisition, sources, storage, db_manager, alarm, persistence = _build_services(args, logger)
     server = SidecarServer(bus)
     port, token = server.start(host=args.host, port=args.port)
 
@@ -201,6 +208,9 @@ def main() -> int:
         log_handler.detach()
         sources.stop_all()
         acquisition.stop()
+        # 先断订阅再停刷写线程，否则停机过程中入队的事件会被丢在队列里没人写
+        if persistence:
+            persistence.stop()
         if storage:
             storage.stop()
         _report(server, acquisition, logger)

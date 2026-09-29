@@ -71,6 +71,7 @@ class StorageRpc:
             out += [
                 ("storage.query_events", self.query_events),
                 ("storage.query_trends", self.query_trends),
+                ("storage.query_trend_series", self.query_trend_series),
                 ("storage.query_alarms", self.query_alarms),
                 ("storage.stats", lambda _p: self._storage.get_statistics()),
             ]
@@ -133,6 +134,30 @@ class StorageRpc:
             period=period,
             start_time=_parse_time(params.get("start_time")),
             limit=_clamp_limit(params.get("limit"), 500),
+        )
+
+    def query_trend_series(self, params: dict) -> list[dict]:
+        """按箱聚合的 trend 曲线（前端趋势页的数据源）。
+
+        与 storage.query_trends 的区别是刻意的：query_trends 读 pd_trend_data 表，
+        那里存的是旧 signal_router 每 50 帧写一次的累计值与派生常量
+        （avg=max*0.6、energy=count*max*0.1、noise=0），不能当分箱统计画；
+        本方法直接从 pd_events 现算，纵轴含义与图一致。
+        """
+        device_id = params.get("device_id")
+        if not device_id:
+            raise ValueError("缺少 device_id")
+        window = str(params.get("window", "1h"))
+        if window not in ("1h", "24h", "7d", "30d"):
+            raise ValueError(f"非法 window: {window}")
+        channel_id = params.get("channel_id")
+        sensor_type = params.get("sensor_type")
+        return self._storage.query_trend_series(
+            device_id=str(device_id),
+            window=window,
+            bins=int(params.get("bins", 120)),
+            channel_id=int(channel_id) if channel_id is not None else None,
+            sensor_type=str(sensor_type) if sensor_type else None,
         )
 
     def query_alarms(self, params: dict) -> list[dict]:

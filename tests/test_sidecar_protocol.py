@@ -1218,3 +1218,116 @@ def test_diagnostics_exposes_publish_contract(sidecar):
         f"flush={d['flush_interval_ms']}ms 会在 Windows 15.6ms 定时器粒度下被压成 "
         f"{1000 / (round(d['flush_interval_ms'] / 15.625) * 15.625):.1f}Hz"
     )
+
+
+def test_trend_series_rpc_over_the_wire(sidecar, spin):
+    """趋势聚合走完整链路：真 SQLite + 真 WS + msgpack，而不是只测服务层。
+
+    分箱语义（空箱补 0、naive UTC、abs 幅值）在前端直接决定横轴与纵轴含义，
+    所以这条钉的是"线上传回来的形状"，光测 query_trend_series 不够。
+    """
+    from datetime import datetime, timedelta, timezone
+
+    import msgpack
+
+    from core.data.models import DatabaseManager
+    from core.data.monitor_models import PDEventModel
+    from core.protocol.storage_rpc import StorageRpc
+    from core.services.storage_service import PDStorageService
+
+    server, _bus, _port, _token, spin = sidecar
+    db = DatabaseManager(":memory:")
+    storage = PDStorageService(db_manager=db)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    with db.session() as session:
+        for age, amp in ((5, 12.0), (30, -25.0), (1800, 40.0), (7200, 99.0)):
+            session.add(
+                PDEventModel(
+                    device_id="dev1",
+                    channel_id=1,
+                    sensor_type="uhf",
+                    timestamp=now - timedelta(seconds=age),
+                    amplitude=amp,
+                    energy=abs(amp),
+                )
+            )
+    for name, handler in StorageRpc(db_manager=db, storage=storage).handlers():
+        server.register_rpc(name, handler, background=True)
+
+    client = _open(sidecar, CTRL_PATH)
+    try:
+        assert spin(lambda: len(client.inbox) >= 1)
+        client.send(
+            msgpack.packb(
+                {
+                    "k": "call",
+                    "i": "t1",
+                    "m": "storage.query_trend_series",
+                    "p": {"device_id": "dev1", "window": "1h", "bins": 12},
+                },
+                use_bin_type=True,
+            )
+        )
+
+        def got() -> list:
+            return [m for m in client.inbox if b"bin_seconds" in m]
+
+        assert spin(got), f"未收到趋势序列应答，已收 {len(client.inbox)} 条"
+        body = msgpack.unpackb(got()[0], raw=False, strict_map_key=False)
+        assert body["ok"] is True, body.get("e")
+        assert body["i"] == "t1"
+
+        rows = body["d"]
+        assert isinstance(rows, list) and len(rows) == 12, "空箱必须补 0，否则横轴不是时间"
+        assert sum(r["count"] for r in rows) == 3, "2 小时前的事件不该进 1h 窗口"
+        assert max(r["max_amplitude"] for r in rows) == pytest.approx(40.0)
+        assert rows[-1]["count"] >= 1 and rows[0]["count"] == 0
+        assert {r["window"] for r in rows} == {"1h"}
+    finally:
+        client.close()
+        db.close()
+
+
+def test_trend_series_rpc_rejects_bad_params(sidecar, spin):
+    """非法参数必须以 ok=False + 内核原文回来，前端才有东西可渲染。"""
+    import msgpack
+
+    from core.data.models import DatabaseManager
+    from core.protocol.storage_rpc import StorageRpc
+    from core.services.storage_service import PDStorageService
+
+    server, _bus, _port, _token, spin = sidecar
+    db = DatabaseManager(":memory:")
+    storage = PDStorageService(db_manager=db)
+    for name, handler in StorageRpc(db_manager=db, storage=storage).handlers():
+        server.register_rpc(name, handler, background=True)
+
+    client = _open(sidecar, CTRL_PATH)
+    try:
+        assert spin(lambda: len(client.inbox) >= 1)
+        cases = {"b1": "device_id", "b2": "window"}
+        for rid, params in (
+            ("b1", {"window": "1h"}),
+            ("b2", {"device_id": "dev1", "window": "5m"}),
+        ):
+            client.send(
+                msgpack.packb(
+                    {"k": "call", "i": rid, "m": "storage.query_trend_series", "p": params},
+                    use_bin_type=True,
+                )
+            )
+
+        def failed(rid: str, needle: str) -> bool:
+            for raw in client.inbox:
+                body = msgpack.unpackb(raw, raw=False, strict_map_key=False)
+                if isinstance(body, dict) and body.get("i") == rid:
+                    return body.get("ok") is False and needle in str(body.get("e", ""))
+            return False
+
+        for rid, needle in cases.items():
+            assert spin(
+                lambda rid=rid, needle=needle: failed(rid, needle)
+            ), f"{rid}: 期望 ok=False 且错误文案含 {needle!r}"
+    finally:
+        client.close()
+        db.close()
