@@ -36,25 +36,33 @@ export const stats = shallowRef<StatsSnapshot | null>(null);
 const MAX_LOG_LINES = 10_000;
 const MAX_ALARMS = 500;
 
+/**
+ * 订阅必须在模块初始化时就挂好，不能挂在 connect() 里。
+ *
+ * 窗口现在早于内核创建，首帧端点可能是后到的：那条路径上 connect() 根本不会被调用
+ * （main.ts 只在 bootstrap 拿到端点时才 connect），于是 socket 连上了、帧也进来了，
+ * 但没有任何 onFrame 监听者——表现是界面停在"未连接"且一个点都不画，且完全不报错。
+ */
+client.stream.onStateChange((s) => (streamState.value = s));
+client.ctrl.onStateChange((s) => (ctrlState.value = s));
+
+client.stream.onFrame((frame) => {
+  latest.value = { ...latest.value, [frame.t]: frame };
+  frameCount[frame.t] = (frameCount[frame.t] ?? 0) + 1;
+  if (frame.t === "stats") stats.value = (frame.m as { stats: StatsSnapshot }).stats;
+  if (frame.t === "log") appendLogs((frame.m as { lines: LogLine[] }).lines);
+});
+
+client.ctrl.onFrame((frame) => {
+  if (frame.t === "alarm") {
+    const next = [(frame.m as { alarm: Record<string, unknown> }).alarm, ...alarms.value];
+    if (next.length > MAX_ALARMS) next.length = MAX_ALARMS;
+    alarms.value = next;
+  }
+});
+
 export function connect(endpoint: Endpoint): void {
   client.connect(endpoint);
-  client.stream.onStateChange((s) => (streamState.value = s));
-  client.ctrl.onStateChange((s) => (ctrlState.value = s));
-
-  client.stream.onFrame((frame) => {
-    latest.value = { ...latest.value, [frame.t]: frame };
-    frameCount[frame.t] = (frameCount[frame.t] ?? 0) + 1;
-    if (frame.t === "stats") stats.value = (frame.m as { stats: StatsSnapshot }).stats;
-    if (frame.t === "log") appendLogs((frame.m as { lines: LogLine[] }).lines);
-  });
-
-  client.ctrl.onFrame((frame) => {
-    if (frame.t === "alarm") {
-      const next = [(frame.m as { alarm: Record<string, unknown> }).alarm, ...alarms.value];
-      if (next.length > MAX_ALARMS) next.length = MAX_ALARMS;
-      alarms.value = next;
-    }
-  });
 }
 
 export function retarget(endpoint: Endpoint): void {

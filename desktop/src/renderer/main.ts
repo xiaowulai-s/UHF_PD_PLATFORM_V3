@@ -29,6 +29,9 @@ function bindShortcuts(): void {
   const byKey = new Map<string, string>(PAGES.map((p) => [p.shortcut, p.path]));
   window.addEventListener("keydown", (ev) => {
     if (!/^F[1-9]$/.test(ev.key)) return;
+    // 带修饰键的 F1–F9 属于系统/其它应用（F1 帮助、Ctrl+F5 强刷等），不抢。
+    // 忽略 repeat：长按或被 KVM/远程桌面重放时连跳页面最难排查。
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey || ev.repeat) return;
     const path = byKey.get(ev.key);
     if (!path) return;
     ev.preventDefault();

@@ -1,0 +1,28 @@
+{
+  "appId": "com.uhf-pd.monitor",
+  "productName": "UHF PD 监测系统",
+  "directories": {
+    "output": "release",
+    "buildResources": "build-resources"
+  },
+  "files": ["dist-electron/**/*", "dist/**/*", "!**/*.map"],
+  "extraResources": [
+    {
+      "from": "../dist/uhf-sidecar",
+      "to": "uhf-sidecar",
+      "filter": ["**/*"]
+    }
+  ],
+  "win": {
+    "target": ["nsis"],
+    "icon": "build-resources/icon.ico",
+    "artifactName": "${productName}-Setup-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "shortcutName": "UHF PD 监测系统"
+  }
+}

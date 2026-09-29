@@ -19,13 +19,12 @@ import logging
 import math
 import random
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 
 import numpy as np
 
 from core.communication import WaveformData
-from core.foundation.signal_bus import PDDataBus
-from core.processing import FFTProcessor, PeakDetector, PRPDProcessor, PRPSProcessor, RingBuffer
+from core.processing import PeakDetector, PRPDProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +120,10 @@ class PDSimulator:
         t = np.arange(n) * dt
 
         # 基线: 50Hz 工频 + 噪声
-        waveform = (
-            np.sin(2 * np.pi * self._power_line_freq * t + self._phase_offset) * 0.5
-            + np.random.randn(n) * self._noise_level
-        )
+        # 拆成两行而不是把 + 放在行首/行尾：本仓库 .flake8 的 ignore 覆盖了默认忽略表，
+        # W503 与 W504 同时生效，跨行的二元运算符无论放哪一侧都会被报。
+        baseline = np.sin(2 * np.pi * self._power_line_freq * t + self._phase_offset) * 0.5
+        waveform = baseline + np.random.randn(n) * self._noise_level
 
         # 局放脉冲
         pd_config = self.PD_TYPES[self._pd_type]
@@ -153,7 +152,10 @@ class PDSimulator:
                 if idx < 0:
                     idx += n
                 envelope = math.exp(-abs(i) / (pulse_width * 0.3))
-                oscillation = math.sin(2 * math.pi * i / pulse_width * 2)
+                # 用 cos 而不是 sin：sin(0)=0 让脉冲中心恰好过零，实测峰值只有标称
+                # 幅值的 0.30~0.68（随 pulse_width 变），于是"注入 100 mV、检出 35 mV"
+                # 的差额会被误读成标定系数。cos 在 i=0 取 1，峰值即标称幅值。
+                oscillation = math.cos(2 * math.pi * i / pulse_width * 2)
                 waveform[idx] += amplitude * envelope * oscillation
 
         # 触发位置 (最大峰值)
@@ -221,8 +223,8 @@ class PDSimulator:
                                 "signal_quality": random.randint(60, 100),
                             },
                         )
-            except Exception as e:
-                logger.debug("模拟器生成异常: %s", e)
+            except (ValueError, KeyError, TypeError, RuntimeError) as e:
+                logger.debug("模拟器生成异常: %s", e, exc_info=True)
 
             # 维持帧率
             elapsed = (time.time() - start) * 1000

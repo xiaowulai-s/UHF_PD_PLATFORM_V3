@@ -17,6 +17,7 @@
   --color-app-success: var(--color-success);
   --color-app-warning: var(--color-warning);
   --color-app-error: var(--color-error);
+  --color-app-info: var(--color-info);
   --radius-card: var(--radius-lg);
   --font-sans: var(--font-family-default);
   --font-mono: var(--font-family-mono);

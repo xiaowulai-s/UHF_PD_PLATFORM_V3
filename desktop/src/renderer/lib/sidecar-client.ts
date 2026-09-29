@@ -102,7 +102,11 @@ abstract class Channel {
   updateEndpoint(endpoint: Endpoint): void {
     this._endpoint = endpoint;
     this.attempt = 0;
-    this.restart();
+    // 没有活动 socket 时不能只靠 restart()：它只做 ws?.close()，重连是靠 onclose
+    // 回调链触发的；socket 从未建立的话那条链根本不会启动，端点被静默丢弃、
+    // 界面永远停在"未连接"。首帧端点晚于页面加载到达时就是这个情况。
+    if (this.ws) this.restart();
+    else if (!this.disposed) this.open();
   }
 
   private restart(): void {

@@ -25,7 +25,12 @@ const uptime = computed(() => {
 
 /** 逐 topic 收帧计数：这是验证"边界是否真的在流动"最直接的观测量 */
 const received = computed(() =>
-  (Object.keys(TOPICS) as Topic[]).map((topic) => ({ topic, count: frameCount[topic] ?? 0 })),
+  (Object.keys(TOPICS) as Topic[]).map((topic) => ({
+    topic,
+    count: frameCount[topic] ?? 0,
+    sent: transport.value?.sent_by_topic[topic] ?? 0,
+    rate: transport.value?.topic_rates[topic],
+  })),
 );
 </script>
 
@@ -52,6 +57,8 @@ const received = computed(() =>
           <tr class="border-b border-app-border">
             <th class="px-3 py-1.5 text-left font-normal">topic</th>
             <th class="px-3 py-1.5 text-right font-normal">已收帧</th>
+            <th class="px-3 py-1.5 text-right font-normal">服务端发出</th>
+            <th class="px-3 py-1.5 text-right font-normal">限流</th>
             <th class="px-3 py-1.5 text-right font-normal">投递等级</th>
           </tr>
         </thead>
@@ -59,13 +66,25 @@ const received = computed(() =>
           <tr v-for="row in received" :key="row.topic" class="border-b border-app-border/50">
             <td class="px-3 py-1.5 font-mono">{{ row.topic }}</td>
             <td class="tabular px-3 py-1.5 text-right">{{ row.count }}</td>
+            <td class="tabular px-3 py-1.5 text-right">{{ row.sent }}</td>
+            <td class="tabular px-3 py-1.5 text-right text-app-muted">
+              {{ row.rate === undefined ? "跟随管线" : `${row.rate} Hz` }}
+            </td>
             <td class="px-3 py-1.5 text-right text-app-muted">{{ TOPICS[row.topic] }}</td>
           </tr>
         </tbody>
       </table>
       <div v-if="transport" class="border-t border-app-border px-3 py-2 text-[11px] text-app-muted">
-        服务端发出 {{ transport.sent_frames }} 帧 · 因滞后丢弃 {{ transport.dropped_frames }} 帧 · 当前客户端
-        {{ transport.clients }}
+        服务端发出 {{ transport.sent_frames }} 帧 ·
+        合并顶掉 {{ transport.coalesced_frames }} ·
+        限流掐掉 {{ transport.throttled_frames }} ·
+        因滞后丢弃 {{ transport.dropped_frames }} ·
+        合并窗口 {{ transport.flush_interval_ms }}ms ·
+        当前客户端 {{ transport.clients }}
+      </div>
+      <div v-if="transport" class="px-3 pb-2 text-[11px] text-app-muted">
+        服务端各列随 stats 帧每 2 秒更新，所以"已收帧"短暂高于"服务端发出"是正常的（计数时刻不同），
+        而 log 的接入补历史不走发送计数。真正要看的是三个"没发出去"的计数是否持续增长。
       </div>
       <div v-else class="border-t border-app-border px-3 py-2 text-[11px] text-app-muted">
         尚未收到 stats 帧

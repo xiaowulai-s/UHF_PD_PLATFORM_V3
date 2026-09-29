@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { Save } from "lucide-vue-next";
 import { call, waitCtrlOpen } from "@/renderer/lib/store";
+import { TOPICS, type Topic, type TransportDiagnostics } from "@/shared/protocol";
 import { DATE_FORMATS, TIMEZONES, formatStamp, persistPrefs, prefs } from "@/renderer/lib/prefs";
 
 interface ChannelRow {
@@ -37,22 +38,68 @@ const form = reactive({
 const firstDevice = computed(() => devices.value[0] ?? null);
 const firmware = computed(() => firstDevice.value?.firmware_version || "未上报");
 
+/** 无损 topic 才能限流；内核会拒损无损之外的名字，这里先按同一份 TOPICS 表挡住 */
+const LOSSY_TOPICS = (Object.keys(TOPICS) as Topic[]).filter((t) => TOPICS[t] === "lossy");
+const serverRates = ref<Partial<Record<Topic, number>>>({});
+/**
+ * 输入框里的草稿值。
+ *
+ * 类型必须写成 number|string：`v-model` 落在 type="number" 上会自动走 looseToNumber
+ * （不需要 .number 修饰符），所以填了数字时这里存的是 number 而不是 string。
+ * 实测踩过：按 string 处理再 .trim()，真点一次"应用"就抛
+ * "trim is not a function"，速率从没下发成功过。
+ */
+const rateDraft = reactive<Partial<Record<Topic, number | string>>>({});
+const rateSaving = ref<Topic | null>(null);
+
 async function load(): Promise<void> {
   loading.value = true;
   error.value = "";
   try {
     await waitCtrlOpen();
-    const [list, cfg] = await Promise.all([
+    const [list, cfg, diag] = await Promise.all([
       call<DeviceRow[]>("device.list"),
       call<Record<string, unknown>>("config.get_thresholds"),
+      call<TransportDiagnostics>("system.diagnostics"),
     ]);
     devices.value = list;
     thresholds.value = cfg;
     form.pdMaxAmplitude = Number(cfg.max_amplitude ?? 100);
+    serverRates.value = diag.topic_rates;
+    for (const topic of LOSSY_TOPICS) {
+      const hz = diag.topic_rates[topic];
+      rateDraft[topic] = hz === undefined ? "" : String(hz);
+    }
   } catch (err) {
     error.value = `加载失败：${(err as Error).message}`;
   } finally {
     loading.value = false;
+  }
+}
+
+/**
+ * 下发单个 topic 的目标发布速率。
+ *
+ * 速率的合法区间只有内核自己知道（sidecar_server.set_topic_rates），所以这里不复制
+ * 一份校验——前端掐一份、内核掐一份，改一处就会不一致，而内核的 ValueError 文案
+ * 本来就能直接渲染进 error 条。空值是唯一需要在这里翻译的语义："" 表示不限流。
+ */
+async function applyRate(topic: Topic): Promise<void> {
+  const raw = String(rateDraft[topic] ?? "").trim();
+  const hz = raw === "" ? null : Number(raw);
+  if (hz !== null && Number.isNaN(hz)) {
+    error.value = `${topic} 的速率"${raw}"不是数字；留空表示不限流`;
+    return;
+  }
+  rateSaving.value = topic;
+  error.value = "";
+  try {
+    serverRates.value = await call<Partial<Record<Topic, number>>>("system.set_topic_rates", { [topic]: hz });
+    notice.value = `${topic} 发布速率已下发：${hz === null ? "不限流（跟随管线节奏）" : `${hz} Hz`}`;
+  } catch (err) {
+    error.value = `速率下发失败：${(err as Error).message}`;
+  } finally {
+    rateSaving.value = null;
   }
 }
 
@@ -216,6 +263,52 @@ onMounted(() => {
           </div>
         </dl>
       </div>
+    </section>
+
+    <section class="rounded-lg border border-app-border bg-app-surface">
+      <div class="border-b border-app-border px-4 py-2.5 text-[13px] font-medium">推流节流</div>
+      <p class="px-4 pt-3 text-[11px] text-app-muted">
+        有损 topic 的目标发布频率（Hz），留空表示不限流、跟随管线节奏。无损 topic（报警、设备状态等）
+        不允许限流。这里只改内核进程的内存状态，不写库，内核重启后回到默认。
+      </p>
+      <table class="mt-2 w-full text-[12px]">
+        <thead class="text-app-muted">
+          <tr class="border-b border-app-border">
+            <th class="px-4 py-2 text-left font-normal">topic</th>
+            <th class="px-4 py-2 text-right font-normal">目标速率 (Hz)</th>
+            <th class="px-4 py-2 text-right font-normal">内核当前值</th>
+            <th class="px-4 py-2 text-right font-normal">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="topic in LOSSY_TOPICS" :key="topic" class="border-b border-app-border/50">
+            <td class="px-4 py-2 font-mono">{{ topic }}</td>
+            <td class="px-4 py-2 text-right">
+              <input
+                v-model="rateDraft[topic]"
+                type="number"
+                min="1"
+                max="200"
+                step="1"
+                placeholder="不限流"
+                class="tabular w-24 rounded-md border border-app-border bg-app-bg px-2 py-1 text-[12px] text-right"
+              />
+            </td>
+            <td class="tabular px-4 py-2 text-right text-app-muted">
+              {{ serverRates[topic] === undefined ? "跟随管线" : `${serverRates[topic]} Hz` }}
+            </td>
+            <td class="px-4 py-2 text-right">
+              <button
+                :disabled="rateSaving === topic"
+                class="rounded-md bg-app-primary px-3 py-1 text-[11px] text-white disabled:opacity-50"
+                @click="applyRate(topic)"
+              >
+                {{ rateSaving === topic ? "下发中…" : "应用" }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <section class="rounded-lg border border-app-border bg-app-surface">

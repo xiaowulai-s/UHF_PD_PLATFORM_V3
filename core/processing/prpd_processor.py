@@ -14,9 +14,13 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
+
+from core.utils.logger import get_logger
+
+logger = get_logger("prpd_processor")
 
 
 class PRPDMode(Enum):
@@ -73,14 +77,37 @@ class PRPDProcessor:
         amplitude_bins: int = 256,
         max_amplitude: float = 100.0,
         min_amplitude: float = 0.0,
+        sparse_mode: bool = False,  # 稀疏模式（事件稀疏时使用）
+        use_cache: bool = True,  # Phase 11 新增：是否使用缓存
     ):
         self._phase_bins = phase_bins
         self._amplitude_bins = amplitude_bins
         self._max_amplitude = max_amplitude
         self._min_amplitude = min_amplitude
+        self._sparse_mode = sparse_mode
+        self._use_cache = use_cache
 
-        # PRPD 矩阵 [phase_bins, amplitude_bins]
-        self._matrix = np.zeros((phase_bins, amplitude_bins), dtype=np.float64)
+        # 结果缓存（Phase 11 新增）
+        if use_cache:
+            try:
+                from core.processing.result_cache import PRPDCache
+
+                self._cache = PRPDCache()
+            except ImportError:
+                logger.warning("result_cache 模块不可用，禁用 PRPD 缓存")
+                self._use_cache = False
+                self._cache = None
+        else:
+            self._cache = None
+
+        if sparse_mode:
+            # 稀疏模式：使用字典存储非零事件
+            # key: (phase_idx, amplitude_idx), value: count
+            self._sparse_matrix: Dict[Tuple[int, int], float] = {}
+        else:
+            # 密集模式：使用 numpy 数组
+            self._matrix = np.zeros((phase_bins, amplitude_bins), dtype=np.float64)
+
         self._max_events = 100000  # 最大缓存事件数
         self._events: deque = deque(maxlen=self._max_events)
         self._cycle_count = 0  # 工频周期计数器
@@ -97,7 +124,15 @@ class PRPDProcessor:
 
     @property
     def matrix(self) -> np.ndarray:
-        return self._matrix
+        """获取 PRPD 矩阵（如果是稀疏模式则转换为密集矩阵）"""
+        if self._sparse_mode:
+            dense = np.zeros((self._phase_bins, self._amplitude_bins), dtype=np.float64)
+            for (p_idx, a_idx), count in self._sparse_matrix.items():
+                if 0 <= p_idx < self._phase_bins and 0 <= a_idx < self._amplitude_bins:
+                    dense[p_idx, a_idx] = count
+            return dense
+        else:
+            return self._matrix
 
     @property
     def max_amplitude(self) -> float:
@@ -139,7 +174,11 @@ class PRPDProcessor:
         a_idx = self._amplitude_to_index(event.amplitude)
 
         if 0 <= p_idx < self._phase_bins and 0 <= a_idx < self._amplitude_bins:
-            self._matrix[p_idx, a_idx] += 1.0
+            if self._sparse_mode:
+                key = (p_idx, a_idx)
+                self._sparse_matrix[key] = self._sparse_matrix.get(key, 0.0) + 1.0
+            else:
+                self._matrix[p_idx, a_idx] += 1.0
 
     def add_events(self, events: List[Tuple[float, float]]) -> None:
         """
@@ -192,6 +231,31 @@ class PRPDProcessor:
         Returns:
             PRPDResult 对象
         """
+        # 尝试从缓存获取（Phase 11 新增）
+        # 缓存存的是**未平滑的计数矩阵**，密度模式还要过一遍 gaussian_filter，
+        # 所以密度请求不能走缓存命中——否则会把计数矩阵当成密度结果返回，
+        # 还给它盖上 mode=density 的戳，前端完全看不出来画错了。
+        if self._use_cache and self._cache is not None and mode is not PRPDMode.DENSITY and len(self._events) > 0:
+            phases = np.array([e.phase for e in self._events])
+            amplitudes = np.array([e.amplitude for e in self._events])
+
+            cached_matrix = self._cache.get_heatmap(phases, amplitudes, self._phase_bins, self._amplitude_bins)
+            if cached_matrix is not None:
+                logger.debug("PRPD 缓存命中")
+                amplitude_bins = np.linspace(self._min_amplitude, self._max_amplitude, self._amplitude_bins)
+                phase_bins = np.linspace(0, 360, self._phase_bins)
+
+                return PRPDResult(
+                    phase_bins=phase_bins,
+                    amplitude_bins=amplitude_bins,
+                    matrix=cached_matrix,
+                    events=list(self._events)[-5000:],
+                    mode=mode,
+                    total_events=len(self._events),
+                    max_amplitude=max(e.amplitude for e in self._events) if self._events else 0,
+                    min_amplitude=min(e.amplitude for e in self._events) if self._events else 0,
+                )
+
         amplitude_bins = np.linspace(self._min_amplitude, self._max_amplitude, self._amplitude_bins)
         phase_bins = np.linspace(0, 360, self._phase_bins)
 
@@ -207,7 +271,7 @@ class PRPDProcessor:
         max_amp = max(amplitudes) if amplitudes else 0
         min_amp = min(amplitudes) if amplitudes else 0
 
-        return PRPDResult(
+        result = PRPDResult(
             phase_bins=phase_bins,
             amplitude_bins=amplitude_bins,
             matrix=result_matrix,
@@ -217,6 +281,20 @@ class PRPDProcessor:
             max_amplitude=max_amp,
             min_amplitude=min_amp,
         )
+
+        # 存入缓存（Phase 11 新增）
+        if self._use_cache and self._cache is not None and len(self._events) > 0:
+            phases = np.array([e.phase for e in self._events])
+            amplitudes = np.array([e.amplitude for e in self._events])
+            self._cache.put_heatmap(phases, amplitudes, self._phase_bins, self._amplitude_bins, result_matrix)
+
+        return result
+
+    def invalidate_cache(self) -> None:
+        """使 PRPD 缓存失效（Phase 11 新增）"""
+        if self._use_cache and self._cache is not None:
+            self._cache.invalidate()
+            logger.debug("PRPD 缓存已清除")
 
     def compute_stats(self) -> dict:
         """

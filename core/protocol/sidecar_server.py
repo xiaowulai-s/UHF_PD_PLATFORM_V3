@@ -45,7 +45,11 @@ logger = logging.getLogger(__name__)
 STREAM_PATH = "/stream"
 CTRL_PATH = "/ctrl"
 
-FLUSH_INTERVAL_MS = 50
+# 合并写出的节拍。**这只是批处理窗口，不是限流器**——曾经它是 50ms，
+# 而 Windows 的系统定时器粒度约 15.6ms，50ms 会被向上量化到 62.5ms，
+# 实测等效 15.97Hz：于是"每帧都发的有损 topic"被这个定时器悄悄压成了 16FPS，
+# 而 dropped_frames 一直是 0，从指标上完全看不出来。要 20FPS 就别拿 50ms 当节拍。
+FLUSH_INTERVAL_MS = 10
 # 客户端落后超过此字节数时，有损帧直接丢弃，等下一帧合并
 BACKPRESSURE_BYTES = 4 * 1024 * 1024
 # 无损帧的容忍上限，超过只告警不丢弃——报警不能静默消失
@@ -117,6 +121,15 @@ class SidecarServer(QObject):
         self._catchups: list[Callable[[_Client], list[bytes]]] = []
         self._sent_frames = 0
         self._dropped_frames = 0
+        # 有损 topic 在合并窗口里被后到的帧顶掉的数量。它和 dropped_frames 是两回事：
+        # 后者只在背压超阈值时计数，合并顶掉以前完全不可见，于是"入帧 16/s"这种
+        # 现象没有任何指标能指认是节流造成的。
+        self._coalesced_frames = 0
+        self._throttled_frames = 0
+        self._sent_by_topic: dict[str, int] = {}
+        # topic -> 目标 Hz；不在字典里 = 不限流，跟随管线节奏
+        self._topic_rates: dict[str, float] = {}
+        self._next_emit: dict[tuple[str, str, int], float] = {}
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(2)
         self._results = _RpcResults(self)
@@ -198,12 +211,37 @@ class SidecarServer(QObject):
         return {
             "sent_frames": self._sent_frames,
             "dropped_frames": self._dropped_frames,
+            # 三个"没发出去"的计数分开列，才能回答"入帧为什么低于管线速率"：
+            # coalesced = 合并窗口内被后帧顶掉；throttled = 被显式 topic 速率掐掉；
+            # dropped = 背压超阈值整批丢弃。以前只有第三个。
+            "coalesced_frames": self._coalesced_frames,
+            "throttled_frames": self._throttled_frames,
+            "sent_by_topic": dict(self._sent_by_topic),
+            "topic_rates": dict(self._topic_rates),
+            "flush_interval_ms": FLUSH_INTERVAL_MS,
             "clients": len(self._clients),
             "seq": dict(self._seq),
             # 采集服务的 start_time 只在显式 start() 时才写入，模拟器直推路径下恒为 0，
             # 所以进程运行时长由服务端自己记。
             "uptime_s": round(time.time() - self._started_at, 1) if self._started_at else 0.0,
         }
+
+    def set_topic_rates(self, rates: dict[str, Any]) -> dict[str, float]:
+        """设置有损 topic 的目标发布频率（Hz）。传 0 或 null 表示不限流。"""
+        for name, value in rates.items():
+            if name not in TOPICS:
+                raise ValueError(f"未知 topic: {name}")
+            if qos_of(name) is not Qos.LOSSY:
+                raise ValueError(f"topic {name} 是无损通道，不能限流（报警不能丢）")
+            if value in (None, 0):
+                self._topic_rates.pop(name, None)
+                self._next_emit.clear()
+                continue
+            hz = float(value)
+            if not 0 < hz <= 200:
+                raise ValueError(f"topic {name} 速率 {hz} 超出可用范围 (0, 200]Hz")
+            self._topic_rates[name] = hz
+        return dict(self._topic_rates)
 
     # ── 总线订阅 ─────────────────────────────────────
 
@@ -306,13 +344,26 @@ class SidecarServer(QObject):
         self._seq[frame.topic] = frame.seq + 1
 
         lossy = qos_of(frame.topic) is Qos.LOSSY
+        rate = self._topic_rates.get(frame.topic)
+        now = time.monotonic()
         for client in self._clients:
             if client.topics and frame.topic not in client.topics:
                 continue
             if lossy and client.ctrl:
                 continue
+            key = frame.key()
+            # 显式限流：按 topic 目标 Hz 掐掉未到点的帧，而不是靠合并窗口的宽度
+            # 间接决定速率——后者会被操作系统定时器粒度改写，换台机器就变。
+            if rate:
+                nxt = self._next_emit.get(key, 0.0)
+                if now < nxt:
+                    self._throttled_frames += 1
+                    continue
+                self._next_emit[key] = now + 1.0 / rate
             if lossy:
-                client.pending[frame.key()] = frame
+                if key in client.pending:
+                    self._coalesced_frames += 1
+                client.pending[key] = frame
             else:
                 self._send(client, frame)
 
@@ -338,6 +389,7 @@ class SidecarServer(QObject):
             logger.warning("无损通道积压 %d 字节，客户端严重滞后", client.ws.bytesToWrite())
         client.ws.sendBinaryMessage(raw)
         self._sent_frames += 1
+        self._sent_by_topic[frame.topic] = self._sent_by_topic.get(frame.topic, 0) + 1
 
     # ── 连接管理 ─────────────────────────────────────
 
@@ -462,3 +514,4 @@ class SidecarServer(QObject):
             "system.diagnostics",
             lambda _p: self.diagnostics(),
         )
+        self.register_rpc("system.set_topic_rates", lambda p: self.set_topic_rates(dict(p or {})))

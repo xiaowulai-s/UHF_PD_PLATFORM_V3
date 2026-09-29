@@ -16,6 +16,7 @@ import logging
 import os
 import signal
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -36,8 +37,15 @@ def parse_args() -> argparse.Namespace:
         default="internal",
     )
     parser.add_argument("--fps", type=int, default=20, help="模拟器帧率")
+    parser.add_argument(
+        "--pulse-rate",
+        type=float,
+        default=50.0,
+        help="模拟器每秒局放脉冲数。默认 50 是真实量级，但一帧只有 4096 点 @100MHz=41μs，"
+        "每帧落进脉冲的概率约 0.2%%，PRPD 面板基本是空的；演示/验收可给 2e4~1e5",
+    )
     parser.add_argument("--hardware", action="store_true", help="用配置里的真实设备而非模拟器")
-    parser.add_argument("--db", type=str, default="data/monitor.db", help="SQLite 路径，供只读查询 RPC 使用")
+    parser.add_argument("--db", type=str, default=None, help="SQLite 路径，默认 <状态根>/data/monitor.db")
     parser.add_argument("--no-db", action="store_true", help="完全不接数据库（纯推流压测）")
     parser.add_argument("--with-storage", action="store_true", help="启用 SQLite 批量写入（默认只读）")
     parser.add_argument("--bench", action="store_true", help="周期性打印吞吐统计")
@@ -53,12 +61,6 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
     bus = PDDataBus.instance()
     acquisition = AcquisitionService(sample_rate=100_000_000, waveform_points=4096)
 
-    alarm = None
-    if not args.hardware:
-        from core.services.alarm_service import PDAlarmService
-
-        alarm = PDAlarmService()
-
     db_manager = None
     storage = None
     if not args.no_db:
@@ -70,9 +72,17 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
         # 只读模式下也构造 storage（query_* 走它），但不启动刷写线程
         if args.with_storage:
             storage.start()
-            logger.info("SQLite 写入已启用: %s", args.db)
+            logger.info("SQLite 批量写入已启用: %s", args.db)
         else:
-            logger.info("SQLite 只读模式: %s（未启动写入线程）", args.db)
+            # 注意：告警落库与确认走 alarm_service 的直写路径，不受此开关影响
+            logger.info("SQLite 未启动事件/趋势批量写入线程: %s（告警仍会直写）", args.db)
+
+    alarm = None
+    if not args.hardware:
+        from core.services.alarm_service import PDAlarmService
+
+        # 必须带上 db_manager：否则告警不落库、也没有可确认的主键
+        alarm = PDAlarmService(db_manager=db_manager)
 
     from core.foundation.data_source_manager import DataSourceManager
 
@@ -85,12 +95,28 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
     return bus, acquisition, sources, storage, db_manager, alarm
 
 
+def _anchor(path: str | None, *default_parts: str) -> str:
+    r"""相对路径锚到可写状态根。
+
+    冻结产物若落在 `C:\Program Files`，整个安装树对普通用户只读，SQLite 连 -wal
+    边车都建不出来；开发态状态根就是当前目录，所以本地跑法语义不变。
+    """
+    from core.foundation.runtime_paths import state_path
+
+    if not path:
+        return str(state_path(*default_parts))
+    candidate = Path(path)
+    return str(candidate if candidate.is_absolute() else state_path(path))
+
+
 def main() -> int:
     args = parse_args()
+    args.db = _anchor(args.db, "data", "monitor.db")
+    log_file = _anchor(None, "logs", "sidecar.log")
 
     from core.utils.logger import setup_logging
 
-    setup_logging(log_level=args.log_level, log_file="logs/sidecar.log")
+    setup_logging(log_level=args.log_level, log_file=log_file)
     logger = logging.getLogger("sidecar")
 
     from PySide6.QtCore import QCoreApplication, QTimer
@@ -109,6 +135,7 @@ def main() -> int:
             params.get("sim_type", args.sim_type),
             params.get("pd_type", args.pd_type),
             int(params.get("fps", args.fps)),
+            float(params.get("pulse_rate", args.pulse_rate)),
         )
         return sources.start_all()
 
@@ -139,7 +166,7 @@ def main() -> int:
     pusher.start()
 
     if args.hardware:
-        from ui.controller_config import load_hardware_config
+        from core.foundation.hardware_config_loader import load_hardware_config
 
         configs = load_hardware_config(db_manager)
         for cfg in configs:
@@ -151,9 +178,9 @@ def main() -> int:
             return 1
         logger.info("硬件模式: %d 个数据源在线", started)
     else:
-        sources.add_simulator_source(args.sim_type, args.pd_type, args.fps)
+        sources.add_simulator_source(args.sim_type, args.pd_type, args.fps, args.pulse_rate)
         sources.start_all()
-        logger.info("模拟器: %s/%s @ %d FPS", args.sim_type, args.pd_type, args.fps)
+        logger.info("模拟器: %s/%s @ %d FPS, 脉冲 %g/s", args.sim_type, args.pd_type, args.fps, args.pulse_rate)
 
     print(
         f"\n  sidecar ready\n"

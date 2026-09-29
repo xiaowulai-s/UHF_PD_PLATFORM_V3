@@ -56,6 +56,23 @@ def build_fft(device: str, channel: int, sensor_type: str, result: Any) -> Frame
     ]
     meta["noise_floor"] = _float(getattr(result, "noise_floor", 0.0))
     meta["snr_db"] = _float(getattr(result, "snr_db", 0.0))
+    # 频段带：fft_processor 每帧都算了 band_stats，但协议层原先把它丢了。
+    #
+    # BandStats 自己的单位是不一致的：f_min/f_max 在 compute_band_stats 里除了 1e6
+    # 成了 MHz，peak_frequency 却还是 Hz（旧 Qt 控件只读前者所以没暴露）。协议里
+    # 频率一律统一到 Hz——与负载 x 列和 peaks.frequency 同量纲，前端不需要按字段猜单位。
+    meta["bands"] = [
+        {
+            "name": str(b.band_name),
+            "f_min_hz": _float(b.f_min) * 1e6,
+            "f_max_hz": _float(b.f_max) * 1e6,
+            "energy": _float(b.energy),
+            "peak_magnitude": _float(b.peak_magnitude),
+            "peak_frequency_hz": _float(b.peak_frequency),
+            "avg_magnitude": _float(b.avg_magnitude),
+        }
+        for b in (getattr(result, "band_stats", None) or {}).values()
+    ]
     return Frame(topic="fft", device=device, channel=channel, meta=meta, payload=payload)
 
 
@@ -64,11 +81,31 @@ def build_prpd(device: str, channel: int, result: Any) -> Frame | None:
     if matrix.size == 0:
         return None
 
-    payload, meta = pack_array(matrix, _WAVEFORM_DTYPE)
-    meta.setdefault("shape", [360, 256])
+    # 热图矩阵按"精度低于显示分辨率"处理：量化到 uint8 再 zlib。
+    # 计数模式 360KB -> 3~35KB；密度模式（scipy 高斯平滑后）float32+zlib 会退化到
+    # 322KB，因为平滑让全矩阵非零且值连续，zlib 无从下手——uint8 是唯一稳的档位。
+    peak = float(np.nanmax(matrix)) if matrix.size else 0.0
+    if peak <= 0:
+        peak = 1.0
+    payload, meta = pack_array(matrix, np.uint8, compress=True, quantize_max=peak)
     meta["max_amplitude"] = _float(getattr(result, "max_amplitude", 0.0))
     meta["min_amplitude"] = _float(getattr(result, "min_amplitude", 0.0))
+    # 矩阵行的实际分箱轴范围，与上面的 max_amplitude 是**两个不同的量**：
+    # max_amplitude 是"本窗口观测到的最大事件幅值"(24.7)，而矩阵是按处理器的
+    # 量程轴分箱的 (100.0)。客户端若拿观测值去铺矩阵，会把数据带纵向压到
+    # 观测值/量程轴 的比例，实测电晕事件带因此贴死在底部。
+    amp_axis = np.asarray(getattr(result, "amplitude_bins", []), dtype=np.float64)
+    if amp_axis.size:
+        meta["amp_axis_min"] = _float(amp_axis[0])
+        meta["amp_axis_max"] = _float(amp_axis[-1])
+    phase_axis = np.asarray(getattr(result, "phase_bins", []), dtype=np.float64)
+    if phase_axis.size:
+        meta["phase_axis_max"] = _float(phase_axis[-1])
     meta["total_events"] = int(getattr(result, "total_events", 0) or 0)
+    # 矩阵是按哪种模式算的要随帧带上：密度与热力的区别在内核 compute 里，
+    # 前端只有拿到这个才能确认"我按下的开关真的生效了"，而不是自己猜。
+    mode = getattr(result, "mode", None)
+    meta["mode"] = getattr(mode, "value", None) or (str(mode) if mode else "")
 
     events = getattr(result, "events", None) or []
     if len(events) > MAX_PRPD_EVENTS:
@@ -91,7 +128,13 @@ def build_prps(device: str, channel: int, result: Any) -> Frame | None:
     matrix = np.asarray(getattr(result, "matrix", []))
     if matrix.size == 0:
         return None
-    payload, meta = pack_array(matrix, _WAVEFORM_DTYPE)
+    # 512x360 的 float32 原样是 720KB，而 PRPS 发布频率约 2Hz，独占过 69% 边界带宽。
+    # 量化到 uint8 后 zlib 压到约 19KB（38x），还原误差最大 0.32mV/均值 0.019mV，
+    # 远低于热图可分辨粒度。qmax 用矩阵自身峰值，客户端据此反量化。
+    peak = float(np.nanmax(matrix)) if matrix.size else 0.0
+    if peak <= 0:
+        peak = 1.0
+    payload, meta = pack_array(matrix, np.uint8, compress=True, quantize_max=peak)
     meta["total_cycles"] = int(getattr(result, "total_cycles", 0) or 0)
     return Frame(topic="prps", device=device, channel=channel, meta=meta, payload=payload)
 

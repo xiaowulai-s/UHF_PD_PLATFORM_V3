@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import threading
 import time
 from types import SimpleNamespace
@@ -904,3 +905,316 @@ def test_alarm_service_threshold_percent_to_absolute():
     # 返回的必须是拷贝，前端拿到手不能反过来改内核状态
     after["custom_percent"]["critical"] = 1.0
     assert svc.get_thresholds()["custom_absolute_mv"]["critical"] == pytest.approx(200.0)
+
+
+def test_quantized_compressed_matrix_roundtrip():
+    """PRPS 走 uint8 量化 + zlib：必须能反量化回原量纲，且误差在热图可接受范围内。
+
+    合成数据要还原滚动 PRPS 窗口的稀疏度（实测约 88% 为零）——热图的压缩收益
+    主要来自大片空白区，用稠密随机数会得到完全不同的比值。
+    """
+    from core.protocol.frames import pack_array, unpack_array
+
+    rng = np.random.default_rng(3)
+    m = np.abs(rng.normal(0, 20, (512, 360))) * (rng.random((512, 360)) > 0.88)
+    assert (m == 0).mean() > 0.8
+    peak = float(m.max())
+
+    payload, meta = pack_array(m, np.uint8, compress=True, quantize_max=peak)
+    assert meta["dtype"] == "u1" and meta["codec"] == "zlib" and meta["qmax"] == pytest.approx(peak)
+    assert len(payload) < 50 * 1024, f"单帧仍超过 50KB: {len(payload)}"
+
+    back = unpack_array(payload, meta)
+    assert back.shape == (512, 360)
+    err = np.max(np.abs(back - m))
+    # 量化步长 = peak/255，四舍五入后误差不应超过半个步长
+    assert err <= peak / 255.0 * 0.5 + 1e-9, f"量化误差过大: {err} > {peak / 255 * 0.5}"
+
+
+def test_quantization_beats_float32_even_on_dense_worst_case():
+    """稠密随机矩阵是 zlib 的最坏情况，量化本身仍必须有收益。"""
+    from core.protocol.frames import pack_array
+
+    rng = np.random.default_rng(5)
+    m = np.abs(rng.normal(0, 20, (512, 360)))
+    payload, meta = pack_array(m, np.uint8, compress=True, quantize_max=float(m.max()))
+    assert len(payload) < m.astype(np.float32).nbytes / 2, "稠密数据下仍应至少减半"
+    assert meta["dtype"] == "u1"
+
+
+def test_prpd_and_prps_frames_are_compressed():
+    from types import SimpleNamespace
+
+    from core.protocol import payloads as P
+
+    prps = P.build_prps(
+        "d", 0, SimpleNamespace(matrix=np.abs(np.linspace(0, 80, 512 * 360)).reshape(512, 360), total_cycles=7)
+    )
+    assert prps.meta["codec"] == "zlib"
+    assert prps.meta["dtype"] == "u1"
+    assert prps.meta["total_cycles"] == 7
+    # 全零矩阵峰值为 0 时不能除零
+    zero = P.build_prps("d", 0, SimpleNamespace(matrix=np.zeros((512, 360)), total_cycles=0))
+    assert zero is not None and np.all(unpack_array(zero.payload, zero.meta) == 0)
+
+    prpd = P.build_prpd(
+        "d",
+        0,
+        SimpleNamespace(matrix=np.zeros((360, 256)), events=[], max_amplitude=10.0, min_amplitude=0.0, total_events=0),
+    )
+    assert prpd.meta["codec"] == "zlib"
+    assert prpd.meta["dtype"] == "u1"
+
+
+def test_density_mode_prpd_stays_within_budget():
+    """高斯平滑后的密度矩阵全矩阵非零，float32+zlib 在这里会退化成 322KB。
+
+    这是选 uint8 的唯一理由，必须钉住：换回 float32 的改动会静默把 PRPD 带宽
+    放大 4~8 倍，而计数模式的测试全都测不出来。
+    """
+    from core.processing.prpd_processor import PRPDMode, PRPDProcessor
+    from core.protocol import payloads as P
+
+    rng = np.random.default_rng(2)
+    prpd = PRPDProcessor(phase_bins=360, amplitude_bins=256, max_amplitude=100.0)
+    phases = rng.uniform(0, 360, 20000)
+    amps = np.abs(rng.normal(35, 22, 20000)).clip(0.1, 100)
+    prpd.add_events([(float(p), float(a)) for p, a in zip(phases, amps)])
+    result = prpd.compute(mode=PRPDMode.DENSITY)
+
+    matrix = np.asarray(result.matrix, dtype=np.float32)
+    assert (matrix != 0).mean() > 0.5, "前提：密度模式确实几乎全非零"
+
+    frame = P.build_prpd("dev1", 0, result)
+    assert frame.meta["dtype"] == "u1"
+    assert len(frame.payload) < 80 * 1024, f"密度模式单帧超预算: {len(frame.payload)}"
+    assert len(frame.payload) < matrix.nbytes / 4, "应显著优于 float32 原样"
+
+    back = unpack_array(frame.payload, frame.meta)
+    assert back.shape == matrix.shape
+    # 热图只看相对亮度，绝对误差在半格内即可
+    assert np.max(np.abs(back - matrix)) <= frame.meta["qmax"] / 255.0 * 0.5 + 1e-9
+
+
+def test_uncompressed_topics_unchanged():
+    """波形/FFT 是每帧 16KB 的小负载，压缩收益低于 CPU 成本，应保持原样。"""
+    from core.protocol import payloads as P
+
+    wf = P.build_waveform("d", 0, "uhf", np.arange(4096, dtype=np.float64))
+    assert "codec" not in wf.meta
+    assert wf.meta["dtype"] == "f4"
+    assert np.allclose(unpack_array(wf.payload, wf.meta), np.arange(4096), atol=1e-2)
+
+
+def test_fft_frame_carries_band_stats():
+    """频段带是 FFT 面板 LinearRegionItem 的唯一数据源。
+
+    fft_processor 每帧都算了 band_stats，但协议层一度把它丢掉，前端就没有
+    频段边界可画。这条断言钉住"算出来就必须发出去"，并钉住单位统一到 Hz。
+    """
+    from core.processing.fft_processor import FFTProcessor
+    from core.protocol import payloads as P
+
+    rng = np.random.default_rng(5)
+    t = np.arange(4096) / 100e6
+    wf = np.sin(2 * np.pi * 1e6 * t) + rng.normal(0, 0.02, 4096)
+    result = FFTProcessor(sample_rate=100_000_000, window_size=4096).compute(wf, detect_peaks=True)
+
+    frame = P.build_fft("dev1", 0, "uhf", result)
+    bands = frame.meta["bands"]
+    assert len(bands) == len(result.band_stats) > 0, "处理器算了频段，协议就必须带上"
+    for b in bands:
+        assert {
+            "name",
+            "f_min_hz",
+            "f_max_hz",
+            "energy",
+            "peak_magnitude",
+            "peak_frequency_hz",
+            "avg_magnitude",
+        } <= set(b)
+        assert b["f_max_hz"] >= b["f_min_hz"]
+        # 单位是 Hz 而不是 BandStats 内部的 MHz
+        assert b["f_max_hz"] > 1e6, f"频段边界应以 Hz 表达，实际 {b['f_max_hz']}"
+
+
+def test_prpd_mode_switch_changes_the_matrix():
+    """密度模式必须真的换掉矩阵，而不是前端自己贴个标签。
+
+    两个曾被实测证伪的假设：一是缓存命中会返回未平滑的计数矩阵却盖上
+    mode=density 的戳；二是 PublishThrottle 写死 compute() 不带 mode，
+    导致内核永远只发计数矩阵，前端切密度等于切了个空开关。
+    """
+    from types import SimpleNamespace
+
+    from core.processing.prpd_processor import PRPDMode, PRPDProcessor
+    from core.processing.publish_throttle import PublishThrottle
+    from core.protocol import payloads as P
+
+    proc = PRPDProcessor(phase_bins=360, amplitude_bins=256, max_amplitude=100.0)
+    rng = np.random.default_rng(11)
+    proc.add_events(
+        [
+            (float(p), float(a))
+            for p, a in zip(rng.uniform(0, 360, 5000), np.abs(rng.normal(35, 20, 5000)).clip(0.1, 99))
+        ]
+    )
+
+    bus_calls = []
+    throttle = PublishThrottle(SimpleNamespace(publish_prpd_result=lambda d, c, r: bus_calls.append(r)))
+
+    assert throttle.set_prpd_mode("heatmap") == "heatmap"
+    for _ in range(PublishThrottle.PRPD_PUBLISH_INTERVAL):
+        throttle.prpd_cycle("dev1", 0, "dev1:0", proc, 60.0)
+    heatmap_matrix = np.asarray(bus_calls[-1].matrix)
+    assert bus_calls[-1].mode is PRPDMode.HEATMAP
+
+    assert throttle.set_prpd_mode("density") == "density"
+    for _ in range(PublishThrottle.PRPD_PUBLISH_INTERVAL):
+        throttle.prpd_cycle("dev1", 0, "dev1:0", proc, 60.0)
+    density_matrix = np.asarray(bus_calls[-1].matrix)
+    assert bus_calls[-1].mode is PRPDMode.DENSITY
+
+    assert heatmap_matrix.shape == density_matrix.shape
+    assert not np.array_equal(heatmap_matrix, density_matrix), "密度模式必须真的平滑过"
+    # 平滑会摊薄峰值
+    assert density_matrix.max() < heatmap_matrix.max()
+
+    frame = P.build_prpd("dev1", 0, bus_calls[-1])
+    assert frame.meta["mode"] == "density", "帧要自报按哪种模式算的"
+
+
+def test_sidecar_cli_parses_and_formats_help(monkeypatch):
+    """sidecar 的命令行必须真的能解析、--help 必须能渲染。
+
+    起因：`--pulse-rate` 的 help 里写了 "0.2%"，argparse 把 % 当格式符，
+    直接 ValueError: badly formed help string —— 整个 sidecar 起不来，
+    而 518 个测试全绿，因为没有任何测试碰过 parse_args()。
+    """
+    import sidecar
+
+    monkeypatch.setattr(sys, "argv", ["sidecar.py", "--pd-type", "corona", "--pulse-rate", "60000"])
+    args = sidecar.parse_args()
+    assert args.pd_type == "corona"
+    assert args.pulse_rate == 60000.0
+    assert args.fps == 20
+
+    # help 文本里的 % 必须转义成 %%，否则 format_help() 会抛
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    monkeypatch.setattr(sys, "argv", ["sidecar.py", "--help"])
+    with pytest.raises(SystemExit):
+        with contextlib.redirect_stdout(buf):
+            sidecar.parse_args()
+    assert "每秒局放脉冲数" in buf.getvalue()
+
+
+def test_prpd_frame_distinguishes_axis_max_from_observed_max():
+    """矩阵分箱轴与"观测到的最大幅值"是两个量，混用会把数据带纵向压扁。
+
+    实测过：200 个 10~25 mV 的电晕事件，观测 max_amplitude≈24.7，
+    而矩阵按处理器量程轴 100 mV 分箱。客户端若用 24.7 去铺 256 行，
+    事件带会全部挤到底部约 1/4 高度处——截图上看着就是"数据贴在 0 mV"。
+    """
+    from core.processing.prpd_processor import PRPDProcessor
+    from core.protocol import payloads as P
+
+    rng_p = np.random.default_rng(1)
+    rng_a = np.random.default_rng(2)
+    proc = PRPDProcessor(phase_bins=360, amplitude_bins=256, max_amplitude=100.0)
+    proc.add_events([(float(p), float(a)) for p, a in zip(rng_p.uniform(270, 330, 200), rng_a.uniform(10, 25, 200))])
+    result = proc.compute()
+    frame = P.build_prpd("dev1", 0, result)
+
+    assert frame.meta["amp_axis_max"] == pytest.approx(100.0)
+    assert frame.meta["max_amplitude"] == pytest.approx(result.max_amplitude)
+    assert (
+        frame.meta["amp_axis_max"] > frame.meta["max_amplitude"] * 2
+    ), "前提：两者必须明显不同，否则这条断言测不出混用后果"
+    assert frame.meta["phase_axis_max"] == pytest.approx(360.0)
+
+    # 事件应落在矩阵上部 (10~25 mV → 行 25~64 / 256)，而不是贴底
+    arr = unpack_array(frame.payload, frame.meta)
+    rows = np.nonzero(arr.sum(axis=0))[0]
+    assert rows.min() > 10, f"事件带贴底说明分箱轴与显示轴不一致: 最低非零行={rows.min()}"
+
+
+# ── M4.6: 显式发布速率与推流记账 ──────────────────────
+
+
+def test_coalesced_frames_are_counted(sidecar, spin):
+    """被合并窗口顶掉的帧必须计入 coalesced_frames。
+
+    以前只有背压丢弃会计数，合并顶掉完全隐形：实测 waveform 入帧 16/s 而
+    dropped_frames=0，看不出那 4 帧/秒是被谁吃掉的。
+    """
+    server, bus, _port, _token, spin = sidecar
+    client = _open(sidecar, STREAM_PATH)
+    try:
+        assert spin(lambda: len(client.inbox) >= 1)
+        d0 = server.diagnostics()
+        for i in range(5):
+            bus.publish_waveform("dev1", 0, np.full(16, float(i), dtype=np.float64), "uhf")
+        assert spin(lambda: len(_frames(client.inbox)) >= 1)
+        time.sleep(0.2)
+        spin(lambda: False, timeout=0.2)
+        d1 = server.diagnostics()
+        assert d1["coalesced_frames"] - d0["coalesced_frames"] == 4, "5 帧合并发出 1 帧，应记 4 次被顶掉"
+    finally:
+        client.close()
+
+
+def test_explicit_topic_rate_throttles(sidecar, spin):
+    """设了 Hz 上限就该按时间掐帧，而不是靠合并窗口宽度间接限速。"""
+    server, bus, _port, _token, spin = sidecar
+    client = _open(sidecar, STREAM_PATH)
+    try:
+        assert spin(lambda: len(client.inbox) >= 1)
+        assert server.set_topic_rates({"waveform": 5.0}) == {"waveform": 5.0}
+        d0 = server.diagnostics()
+        # 同一瞬间灌 20 帧：5Hz 意味着只放行 1 帧，其余全部落在 next_emit 之前
+        for i in range(20):
+            bus.publish_waveform("dev1", 0, np.full(16, float(i), dtype=np.float64), "uhf")
+        time.sleep(0.3)
+        spin(lambda: False, timeout=0.3)
+        d1 = server.diagnostics()
+        assert d1["throttled_frames"] - d0["throttled_frames"] >= 18, "20 帧同刻灌入、5Hz 上限，至少该掐掉 18 帧"
+        assert d1["topic_rates"] == {"waveform": 5.0}
+        assert d1["sent_by_topic"].get("waveform", 0) > 0
+    finally:
+        client.close()
+
+
+def test_topic_rate_validation(sidecar):
+    """无损通道不能被限流，未知 topic 与越界速率要报错。"""
+    server = sidecar[0]
+    with pytest.raises(ValueError, match="无损"):
+        server.set_topic_rates({"alarm": 5})
+    with pytest.raises(ValueError, match="未知 topic"):
+        server.set_topic_rates({"nope": 5})
+    with pytest.raises(ValueError, match="超出"):
+        server.set_topic_rates({"waveform": 5000})
+    # 0 表示解除限流
+    server.set_topic_rates({"waveform": 10})
+    assert server.set_topic_rates({"waveform": 0}) == {}
+
+
+def test_diagnostics_exposes_publish_contract(sidecar):
+    """速率、合并、掐帧、背压四类计数必须同时在 diagnostics 里可见。"""
+    d = sidecar[0].diagnostics()
+    assert {
+        "sent_frames",
+        "dropped_frames",
+        "coalesced_frames",
+        "throttled_frames",
+        "sent_by_topic",
+        "topic_rates",
+        "flush_interval_ms",
+    } <= set(d)
+    # 合并窗口只是批处理节拍，不能慢到反过来充当帧率上限
+    assert d["flush_interval_ms"] <= 20, (
+        f"flush={d['flush_interval_ms']}ms 会在 Windows 15.6ms 定时器粒度下被压成 "
+        f"{1000 / (round(d['flush_interval_ms'] / 15.625) * 15.625):.1f}Hz"
+    )

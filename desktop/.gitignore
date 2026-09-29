@@ -1,8 +1,14 @@
 node_modules/
 dist/
 dist-electron/
+# electron-builder 出包产物（每个约 500MB，含 extraResources 里的冻结内核）
+# 带数字后缀的是 release/ 被占用无法删除时的临时出包目录
+release*/
 *.tsbuildinfo
 
 # 渲染探针输出
 render-probe.json
 probe-*.json
+
+# PD_CAPTURE 截图验收产物
+capture-*.png

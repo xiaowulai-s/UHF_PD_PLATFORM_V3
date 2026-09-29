@@ -154,7 +154,7 @@
 |---|---|---|---|
 | 3.1 | 系统设置 | 改阈值能写回并即时影响告警 | ✅ 已实测闭环 |
 | 3.2 | 系统日志 | 增量滚动、级别过滤、10k 行不卡 | ✅ 10k 行 DOM 恒定 52 节点 |
-| 3.3 | 报警管理 | 列表/多选批量确认/删除，无损通道 0 丢帧 | 🟡 实时列表已通；**确认/删除需先补内核写路径** |
+| 3.3 | 报警管理 | 列表/多选批量确认，无损通道 0 丢帧 | ✅ 已补内核写路径并实测持久化 |
 | 3.4 | 设备管理 | 增删设备、通道耦合类型切换 | ✅ 按 settings/alarm 模式推导实现，CRUD 已实测 |
 | 3.5 | 主题令牌走查 | 与稿子逐色比对 | 🟡 亮色已对齐；稿子本身无暗色方案 |
 
@@ -193,7 +193,36 @@
 - 删除：两步内联确认 → "设备 UI-TEST 已删除"，服务端 `select count(*) = 0` 确认已清除
 - 通道展开行：设备无通道记录时给出明确说明，而不是显示空表
 
-### M3 剩余阻塞项（需要你决定）
+### M3.3 告警确认写路径（本次补齐）
+
+按"先落库拿主键、再发布带 `alarm_id` 的帧"实现，**不新增列、不需要 alembic 迁移**
+（`pd_alarms.acknowledged / acknowledged_at / acknowledged_by` 三列早已建好并有
+`idx_pd_alarm_ack` 索引，只是全仓无人写入）。
+
+- `PDAlarmService._save_alarm_to_db()` 现在返回自增主键；`trigger_alarm()` 改为
+  **先落库后发布**，把 `alarm_id` 注入告警帧。
+- 新增 `PDAlarmService.acknowledge(ids, by)`，ORM 批量更新且只挑未确认的行，因此
+  重复确认是幂等的（第二次返回 `acknowledged: 0`）。
+- RPC `alarm.acknowledge`，带 `MAX_ACK_BATCH=500` 上限，防一次塞进上万个 id 变成大事务。
+- 落库失败时 `alarm_id` 为 `None`：前端把该条显式标为**「未持久化」**并禁用勾选，
+  而不是给一个永远确认不掉的假标识。
+- 实测：加载 6 条历史 → 全选 → 确认 → 提示"已确认 6 / 6 条" → 状态全部转「已确认」、
+  复选框禁用 → 直查数据库确认三列均已写入。
+
+### 未采纳：物理删除告警
+
+按建议把"删除"换成了状态流转。报警记录是设备状态演变的一手证据，现场通常有追溯
+要求；真要清理应走已有的 `cleanup_old_data()` 按保留期回收，而不是列表页一个按钮。
+
+### 新发现的既有缺陷（未修，需决定）
+
+**AE 告警从不落库。** `ae_pipeline.py:100,125` 的两处 `publish_alarm`（信号丢失、
+噪声超限）直接发到总线，绕开了 `PDAlarmService.trigger_alarm()`，而全仓只有
+`trigger_alarm` 会调 `_save_alarm_to_db`。后果：AE 类告警在实时界面能看到，但历史
+查询和确认都找不到它们，且帧里没有 `alarm_id`。修它需要把 `alarm_service` 接到
+`AEAlarmChecker`（其构造在 `acquisition_service.py:76`），涉及改动范围较大，未擅自进行。
+
+### M3 剩余项
 
 - ~~3.4 设备管理没有设计稿~~ → 已按 settings/alarm 的既有模式推导实现（见下）。
 - **3.3 的确认/删除缺内核写路径。** `pd_alarms.acknowledged` 列存在但全仓无人写入，
@@ -214,6 +243,308 @@
 | 4.6 | 前端节流契约：把 `%10`/`%50` 帧计数式节流换成显式采样率 | `signal_router.py:167,267` | 每 topic 频率可配置可观测 |
 
 **4.1 是全项目最难单项**，游标与框选在 Canvas 上重写，务必留足缓冲。
+
+### M4.4 实施结果：R1 关闭（2026-09-28）
+
+先量后改。在真实处理器产物上测了几种编码，结论与直觉相反：
+
+| 矩阵 | 原始 | float32+zlib | uint8 量化+zlib |
+|---|---|---|---|
+| PRPS 512×360（滚动窗口，88% 为零） | 720 KB | — | **19~42 KB** |
+| PRPD 360×256 计数模式 | 360 KB | 4.2~48 KB | **3~35 KB** |
+| PRPD 360×256 **密度模式**（`gaussian_filter` 之后） | 360 KB | **222~322 KB** | 39~79 KB |
+
+三个关键点：
+
+1. **PRPD 密度模式推翻了"保持 float32 以免丢密度精度"的原计划**。`prpd_processor.py:266`
+   的 `gaussian_filter(sigma=1.5)` 把全矩阵变成非零连续值，zlib 完全无从下手——
+   322KB/帧比不压还大。热图精度用不到 float32，量化到 uint8 才是稳的档位。
+2. **沿相位轴/幅值轴一阶差分被否决**：稀疏数据上差分破坏零游程，实测 19KB→28KB 反而变大。
+3. **量化必须先 `np.rint` 再转整**。`astype` 向零截断会让误差从半步膨胀到一整步；
+   这个 bug 是测试用稠密合成矩阵逼出来的（maxErr 恰等于一个步长）。修完 maxErr = 半步。
+
+体积判据改用"绝对字节数"而不是相对倍率：合成数据稀疏度不同会给出完全不同的倍率。
+
+**前端解码**：`decodeCells()` 走浏览器原生 `DecompressionStream("deflate")`，不引 fflate。
+实测 inflate PRPS 1.12ms、PRPD 0.63ms，且解压跑在 Chromium 非主线程池上，不占 50ms 帧预算。
+量化主题刻意停在 0..255 的 `Uint8Array` 不展开（展开成 float32 每帧要多 270~540KB），
+只有游标读数才调 `toValues()`。
+
+**顺带修掉一个会让 M4.1 当场崩溃的缺陷**：msgpack 把 bin 字段按字节偏移从整包 buffer
+上切下来，实测偏移=113（不是 4 的倍数），而不对齐的 `new Float32Array(...)` 直接抛
+`RangeError`。原来的 `toFloat32()` 没做对齐处理，之所以没暴露，是因为全仓库还没有调用点。
+这条靠"Python 产物 → Node 解码 → 与 `unpack_array` 逐元素比对"的跨语言校验发现，
+现在两边 maxErr=0。
+
+**端到端实测（冻结产物，8 秒）**：259 帧 / 3868 KB ≈ **483 KB/s**，对比 M0 的
+1.81 MB/s 基线降到约 1/4；PRPD/PRPS 均带 `codec=zlib` 且解码形状正确。
+
+### 4.4 遗留
+
+密度模式在 20 万事件级别仍是 79KB，超过 <50KB 目标。交给 4.6 的节流契约解决
+（累积统计类 topic 不需要 20FPS），不再继续压编码。
+
+### M4.2 FFT 面板（2026-09-29 完成，截图验收）
+
+`components/charts/fft-chart.vue`，与 `ui/widgets/fft_widget.py` 逐字段对齐：MHz 轴、
+dB/线性可切（换算留在显示层，协议只传 Hz 与线性幅值）、峰值散点（基波红 / 谐波橙）、
+噪声底红虚线、频段带 wash、10 行峰值表（第 1 名 error、2–3 名 warning、类型列谐波用主色）。
+
+协议侧补了 `fft.bands`：`fft_processor.py:252` 每帧都算了 `band_stats`，但 `build_fft`
+原先把它丢了，前端没有频段边界可画。同时发现 `BandStats` 自身单位不一致
+（`f_min/f_max` 在 `compute_band_stats` 里除了 1e6 成 MHz，`peak_frequency` 仍是 Hz；
+旧 Qt 控件只读前者所以从未暴露），协议里统一成 `_hz` 后缀字段，单位不再靠猜。
+
+**实测 `绘制 16 FPS` 不是渲染掉帧**，而是内核侧 FFT 发布节奏本就约 15 帧/秒（旧版
+`%N` 计数的遗留）。这条是 4.6 必须做的实证：频率不显式化，这个读数在现场一定会被
+当成性能问题。
+
+峰值表刻意没有照抄旧版列头 "幅值 (dBm)"——它填的是线性原始值，单位标错了；数值保持一致，列头改为"幅值"。
+
+### M4.1 波形面板（2026-09-29 完成，交互逐项截图验收）
+
+`components/charts/waveform-chart.vue`。**先查清旧版到底接了什么线**，结果和计划假设差很多：
+
+| 旧 API | 调用点数 | 处理 |
+|---|---|---|
+| `set_trigger_position` | **0** | 不做。触发标记线在旧版是死代码 |
+| `zoom_x` / `zoom_y` / `fit_to_view` / `set_y_unit` | **0** | 不做 |
+| `cursor_position` 信号 | 只 emit，**无人 connect** | 旧版其实没有游标读数；这里的读数是新增能力 |
+| `_toggle_pause` | 1（实时监测页唯一的外部调用） | 做 |
+
+所以计划里"触发标记线"这一项按证据砍掉（计划本就写了"必要时砍触发线"）。
+
+实现的交互全部用合成输入跑通并逐张截图取证：暂停/继续、游标开关 + `t=/v=` 读数、
+框选放大（x 0–41 μs → 0–4.2 μs，脉冲逐个可辨）、复位、自动量程开关。
+
+**实测绘制成本 p95 ≈ 0.7–0.9ms @ 4096 点**，与 M7.1 合成探针的 0.80ms 吻合——
+真实图表库没有引入计划担心的额外开销，R2 结论在真管线上成立。
+
+**读数口径**（`use-frame-draw` 现在同时给四个数）：
+
+- `入帧` = 客户端每秒收到的帧数，实测约 11–22/s 波动，**达不到 20**。采集侧确实是
+  ~19.85 FPS（15 分钟跑 17870 帧），所以缺口在服务端推流节奏，是 4.6 的活。
+- `绘制` = 每秒真正画的次数。
+- `丢帧` = 到达后被更新的帧覆盖、因而永远不会单独画出的次数。
+- `p95` = 单次绘制耗时。
+
+`丢帧` 这个指标是被实测纠正过的：最初按"绘制是否进行中"计数，于是 16 入帧只画 12 次
+时读数显示 0——纯节奏合并（两个入帧落进同一个 rAF tick）完全没被算进去。改成
+"pending 里是否还堵着一帧"后，丢帧数与 `入帧 − 绘制` 对上了。
+
+### uPlot 三个必须记住的坑
+
+1. **`setData` 传回同一个外层数组会被当成"数据没变"而跳过重排。** `plot.setData(plot.data)`
+   复位缩放完全无效；必须传新数组字面量 `plot.setData([xBuf, yBuf])`。内层 typed array
+   复用是安全的（已验证 uPlot 会原地复读改动）。
+2. **没有 `draw()` 方法**，只有 `redraw(rebuildPaths?, recalcAxes?)`；`setData` 内部已经画。
+3. **`getImageData` 返回未预乘颜色。** uPlot 画布没有背景填充，直接读像素会得到
+   `rgb(47,116,255) @a18` 这种"看起来是不透明蓝"的值，误判成 alpha 失效。要按
+   `dst = src*a + bg*(1-a)` 合成后再判断。
+
+### 合成输入驱动交互的三个必要条件（`PD_INTERACT=1`）
+
+`webContents.sendInputEvent` 少任一条都不会生效，逐条都是实测踩出来的：
+
+1. `mouseDown`/`mouseUp` 必须显式 `clickCount: 1`，否则 Chromium 不合成 `click`，
+   表现是"鼠标到位了、按钮像没被点过"；
+2. 点击前先 `mouseMove` 到目标，否则同样不派发 click；
+3. 拖拽中间的 `mouseMove` 必须带 `button: "left"`——Electron 不暴露 CDP 的 `buttons`
+   位掩码，不给就等于"松着鼠标在拖"，uPlot 会把整段当成 click 而不是框选。
+
+按钮坐标用 `getBoundingClientRect()` 在页面里量，别按窗口尺寸猜。
+
+### 图表验收方法（M4 全程依赖）
+
+canvas + rAF 驱动的面板**无法用 DOM 快照验证**。更关键的坑：IDE 内置浏览器在后台时
+`document.hidden === true`，此时 rAF 与 uPlot 的内部初始化整条停摆，连
+`plot.redraw(true, true)` 都算不出 scale（`scales.x.max` 仍为 null），表现为"页面结构
+正常、canvas 存在、但一个像素都没画"，极易误判成代码 bug。
+
+因此用主进程的截图模式，从真 Electron 可见表面取证：
+
+```bash
+PD_CAPTURE=capture-m4.png PD_ROUTE=monitor PD_CAPTURE_WAIT=12000 \
+  VITE_DEV_SERVER_URL=http://localhost:5199/ npx electron .
+```
+
+它会回读 `main` 的 innerText、canvas 数量、`document.hidden`，并把渲染进程控制台搬到
+stdout（图表组件在 setup/mount 抛错时页面只会安静地少一个 canvas）。
+配套 `python tools/dev_preview.py` 一条命令起 sidecar+vite 并对齐随机 token。
+
+### M4.3 PRPD 面板（2026-09-29 完成三模式，截图验收）
+
+`components/charts/prpd-chart.vue`，手写 canvas（uPlot 不是热图库）。散点图 / 热力图 /
+密度图三模式全部实测切通：密度模式下帧自报 `内核 density`，且单个事件从热力图的
+**一个红色满格**变成密度图的**一片绿色扩散斑**——高斯平滑确实生效。
+
+关键设计决定：**热力图与密度图的开关必须落在内核**，不能做成纯前端状态。两者共用同一份
+计数矩阵，`gaussian_filter(sigma=1.5)` 发生在 `PRPDProcessor.compute(mode=...)` 里，
+原先 `publish_throttle.py:73` 写死 `compute()` 不带 mode，所以内核永远只发计数矩阵——
+做成前端切换会得到一个"按了没反应"的按钮，正是我在 M4.1 批评旧版的那种死代码。
+新增 `config.set_prpd_mode` / `config.get_prpd_mode` RPC，并让帧 meta 自报 `mode`，
+前端以此为准而不是相信自己按钮的状态。
+
+**顺带修掉两个既有缺陷**：
+
+1. `prpd_processor.py` 的缓存命中路径会返回**未平滑**的计数矩阵，却给它盖上
+   `mode=density` 的戳（缓存存的是计数，不含平滑结果）。已让密度模式不走缓存。
+2. 旧版点击读数按 `[amp_idx, phase_idx]` 索引**未转置**的矩阵（显示时才 `.T`），
+   读到的是错格子。新实现矩阵按 (phase, amplitude) 行主序，索引 `[phase][amplitude]`。
+
+没照抄的旧版项：`set_colormap` 调用点为 0，所以只实现默认 jet。
+
+**一个待拍板问题**：
+
+- **空区域是饱和蓝**。`jet(0)` 是蓝色，而 pyqtgraph `ImageItem(autoLevels=True)`
+  把数据最小值映射到色带起点，所以"无事件"和"低计数"都渲染成饱和蓝。
+  即使把事件密度提上去，92160 个格子里仍约 99.6% 为零，实测截图里数据只表现为
+  底边一条细带，几乎读不出来。这与旧版**视觉一致**（旧版同样如此），但确实难用。
+  建议改成"零值透明 + 低值淡出"，属于对旧版的有意偏离，**确认后再做**。
+
+原先并列的"事件太稀疏"已定位并修好，见下一节。
+
+PRPD 面板的**点击读数尚未验证**（脚本没覆盖），其余三模式已验证。
+
+### M4 的两个内核侧阻塞项（2026-09-29 已定量程并修好）
+
+零值透明改完后，PRPD/PRPS 反而暴露出数据本身是退化的。两条都动内核语义，
+先确认再改；下面是确认过程与结论。
+
+**结论：PRPD 幅值轴初值 = 100 mV（按通道可配），保留既有的"只增不减"动态扩展。**
+
+调查得到的关键事实（都实测或读到过，别重复调查）：
+
+1. **全链路没有任何单位换算。** FPGA 侧 `fpga_protocol._parse_waveform` 按大端 **int16**
+   裸计数解包，不乘 gain/offset；`ChannelConfig.gain` 字段存在但**从未作用于波形**。
+   `protocol_data_structures` 里 `samples # 采样点幅值 (mV)` 是未经实现的文档口径。
+   也就是说同一个 `amplitude` 字段承载了"原始计数"和"mV"两种相差约百倍量纲。
+2. **10000 不是物理标定，而是为覆盖真实计数数据取的经验上限**：`prpd_report.json`
+   （来自真实 `PD_data.csv`）统计 max 8462 / p90 2870 / avg 936，量级正是 int16 计数。
+3. **轴只增不减**，所以取大初值是**锁死**而不是"保守"：`publish_throttle.prpd_cycle`
+   只在观测幅值 > 轴×0.8 时扩到观测值×1.2，没有任何收缩路径。10000 配 mV 级数据
+   （实测 ≤30）永远触发不了扩展 → 500 个事件全挤在 3 个幅值箱里。
+4. 换成 100 对真机**零代价**：8462 的计数数据第一帧就把轴扩到 10154，恰好回到今天这个值。
+5. 100 mV 是本仓库既有的满量程共识：`PRPDProcessor` 类默认值、`alarm_service` 全局基准、
+   模拟器自身 PRPD、模拟器 floating 类幅值上限，四处都是 100。
+
+改动：`ProcessorManager(default_max_amplitude=100.0)`（原为无条件字面量 10000），
+未做 FPGA→mV 标定的现场可显式传大初值而不改 DSP 源码。四条测试钉住，其中
+"mV 事件必须铺满多个幅值箱"与"计数级数据仍自动扩到约 1 万"互为对照——
+变异回 10000 时前者实测报"500 个事件只占了 3 个幅值箱"。
+
+**#20 模拟器脉冲偏低已修**：振荡项 `sin(2π·i/w·2)` 在 i=0 正好过零，实测峰值只有
+标称幅值的 **0.30~0.68**（随 pulse_width 变，此前文档写的"约 35%"偏低）。改成 `cos`
+后 i=0 取 1，峰值即标称值。测试必须钉成**单脉冲 + 零噪声**：只钉幅值的话
+20 个脉冲会全落在同一位置叠加，峰值上千，`sin` 一样能过——第一版就是这么假绿过的。
+
+**仍然遗留（需要现场标定，不是显示问题）**：
+`detect_peaks_simple` 只找正峰（`data[i] > threshold`），所以 PRPD 的负半波根本没有事件；
+`add_waveform` 里 `polarity=1 if amplitude > 0` 与文档约定（0=正, 1=负）正好反了。
+两条都会改变事件计数与报警行为，属于内核语义变更，未动。
+另有一处口径矛盾：AE 通道阈值 `ui/controller_config.py` 给 100.0、
+`core/foundation/data_source_manager.py` 给 800.0，注释分别称 mV 与 μV。
+
+### PRPD 点击读数的验收要点
+
+不能只点一下：483 个事件摊进 360×256 个格，簇内单格期望值约 0.1，随机点一下读到 0
+**是正确结果**，什么也测不出来。脚本改成在簇区扫 15 个点，并用"非零命中落在哪个相位
+列"与电晕已知相位带（265~335°）对撞：读反轴（`cells[ampIdx*phaseBins+phaseIdx]`
+不越界也不报错）命中就会跑到别处。实测命中相位 287~312°、最大计数 66，空区对照为 0。
+
+### 模拟器事件稀疏的根因（2026-09-29 定位并修好）
+
+现象：15 分钟长跑只检出 64 个事件（约 4/分钟），PRPD 面板永远是空图。
+
+根因是**时间基不匹配**，不是阈值也不是检测器的问题：
+`simulator.py` 每帧脉冲数按 `poisson(pulse_rate * n / sample_rate)` 抽，
+默认 `pulse_rate=50`（每秒）配 4096 点 @100MHz = **41μs 一帧**，
+期望值 = 50 × 4096 / 1e8 = **0.002**，即约 488 帧才落进一个脉冲。
+实测吻合：300 帧里只有 0.3% 的帧含事件。
+
+叠加效应让问题更难看出来：`detect_peaks_simple` 的固定下限是 10 mV，
+而纯噪声帧的峰值中位数是 7.7 mV（noise σ=2），所以没脉冲的帧必然零检出。
+
+**排除掉的假因**（都实测过，别再重复调查）：
+- 检测阈值不是问题——脉冲幅值 30~100 mV，远高于 10 mV 下限；
+- PRPD 相位映射不是问题——`add_waveform` 用 `position/n*360` 反演，而模拟器正是按
+  相位把脉冲摆到 `phase/2π*n` 的位置，两者互逆。实测电晕（注入 270~330°）
+  的散点相位 p5/p50/p95 = **273°/301°/328°**，矩阵能量集中在 bin 275~325，完全正确；
+- 前端与协议不是问题——同一条链路解出的矩阵形状、量化、mode 都对。
+
+修法：把 `pulse_rate` 从 `simulator_source.py` 的硬编码 50 一路透到
+`sidecar.py --pulse-rate`，默认值不变（50/s 是真实量级），验收/演示时用
+`PD_SIDECAR_ARGS="--pd-type corona --pulse-rate 60000"`。
+改后 PRPD 帧 `total_events` 从 1 变成 678，面板上能直接看到电晕的相位聚集。
+
+**过程中又踩一个坑并补了守卫**：`--pulse-rate` 的 help 文本里写了 "0.2%"，
+argparse 把 `%` 当格式符，直接 `ValueError: badly formed help string`，
+**整个 sidecar 起不来**——而 518 个测试全绿，因为没有任何测试碰过 `parse_args()`。
+已加 `test_sidecar_cli_parses_and_formats_help`，并做了一次变异验证
+（把 `%%` 改回 `%` 确实会失败）：CLI 的 help 必须真的渲染一遍才算测过。
+
+
+
+### M4.2 期间修掉的三个启动路径缺陷
+
+为了修"内核起不来时应用静默空转"，把窗口创建提前到了 `app.whenReady()`。这开出一条
+新路径——端点晚于页面加载到达——并暴露出三个此前休眠的问题：
+
+1. **`updateEndpoint()` 在没有活动 socket 时是静默空操作。** `restart()` 只做
+   `ws?.close()`，重连完全靠 `onclose` 回调链触发；socket 从未建立过时那条链不会启动，
+   端点被保存下来然后无人问津。现在无活动连接就直接 `open()`。
+2. **帧订阅原先写在 `connect()` 里。** 离线启动路径不会调 `connect()`，于是 socket
+   连上、帧也进来了，但没有任何 `onFrame` 监听者——不报错、不显示。订阅已移到模块
+   初始化，与连接顺序彻底解耦。
+3. **端点推送与页面加载存在竞态**，早到的一次永久丢失；`did-finish-load` 现在补推一次。
+
+第 1、2 条在我改动前不会触发（那时 `connect()` 必然在启动时执行），准确说法是改动把
+既有潜伏缺口激活成了可见故障，而不是新写坏了它。
+
+### M4.5 PRPS 三维（2026-09-29 完成，截图 + 自转验收）
+
+- 只把**非零格**送进 GPU 当点画：预分配 40000 点的 `Float32Array`，每帧用
+  `setDrawRange(0, n)` 截断。每帧重建 `BufferGeometry` 会持续吃内存，20FPS 下必炸。
+- 轨道控制是手写的（pointer + wheel）。three 的 `OrbitControls` 在 `examples/` 子路径下，
+  为它多引一个入口不值得，而需求只有旋转/缩放。
+- `LineSegments` 是**按顶点对**画线的，不是折线。早先直接塞一圈闭合顶点，画出来是一团
+  乱麻；改成显式 12 条棱才对。
+- 按需渲染时"渲染 N 次/秒"天生很低（只有帧到达才画），所以页面上标了
+  "（按需，开自转看上限）"。不标就会被读成"三维链路只有 3 fps"。
+
+### M4.6 节流契约（2026-09-29 完成）
+
+**前置发现（#18）**：内核侧采集 19.87/s，前端只收到 15.96/s，且传输层零丢失。
+根因是 **Windows 定时器粒度 ~15.6ms 把 50ms 的 flush `QTimer` 量化成 61.97ms
+= 15.97Hz**——与实测速率吻合到小数点后两位。`FLUSH_INTERVAL_MS` 50→10 后实测
+waveform 19.89/s、fft 19.94/s、coalesced 0、dropped 0。
+
+但真正的缺陷不是"慢"，而是**隐形**：`_emit` 用 `client.pending[key] = frame` 覆盖
+前一帧，而只有背压丢弃才计数。现在 `coalesced / throttled / dropped` 三个计数分开，
+`diagnostics()` 全暴露，并随 stats 帧每 2 秒推到前端。新增 `system.set_topic_rates`
+RPC 按 topic 显式限 Hz，而不是靠合并窗口宽度间接决定速率——后者会被操作系统定时器
+粒度改写，换台机器就变。无损通道（报警等）拒绝限流：报警不能丢。
+
+前端落点：设置页新增"推流节流"表，概览页吞吐表加"服务端发出/限流"两列与三个计数。
+
+**真点闭环**（`PD_INTERACT=1 PD_ROUTE=settings`）：键入 5 → 点应用 → 内核当前值变
+"5 Hz" → 概览页"限流掐掉 79" → 越界 9999 把内核 `ValueError` 原样渲染成错误条 →
+留空回到"跟随管线"。
+
+**这条真点链路抓到一个 Python 侧永远测不到的 bug**：`v-model` 落在
+`type="number"` 上会自动走 `looseToNumber`（不需要 `.number` 修饰符），草稿值因此是
+number 而不是 string，`(draft ?? "").trim()` 直接抛 `TypeError`，速率从来没下发成功过。
+静态截图和 DOM 文本都看不出异常——只有真点一次"应用"才暴露。
+
+### 验收脚本自身的两个坑
+
+- 交互驱动器抛异常会让应用永不退出：异常逃进没人接的 promise，表现是进程挂着干等到
+  超时，既拿不到后续截图也看不到错误。现在 `takeCapture` 用 try/catch 兜住并打印 stack。
+- **Git Bash 会把 `PD_ROUTE=/` 路径转换成 `C:/Program Files/Git/`**，路由纠偏于是强制
+  跳到不存在的页面，整片空白，看着像前端渲染坏了。加 `MSYS_NO_PATHCONV=1`，或别用裸 `/`。
+- 概览页"已收帧"短暂高于"服务端发出"不是记账漏洞：服务端数字随 stats 帧每 2 秒才到，
+  计数时刻本就落后；而 log 的接入补历史走 `_send_raw`，不计入发送数。页面已就地写明，
+  免得下次再查一遍。
 
 ---
 
@@ -285,6 +616,97 @@ M4 图表层落地后需在同一台机器上复测。
 
 旧 `main.py` / `main_v2.py` 下线，`ui/` 归档删除，打包（electron-builder）与安装器，文档与 `AGENTS.md` 更新。
 
+### M8 前置：内核冻结产物（2026-09-28 已完成）
+
+**动因**：目标工控机**不装 Python**。原实现 `sidecar.ts` 是
+`PD_SIDECAR_PYTHON ?? "python"`，且 `repoRoot()` 从源码文件上溯三级取"仓库根"——
+那是开发树布局假设，打进 asar 后该位置是 `resources/`，里面既没有 `sidecar.py`
+也没有 `core/`。也就是说装机版在内核缺失时会 `spawn` 一个不存在的路径。
+
+**更糟的是失败不可见**：窗口只在 `endpoint` 事件里创建，而 `endpoint` 只在内核 ready
+时才发。内核起不来 → 5 次退避重启 → `dead` 状态发往仍然是 `null` 的 window →
+表现是"双击图标没反应"，现场只能看到一个活着的 Electron 进程。现在
+`app.whenReady()` 先建窗口再起内核，`App.vue` 本来就能显示"内核已停止/重启中"。
+
+交付物：
+
+| 文件 | 作用 |
+|---|---|
+| `sidecar.spec` | PyInstaller onedir，`console=True`（端口/token 走 stdout，被 windowsHide 隐藏） |
+| `core/foundation/runtime_paths.py` | 只读资源走 `_MEIPASS`，可写状态走 `%LOCALAPPDATA%\UHF-PD` |
+| `core/foundation/hardware_config_loader.py` | 从 `ui/controller_config.py` 迁入，切断 sidecar→`ui/` 的依赖 |
+| `desktop/electron-builder.json` | `extraResources: ../dist/uhf-sidecar → resources/uhf-sidecar` |
+| `tools/verify_frozen_sidecar.py` | 产物冒烟：起 exe、解析端点、订阅、校验解码 |
+
+#### 2026-09-29 复验（含量程改动后的新产物）
+
+1. `npm run build:kernel` 重新出包（185MB，`dist/uhf-sidecar/uhf-sidecar.exe`）。
+2. `python tools/verify_frozen_sidecar.py --seconds 15 --expect-prps` 通过：端点解析成功、
+   15 秒 607 帧 / 9346 KB = **623 KB/s**、prpd `(360,256)` 与 prps `(512,360)` 均 zlib、
+   waveform 283 帧 ≈ 18.9/s。**EXIT=0**。
+3. **补了一个开发态缺口**：`launchFrom()` 的 `PD_SIDECAR_PYTHON` 分支原先无条件塞
+   `sidecar.py` 参数，而 PyInstaller 会把 `argv[1:]` 原样交给脚本，argparse 于是收到
+   多余位置参数并以 exit 2 退出——表现是"内核起不来"但日志只有 usage。现在识别
+   `.exe` 后缀就走 bundled 形态（不塞脚本名、cwd 取 exe 所在目录）。
+4. 用改后的启动路径**以冻结内核跑当前整套界面**：`PD_SIDECAR_PYTHON=.../uhf-sidecar.exe`
+   + 截图模式，运行中采样进程表 = **python.exe 0 个、uhf-sidecar.exe 1 个**，
+   波形/FFT/PRPD/PRPS 四面板全部出数。"目标机不装 Python"这条从设计变成可复现实测。
+
+**装机版组装已复验通过**（`--dir`，输出到 `desktop/release-verify/` 以避开一个被系统
+锁住的旧暂存目录，见下）：
+
+| 检查项 | 结果 |
+|---|---|
+| `CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --dir` | EXIT=0 |
+| `resources/uhf-sidecar/`（内核铺在 asar **之外**） | 185MB，exe 在位 |
+| `resources/app.asar` | **29.6MB**（旧产物是 210MB） |
+| 装机版 exe 启动后进程采样 | **python.exe 0 个 / uhf-sidecar.exe 1 个** |
+| 内核来源 | 日志显示 `...\resources\uhf-sidecar\uhf-sidecar.exe`，`内核就绪 port=50151` |
+| 四面板出数 | 波形/FFT/PRPD/PRPS 全部渲染，PRPD 纵轴 0~100 mV |
+
+asar 从 210MB 降到 29.6MB 证实了"内核被 `files: ["dist/**/*"]` 重复打进 asar"那个坑
+已经消失（现在 `desktop/dist` 只有 789K）。**剩下的 29.6MB 主要是 electron-builder
+自动收进来的生产依赖 `node_modules`（3066 项，含 `@babel/parser`、`three` 等）**——
+渲染层依赖已由 vite 打进 `dist/assets`，所以这部分对装机版是冗余。属于 M8 的体积优化，
+不是缺陷。
+
+**顺带修掉一个只在 WebGL 侧发作的配色 bug**：`--color-app-border` 经 `getComputedStyle`
+取到的是 **8 位十六进制 `#7373731f`**（末两位 `1f` = 31/255 ≈ 0.12 的 alpha）。canvas 的
+`strokeStyle` 认它，所以 uPlot 网格一直正常；而 `THREE.Color` 的正则只接受 3/6 位，
+于是 warn `Invalid hex color` 后**静默留在默认白色**——PRPS 的参照框从头到尾都是白色，
+不是设计的淡灰，而白框配浅背景在截图上几乎看不出来。修法：`chart-theme.ts` 额外导出
+`borderSolid` + `borderAlpha`，WebGL 侧显式拿实色与透明度两个值。复验：装机版与开发态
+日志中该警告均为 0，截图上参照框已是淡灰。
+
+**两个遗留问题**：
+
+1. `desktop/release/win-unpacked.tmp/resources/default_app.asar` 被系统级占用
+   （`rm` 报 Device or resource busy），但**按模块映射与 ExecutablePath 两种方式都查不到
+   任何进程持有它**——即占用者不是可识别的进程（极可能是 Defender/索引器或资源管理器）。
+   该目录是失败构建留下的暂存，可安全忽略；旧的 `release/win-unpacked/`（11:43，内含
+   210MB asar）仍在，需要时手动删。
+2. **路由漂移仍会复发**：装机版第一次跑时 `PD_ROUTE=monitor` 被强制纠正后又被跳回
+   `#/settings`（截图取证到的是设置页），第二次跑同样参数则稳定在 `#/monitor`。
+   与 M4 期间记录的"游离 F6/F3 keydown 把页面跳走"是同一个既有缺陷，
+   间歇性、未定位到输入源。
+
+**冻结踩到的两个坑，都值得记住**：
+
+1. **不要排 stdlib，不要排"看着用不到"的第三方。** 我曾按"sidecar 用不到"排掉
+   `unittest`/`structlog`，结果是 `scipy.signal → numpy.testing → unittest` 断链，
+   `peak_detector` 每帧抛 `ModuleNotFoundError`，而 sidecar **照样打印 "sidecar ready"
+   并保持存活**，只是处理波形数恒为 0。`structlog` 同样是硬依赖（`pyproject.toml:19`），
+   `logger.py:19` 那个 `try/except ImportError` 是假的可选。PyInstaller 本来就只收可达
+   模块，手写排除表只会制造这类事故。现在只排 Qt GUI 栈和构建机上的 ML 栈。
+2. **构建机是共享全局解释器会污染产物。** 加 `collect_submodules("core")` 兜底时产物
+   833MB（torch 364MB + cv2 99MB + transformers 42MB），去掉并显式排除后 **183MB**。
+   具体经哪条边被收进去没查清（逐个 import `core.*` 子模块并不加载 torch），
+   结论按实测写下，不作为因果结论。
+
+验收：`npm run package:dir` 产出的 `resources/uhf-sidecar/uhf-sidecar.exe` 与
+`resolveLaunch()` 的拼接路径一致；`verify_frozen_sidecar.py` 在产物上收到
+waveform/fft/prpd/prps 帧且 `codec=zlib` 解码正确。
+
 ---
 
 ## 汇总
@@ -294,8 +716,8 @@ M4 图表层落地后需在同一台机器上复测。
 | M0 边界协议 | 6 | ✅ 已完成（实测 1.81 MB/s，负载全对） |
 | M1 sidecar 生产化 | 3 | ✅ 1.1–1.4 完成；仅剩 1.5（已并入 M2 的 SidecarSupervisor） |
 | M2 前端骨架 | 4 | ✅ 已完成（端到端实测） |
-| M3 第一批页面 | 8 | 🟡 3.1/3.2/3.4 完成；仅剩 3.3（缺内核写路径） |
-| M4 流式渲染层 | 10 | ⬜ 未开始 |
+| M3 第一批页面 | 8 | ✅ 3.1–3.4 全部完成（3.5 暗色走查待稿子） |
+| M4 流式渲染层 | 10 | ✅ 4.1–4.6 全部完成并截图/真点验收（524 passed）。PRPD/PRPS 的**幅值维度**仍被内核 #21 卡住（见下） |
 | M5 第二批页面 | 8 | ⬜ 未开始 |
 | M6 第三批页面 | 10 | ⬜ 未开始 |
 | M7 性能长稳 | 5 | 🟡 7.1 探针已就绪并在开发机实测，待现场复跑 |
@@ -330,7 +752,7 @@ M4 图表层落地后需在同一台机器上复测。
 
 | ID | 风险 | 影响 | 应对 | 状态 |
 |---|---|---|---|---|
-| R1 | `prps` 占 69% 带宽，512×360 float32 整幅传输 | 四通道时近 5 MB/s 全是 PRPS | 滚动窗口只传新增行，或 uint16 量化 | **待办 M4.4** |
+| R1 | `prps` 占 69% 带宽，512×360 float32 整幅传输 | 四通道时近 5 MB/s 全是 PRPS | 热图矩阵统一 uint8 线性量化 + zlib（PRPS 720KB→19~42KB，PRPD 360KB→3~73KB）；密度模式 float32 会退化到 322KB，故不选 float32 | ✅ M4.4 已完成 |
 | R2 | 目标工控机 Chromium 软件渲染 | 高帧率 canvas 重绘掉帧，方案被推翻 | M7.1 探针已实测：无 GPU 时四类图元单帧 p95 仅 1.10ms、余量 45x | 🟢 大幅缓解，待现场复跑 |
 | R3 | 波形游标/框选在 Web 端重实现 | 单点最贵，易延期 | M4.1 留缓冲；必要时砍触发线 | 中 |
 | R4 | 23.5K 行 UI 重写期间旧版仍要维护 | 双份成本 | 每里程碑保持 `main.py` 可运行可回退 | 中 |
@@ -338,6 +760,7 @@ M4 图表层落地后需在同一台机器上复测。
 | R6 | SQLite 查询阻塞 Qt 循环连带停推流 | 一次慢查询卡死全画面 | M1 强制走 `QThreadPool` | ✅ 已实现并有断言保护（`test_background_rpc_does_not_block_stream`） |
 | R7 | AGENTS.md 表名清单有误 | 照它写查询会查不到表 | 以 `core/data/monitor_models.py` 为准；AGENTS.md 待订正 | 新发现 |
 | R8 | `next-app/` 是废弃脚手架，易被误读成"前端已选 Next.js" | 技术路线漂移，重复搭建 | 实为 2026-06-17 一次性生成、三个月未动、引用缺失组件导致 build 失败、全目录无任何桌面化/集成线索。**本项目不使用它**，前端在 `desktop/` 新建 | 待处置（删或移出） |
+| R9 | **目标机不装 Python**，而装机版靠 `spawn("python")` 起内核 | 应用静默不启动：窗口只在内核 ready 后才建，`dead` 状态发往 null window | `sidecar.spec` 冻结出 `uhf-sidecar.exe` 经 extraResources 交付；`resolveLaunch()` 按 `app.isPackaged` 二选一；窗口改为启动即建 | ✅ 已实现，产物 183MB 且冒烟通过 |
 
 ## 不做清单
 
