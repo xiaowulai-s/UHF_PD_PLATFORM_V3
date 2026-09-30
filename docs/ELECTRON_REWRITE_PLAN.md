@@ -675,6 +675,23 @@ E203 与 black 天然冲突（black 就是要在切片冒号前加空格），�
 交互脚本加了第 9 步（点"AE 视图"→ 截图 → 点回"局放视图"），因为模式是手动切换的，
 不点就永远拍不到 AE 视图。
 
+**长稳验收工具 `tools/soak_memory.py`**（M5.1 的"连续 1h 无内存增长"与 M7.2 共用）。
+判定口径固定下来，避免每次口头解释：按角色（main/renderer/gpu/sidecar）分别采样
+RSS，剔除前 5 分钟预热，用**后半段线性斜率 + 首末段中位数差**判定，而不是首尾两点相减
+——Chromium 的 RSS 本来就不单调，一次 GC 或最小化就能把首尾差带偏。每个采样点都覆写
+报告文件，防止最后一步异常把一小时的采样全赔进去。
+
+三个实现坑（都实际踩过）：`npx` 在 Windows 上是 `.cmd`，Python 直接 spawn 会
+FileNotFoundError，要用 `node_modules/electron/dist/electron.exe`；仿真参数必须走
+`PD_SIDECAR_ARGS` 环境变量，当 electron 的 argv 传进去会被静默丢掉；跑得太短时
+"预热吃掉全部样本"会被误报成"没采到渲染进程"，两者处置方向完全不同，已分开报。
+
+**待查项：sidecar 常驻内存 313 MB**（4 分钟烟雾实测，UHF 仿真 @20FPS）。而
+`AGENTS.md` 记的性能目标是"峰值 < 100MB"。候选来源是 per-channel 环形缓冲
+（1M 点 × float64 = 8MB/通道）与 `PRPDProcessor._events` 的 100k 事件 deque，
+但**未定位**，等 60 分钟长稳的斜率数据出来再判断是"一次性预分配"还是"持续泄漏"——
+这两种的处置完全不同，前者只是目标值定错了，后者才是 bug。
+
 ---
 
 ## M6 · 第三批页面（AE 与分析） — 10 pd
