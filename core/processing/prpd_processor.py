@@ -190,6 +190,36 @@ class PRPDProcessor:
         for phase, amplitude in events:
             self.add_event(phase, amplitude)
 
+    def add_detected_events(self, peaks: list, n_samples: int, phase_offset: float = 0.0) -> None:
+        """把**已经检测好的** PeakInfo 列表并入图谱。
+
+        这是首选入口：`uhf_pipeline` 每帧本来就跑过一次 `detect_pd_events`（事件流、
+        报警、入库都用它），再让 PRPD 用另一个检测器重测一遍就会出现两套真相。
+        实测过分歧有多大：注入 3 正 3 负共 6 个脉冲时，事件流找到 6 个（3 正 3 负），
+        而 PRPD 找到 7 个、全部标成"负极性"、其中 5 个是负极性脉冲的正旁瓣被当成
+        独立事件（幅值只有真实值的一半不到，相位也偏）。
+
+        `detect_pd_events` 给的 amplitude 是幅值大小（负极性也返回正数），极性只在
+        `polarity` 字段里（0=正、1=负），所以这里直接透传，绝不再从幅值符号反推。
+
+        Args:
+            peaks: PeakInfo 列表
+            n_samples: 这些峰值所在波形的总点数（用于位置→相位换算）
+            phase_offset: 相位偏移 (度)
+        """
+        if n_samples <= 0:
+            return
+        self._cycle_count += 1
+        for peak in peaks:
+            phase = (peak.position / n_samples * 360 + phase_offset) % 360
+            self.add_event(
+                phase,
+                float(peak.amplitude),
+                polarity=int(getattr(peak, "polarity", 0)),
+                energy=float(getattr(peak, "energy", 0.0) or 0.0),
+                cycle=self._cycle_count,
+            )
+
     def add_waveform(self, waveform: np.ndarray, phase_offset: float = 0.0) -> None:
         """
         从波形数据中提取 PRPD 事件
@@ -197,27 +227,18 @@ class PRPDProcessor:
         通过对波形进行峰值检测，提取超过阈值的峰值点作为局放事件。
         每次调用视为一个工频周期。
 
+        用 `detect_pd_events` 而不是 `detect_peaks_simple`：后者只找 `> +阈值` 的峰，
+        等于在图谱里结构性地丢掉所有负极性放电，还会把负脉冲的正旁瓣当成独立事件。
+        管线里请优先用 `add_detected_events`，避免同一帧检测两遍。
+
         Args:
             waveform: 波形数据
             phase_offset: 相位偏移 (度)
         """
         from .peak_detector import PeakDetector
 
-        self._cycle_count += 1
-
-        detector = PeakDetector()
-        peaks = detector.detect_peaks_simple(waveform)
-
-        # 将峰值点映射到相位 (假设波形覆盖一个完整工频周期)
-        n = len(waveform)
-        for peak in peaks:
-            phase = (peak.position / n * 360 + phase_offset) % 360
-            self.add_event(
-                phase,
-                peak.amplitude,
-                polarity=1 if peak.amplitude > 0 else 0,
-                cycle=self._cycle_count,
-            )
+        peaks = PeakDetector().detect_pd_events(np.asarray(waveform))
+        self.add_detected_events(peaks, len(waveform), phase_offset=phase_offset)
 
     # ── 分析 ─────────────────────────────────────────
 

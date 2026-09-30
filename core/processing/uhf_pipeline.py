@@ -69,7 +69,7 @@ class UHFPipelineHandler:
     2. 存入 RingBuffer
     3. 峰值检测 → publish_pd_event
     4. FFT → publish_fft_result
-    5. PRPD (add_waveform + throttle)
+    5. PRPD (add_detected_events + throttle)
     6. PRPS (phase binning + throttle)
     7. publish_waveform
     """
@@ -137,7 +137,9 @@ class UHFPipelineHandler:
         key = ProcessorManager.channel_key(device_id, channel_id)
         try:
             prpd_proc = self._proc_mgr.get_or_create_prpd(device_id, channel_id)
-            prpd_proc.add_waveform(samples, phase_offset=0)
+            # 复用上面已经检测出的 pd_events，不再让 PRPD 用第二个检测器重测一遍：
+            # 两遍检测的阈值与极性口径不同，图谱会和事件流/报警互相矛盾。
+            prpd_proc.add_detected_events(pd_events, len(samples))
             max_amp = max(abs(p.amplitude) for p in pd_events) if pd_events else 0.0
             self._throttle.prpd_cycle(device_id, channel_id, key, prpd_proc, max_amp)
         except (ValueError, TypeError, RuntimeError, MemoryError) as e:
