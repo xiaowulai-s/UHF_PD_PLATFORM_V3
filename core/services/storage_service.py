@@ -390,6 +390,49 @@ class PDStorageService:
     #: 时窗 -> 秒数。与旧版 trend_chart_widget.TIME_RANGES 的四个窗口一致。
     TREND_WINDOWS = {"1h": 3600, "24h": 86400, "7d": 604800, "30d": 2592000}
 
+    def query_history_device_ids(self) -> List[dict]:
+        """列出 pd_events 里真实出现过的 device_id，以及各自的条数与时间跨度。
+
+        历史/趋势页的设备候选必须来自这里，而**不能**用 device.list 或
+        stats.sources 的键：模拟器以采集设备 id（SIM-001）写事件，而数据源 id 是
+        另一套命名（sim-uhf-N），pd_devices 在纯模拟器场景下甚至是空的。
+        用错命名空间的后果是查询条件完全正确、结果恒为 0，看起来像"没有数据"。
+        """
+        from sqlalchemy import func
+
+        if not self._db_manager:
+            return []
+        try:
+            with self._db_manager.session() as session:
+                rows = (
+                    session.query(
+                        PDEventModel.device_id,
+                        func.count(PDEventModel.id),
+                        func.min(PDEventModel.timestamp),
+                        func.max(PDEventModel.timestamp),
+                    )
+                    .group_by(PDEventModel.device_id)
+                    .order_by(func.count(PDEventModel.id).desc())
+                    .all()
+                )
+            out: List[dict] = []
+            for device_id, count, first_ts, last_ts in rows:
+                out.append(
+                    {
+                        "device_id": str(device_id),
+                        "events": int(count or 0),
+                        "first_ts": first_ts.isoformat(sep=" ", timespec="seconds") if first_ts else None,
+                        "last_ts": last_ts.isoformat(sep=" ", timespec="seconds") if last_ts else None,
+                    }
+                )
+            return out
+        except (OSError, DatabaseError) as e:
+            logger.error("查询历史设备号失败 - 数据库错误: %s", e, exc_info=True)
+            return []
+        except Exception as e:
+            logger.error("查询历史设备号失败: %s", e, exc_info=True)
+            return []
+
     def query_trend_series(
         self,
         device_id: str,

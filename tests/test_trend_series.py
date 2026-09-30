@@ -142,3 +142,30 @@ def test_rpc_is_only_registered_when_storage_is_present():
 
     assert "storage.query_trend_series" not in names
     assert "device.list" in names, "无 storage 时设备查询仍应可用"
+
+
+def test_history_device_ids_reports_what_actually_has_data(storage):
+    """历史页的设备候选只能来自库里真实出现过的 device_id。
+
+    命名空间错配是实测踩出来的：模拟器以采集设备 id（SIM-001）写事件，
+    而 stats.sources 的键是另一套命名、pd_devices 在纯模拟器下是空的。
+    用错来源的后果是查询条件全对、结果恒为 0，看起来像"没有数据"。
+    """
+    seed(storage, [(60, 10.0, 1, "uhf"), (120, 20.0, 2, "uhf"), (300, 30.0, 1, "ae")])
+    rows = storage.query_history_device_ids()
+
+    assert [r["device_id"] for r in rows] == ["dev1"]
+    assert rows[0]["events"] == 3
+    assert rows[0]["first_ts"] and rows[0]["first_ts"] < rows[0]["last_ts"]
+
+
+def test_history_device_ids_is_empty_not_error_without_data(storage):
+    assert storage.query_history_device_ids() == []
+
+
+def test_history_device_ids_rpc_registered_alongside_storage(storage):
+    rpc = StorageRpc(db_manager=storage._db_manager, storage=storage)
+    names = [n for n, _ in rpc.handlers()]
+
+    assert "storage.device_ids" in names
+    assert "storage.device_ids" not in [n for n, _ in StorageRpc(db_manager=object()).handlers()]

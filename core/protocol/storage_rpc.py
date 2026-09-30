@@ -73,6 +73,7 @@ class StorageRpc:
                 ("storage.query_trends", self.query_trends),
                 ("storage.query_trend_series", self.query_trend_series),
                 ("storage.query_alarms", self.query_alarms),
+                ("storage.device_ids", lambda _p: self._storage.query_history_device_ids()),
                 ("storage.stats", lambda _p: self._storage.get_statistics()),
             ]
         return out

@@ -36,6 +36,16 @@ CALLS = [
         {"device_id": "NOSUCH", "start_time": "2026-01-01T00:00:00Z", "limit": 500},
     ),
     ("storage.stats", "storage.stats", {}),
+    # 历史页的设备候选必须来自库里真实出现过的 device_id：模拟器以采集设备 id
+    # (SIM-001) 写事件，而 stats.sources 的键是另一套命名，两者混用会让查询恒为 0
+    ("device_ids", "storage.device_ids", {}),
+    ("trend/1h", "storage.query_trend_series", {"device_id": "SIM-001", "window": "1h", "bins": 60}),
+    ("trend/24h", "storage.query_trend_series", {"device_id": "SIM-001", "window": "24h", "bins": 96}),
+    ("trend/30d", "storage.query_trend_series", {"device_id": "SIM-001", "window": "30d", "bins": 90}),
+    # 不存在的设备：应返回等长的全 0 序列，而不是报错或空数组
+    ("trend/nodata", "storage.query_trend_series", {"device_id": "NOSUCH", "window": "1h", "bins": 60}),
+    # 非法 window 必须被拒绝：这条是"期望失败"用例，见下方 expect_err
+    ("trend/badwin", "storage.query_trend_series", {"device_id": "SIM-001", "window": "5m"}, True),
 ]
 
 
@@ -72,7 +82,8 @@ async def run(port: int, token: str) -> int:
         print("服务端暴露的 RPC:", ", ".join(hello["rpc"]))
         print()
 
-        for i, (_label, method, params) in enumerate(CALLS):
+        for i, entry in enumerate(CALLS):
+            method, params = entry[1], entry[2]
             await ws.send(msgpack.packb({"k": "call", "i": str(i), "m": method, "p": params}, use_bin_type=True))
 
         while len(results) < len(CALLS):
@@ -83,12 +94,29 @@ async def run(port: int, token: str) -> int:
     bad = 0
     for i in sorted(results):
         r = results[i]
-        label = CALLS[i][0]
+        entry = CALLS[i]
+        label, expect_err = entry[0], bool(entry[3]) if len(entry) > 3 else False
         if not r["ok"]:
+            if expect_err:
+                print(f"  OK*   {label:<18} 按预期被拒绝: {str(r['e'])[:80]}")
+                continue
             bad += 1
             print(f"  FAIL  {label:<18} {r['e'][:110]}")
             continue
+        if expect_err:
+            bad += 1
+            print(f"  FAIL  {label:<18} 本应被拒绝，却成功返回")
+            continue
         d = r["d"]
+        if label.startswith("trend/") and isinstance(d, list):
+            total = sum(int(row.get("count", 0)) for row in d)
+            filled = sum(1 for row in d if row.get("count"))
+            peak = max((float(row.get("max_amplitude", 0)) for row in d), default=0.0)
+            print(
+                f"  OK    {label:<18} {len(d):>4} 箱  事件={total:<5} 非空箱={filled:<4} "
+                f"峰值={peak:.1f} mV  箱宽={d[0]['bin_seconds'] if d else '-'}s"
+            )
+            continue
         if isinstance(d, list):
             preview = d[0] if d else "-"
             print(f"  OK    {label:<18} {len(d):>4} 行  {str(preview)[:96]}")
