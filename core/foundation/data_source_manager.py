@@ -145,7 +145,7 @@ class DataSourceManager(QObject):
             return config.device_id
 
     def add_simulator_source(
-        self, sim_type: str = "uhf", pd_type: str = "internal", fps: int = 20, pulse_rate: float = 50.0
+        self, sim_type: str = "uhf", pd_type: str = "internal", fps: int = 20, pulse_rate: Optional[float] = None
     ) -> str:
         """
         添加模拟器数据源
@@ -154,7 +154,8 @@ class DataSourceManager(QObject):
             sim_type: "uhf" 或 "ae"
             pd_type: 局放类型 (corona/surface/internal/floating 或 burst/continuous/mixed)
             fps: 帧率
-            pulse_rate: 每秒局放脉冲数；调高只是让演示/验收时 PRPD 有数据可看
+            pulse_rate: 每秒事件数（UHF 为局放脉冲、AE 为 burst）；None 表示按类型取默认
+                （UHF 50、AE 5）。调高只是让演示/验收时面板有数据可看
 
         Returns:
             source_id

@@ -7,7 +7,7 @@
 
 import { reactive, ref, shallowRef } from "vue";
 import { SidecarClient, type ConnState, type Endpoint } from "./sidecar-client";
-import type { Frame, LogLine, StatsSnapshot, Topic } from "@/shared/protocol";
+import type { AeHit, Frame, LogLine, StatsSnapshot, Topic } from "@/shared/protocol";
 
 const STREAM_TOPICS: Topic[] = ["waveform", "fft", "prpd", "prps", "ae_envelope", "ae_hit", "stats", "log"];
 
@@ -32,9 +32,18 @@ export const frameCount = reactive<Record<string, number>>({});
 export const alarms = shallowRef<Record<string, unknown>[]>([]);
 export const logs = shallowRef<LogLine[]>([]);
 export const stats = shallowRef<StatsSnapshot | null>(null);
+/**
+ * AE 命中序列（最新的在最前）。
+ *
+ * 与 alarms 同理是"不能覆盖"的累加型：ae_hit 是逐条事件帧，latest 里只留最后一帧
+ * 就没法看频率、重复率这些需要跨命中统计的量。上限同旧版 AEParametersWidget 的
+ * 历史表量级（100 条），再多就是无意义的内存占用。
+ */
+export const aeHits = shallowRef<AeHit[]>([]);
 
 const MAX_LOG_LINES = 10_000;
 const MAX_ALARMS = 500;
+const MAX_AE_HITS = 200;
 
 /**
  * 订阅必须在模块初始化时就挂好，不能挂在 connect() 里。
@@ -51,6 +60,7 @@ client.stream.onFrame((frame) => {
   frameCount[frame.t] = (frameCount[frame.t] ?? 0) + 1;
   if (frame.t === "stats") stats.value = (frame.m as { stats: StatsSnapshot }).stats;
   if (frame.t === "log") appendLogs((frame.m as { lines: LogLine[] }).lines);
+  if (frame.t === "ae_hit") appendAeHits((frame.m as { hit: AeHit }).hit);
 });
 
 client.ctrl.onFrame((frame) => {
@@ -73,6 +83,20 @@ function appendLogs(lines: LogLine[]): void {
   const merged = logs.value.concat(lines);
   const overflow = merged.length - MAX_LOG_LINES;
   logs.value = overflow > 0 ? merged.slice(overflow) : merged;
+}
+
+/**
+ * 追加一条 AE 命中。
+ *
+ * 用"换整个数组引用"而不是 push：aeHits 是 shallowRef，push 不触发更新；
+ * 而 AE 在 --pulse-rate 调高后能到 10+ 条/秒，每条都复制 200 元素的数组，
+ * 代价远小于给每个对象建深度代理。
+ */
+function appendAeHits(hit: AeHit): void {
+  if (!hit || typeof hit.amplitude !== "number") return;
+  const next = [hit, ...aeHits.value];
+  if (next.length > MAX_AE_HITS) next.length = MAX_AE_HITS;
+  aeHits.value = next;
 }
 
 export function call<T>(method: string, params?: Record<string, unknown>): Promise<T> {

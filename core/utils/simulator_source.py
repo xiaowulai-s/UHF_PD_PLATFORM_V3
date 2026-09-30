@@ -30,7 +30,7 @@ class SimulatorSource(DataSource):
         fps: int,
         acquisition,
         data_bus,
-        pulse_rate: float = 50.0,
+        pulse_rate: float | None = None,
     ):
         super().__init__()
         self._source_id = source_id
@@ -39,6 +39,8 @@ class SimulatorSource(DataSource):
         self._fps = fps
         # 每帧 4096 点 @100MHz 只覆盖 41μs，脉冲数按 poisson(pulse_rate*n/sr) 抽，
         # 所以 pulse_rate 是"每秒"时默认 50 会让 488 帧里才落进 1 个脉冲。
+        # None = 按仿真类型取各自默认（UHF 50/s、AE 5/s）：两种仿真的真实量级差一个
+        # 数量级，共用一个默认值必然有一边不对。
         self._pulse_rate = pulse_rate
         self._acquisition = acquisition
         self._data_bus = data_bus
@@ -86,7 +88,9 @@ class SimulatorSource(DataSource):
             sim = AESimulator(
                 sample_rate=2_000_000,
                 waveform_points=4096,
-                burst_rate=5.0,
+                # 原先这里写死 5.0，--pulse-rate 对 AE 完全无效，ae_hit 约 5 秒才一个，
+                # 前端 AE 面板没法验收。默认仍是 5.0，但显式传值现在能落下来。
+                burst_rate=self._pulse_rate if self._pulse_rate is not None else 5.0,
                 noise_level=0.5,
             )
             sim.set_burst_type(self._pd_type)
@@ -98,7 +102,9 @@ class SimulatorSource(DataSource):
             sim = PDSimulator(
                 sample_rate=100_000_000,
                 waveform_points=4096,
-                pulse_rate=self._pulse_rate,
+                # 显式传 None 会覆盖 PDSimulator 自己的默认值并把 poisson 弄崩，
+                # 所以这里必须落地成数字。
+                pulse_rate=self._pulse_rate if self._pulse_rate is not None else 50.0,
                 noise_level=2.0,
             )
             sim.set_pd_type(self._pd_type)

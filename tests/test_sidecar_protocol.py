@@ -1099,6 +1099,12 @@ def test_sidecar_cli_parses_and_formats_help(monkeypatch):
     assert args.pulse_rate == 60000.0
     assert args.fps == 20
 
+    # 不传时必须留 None，由两种仿真各自决定默认（UHF 50/s、AE 5/s）。
+    # 早先 argparse 写死 default=50.0，等于替 AE 做了它没同意的选择，
+    # 而且 AE 分支压根没读这个值（burst_rate 硬编码 5.0）。
+    monkeypatch.setattr(sys, "argv", ["sidecar.py"])
+    assert sidecar.parse_args().pulse_rate is None
+
     # help 文本里的 % 必须转义成 %%，否则 format_help() 会抛
     import contextlib
     import io
@@ -1108,7 +1114,9 @@ def test_sidecar_cli_parses_and_formats_help(monkeypatch):
     with pytest.raises(SystemExit):
         with contextlib.redirect_stdout(buf):
             sidecar.parse_args()
-    assert "每秒局放脉冲数" in buf.getvalue()
+    help_text = buf.getvalue()
+    assert "每秒事件数" in help_text
+    assert "--pulse-rate" in help_text
 
 
 def test_prpd_frame_distinguishes_axis_max_from_observed_max():
@@ -1331,3 +1339,25 @@ def test_trend_series_rpc_rejects_bad_params(sidecar, spin):
     finally:
         client.close()
         db.close()
+
+
+def test_ae_envelope_frame_carries_a_time_base():
+    """AE 包络必须带 sample_rate，否则前端只能靠猜，而猜错是静默的。
+
+    实测过的错法：ae_pipeline 发的是裸 ndarray，payloads 的
+    `getattr(obj, "sample_rate", 0)` 取到 0，前端 waveform-chart 又把 0 兜底成
+    100 MHz —— 2 MHz 采的包络被按 100 MHz 画横轴，差 50 倍，而图看起来完全正常。
+    """
+    from core.communication.protocol_data_structures import WaveformData
+    from core.protocol import payloads as P
+
+    env = np.linspace(0.0, 1.0, 4096, dtype=np.float32)
+    frame = P.build_ae_envelope("dev1", 1, WaveformData(samples=env, sample_rate=2_000_000))
+
+    assert frame is not None
+    assert frame.meta["sample_rate"] == 2_000_000
+    assert frame.meta["sensor_type"] == "ae"
+    assert frame.meta["shape"] == [4096]
+    # 往返后仍是原值：包络走 float32 不压缩，时间基准不能把负载撑坏
+    back = unpack_array(frame.payload, frame.meta)
+    assert np.allclose(back, env, atol=1e-6)

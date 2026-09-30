@@ -157,6 +157,29 @@ export interface TransportDiagnostics {
   uptime_s: number;
 }
 
+/**
+ * AE 一次命中（hit）的特征量。字段与内核 `ae_parameter_extractor` 的产物一一对应，
+ * 少一个就多一个"前端自己猜单位"的机会，所以这里显式列全。
+ *
+ * 注意 amplitude 沿用内核的"采集原始样本值"口径：FPGA 侧是裸 int16 计数、模拟器是 mV，
+ * 现场标定完成前两种量纲共用同一字段（见 AGENTS.md「单位口径本身是缺的」）。
+ */
+export interface AeHit {
+  amplitude: number;
+  rise_time_us: number;
+  duration_us: number;
+  counts: number;
+  marse_energy: number;
+  avg_frequency_khz: number;
+  rms: number;
+  asl_db: number;
+  signal_strength: number;
+  energy: number;
+  phase_deg: number;
+  polarity: number;
+  signal_quality: number;
+}
+
 export interface StatsSnapshot {
   frames_received?: number;
   waveforms_processed?: number;

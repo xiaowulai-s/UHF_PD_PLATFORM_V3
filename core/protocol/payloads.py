@@ -144,6 +144,10 @@ def build_ae_envelope(device: str, channel: int, obj: Any) -> Frame | None:
     if data.size < 2:
         return None
     payload, meta = pack_array(data, _WAVEFORM_DTYPE)
+    # 与 build_waveform 同一套元信息：没有时间基准的包络在前端只能靠猜，
+    # 而猜错是静默的（横轴照样画得出来，只是单位不对）。
+    meta["sensor_type"] = "ae"
+    meta["sample_rate"] = int(getattr(obj, "sample_rate", 0) or 0)
     return Frame(topic="ae_envelope", device=device, channel=channel, meta=meta, payload=payload)
 
 

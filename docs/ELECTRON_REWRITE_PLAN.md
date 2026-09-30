@@ -642,6 +642,39 @@ E203 与 black 天然冲突（black 就是要在切片冒号前加空格），�
 `tools/rpc_check.py` 补了 `device_ids` 与四个 `trend/*` 用例（含"期望失败"的
 非法窗口），这样多窗口不必开界面就能回归。
 
+### M5.1 实时监测页 AE 模式（2026-09-30 完成，真点 + 截图验收）
+
+**先推翻一个前提：旧版的"按 sensor_type 自动切换 AE/UHF"从来没执行过。**
+`ui/controllers/signal_router.py:157` 调的是 `monitor.update_waveform(...)`，
+而 `RealtimeMonitorPage` **没有这个方法**——每次抛 `AttributeError` 被
+`except Exception: logger.debug(...)` 吞掉。所以那句 `switch_to_ae_mode()`
+可达调用点为 0。旧版真正的 AE 模式只是一个 `QStackedWidget` 翻到第 1 页，
+显示 6 个数字标签 + 一张历史表，**监测页上既没有包络图也没有 hit 散点**
+（`AEScatterWidget` 只存在于 `ae_page.py`）。照"自动切换"复刻等于凭空造需求，
+因此新版的模式是**显式 UI 切换**。
+
+内核侧修了两个真实缺口（都在 `#30`）：
+
+1. **AE 帧没有时间基。** `ae_pipeline` 发的是裸 ndarray，`payloads` 里
+   `getattr(obj, "sample_rate", 0)` 取到 0，前端 `waveform-chart` 又把 0 兜底成
+   100 MHz —— 2 MHz 采的包络被按 100 MHz 画横轴，**差 50 倍，而且图看起来完全正常**。
+   修法是把包络包成 `WaveformData(samples, sample_rate)` 再发，同时给
+   `build_ae_envelope` 补 `sample_rate`/`sensor_type`。
+   修完截图上可直接核对：4096 点显示为 2047.5 µs（= 2 MHz），FFT 横轴止于 1 MHz（奈奎斯特）。
+2. **`--pulse-rate` 对 AE 无效**：`burst_rate` 写死 5.0，`ae_hit` 约 5 秒才一条，
+   没法验收。现在 `--pulse-rate` 显式传值对两种仿真都生效；argparse 默认改为 `None`
+   表示"按类型取各自默认"（UHF 50/s、AE 5/s）——两种仿真的真实量级差一个数量级，
+   共用一个默认必然有一边不对。实测 `--pulse-rate 400` 下 12 秒收到 142 条 hit。
+
+前端：`ae-panel.vue`（8 个特征量 + 12 行滚动表 + 均值），数据来自 store 新增的
+`aeHits` 环形列表（上限 200，与 alarms 同理是"不能覆盖"的累加型）。
+刻意**不给"命中率"指标**——列表被 200 条截断后 条数/秒 会随饱和失真，一个会骗人的
+指标不如不放。包络曲线也不重画：内核已把包络作为 `waveform` 帧重发，另画一条只会
+出现两个互相矛盾的时间轴。
+
+交互脚本加了第 9 步（点"AE 视图"→ 截图 → 点回"局放视图"），因为模式是手动切换的，
+不点就永远拍不到 AE 视图。
+
 ---
 
 ## M6 · 第三批页面（AE 与分析） — 10 pd

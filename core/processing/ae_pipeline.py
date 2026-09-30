@@ -14,6 +14,7 @@ from typing import Any, Dict, Set
 
 import numpy as np
 
+from core.communication.protocol_data_structures import WaveformData
 from core.foundation.signal_bus import PDDataBus
 from core.processing.fft_processor import FFTProcessor
 from core.processing.processor_manager import ProcessorManager
@@ -210,7 +211,12 @@ class AEPipelineHandler:
 
         # 包络提取
         envelope = env_proc.compute_envelope(filtered, method="hilbert")
-        self._data_bus.publish_ae_envelope(device_id, channel_id, envelope)
+        # 必须带 sample_rate 一起发：裸 ndarray 会让 payloads 里的
+        # `getattr(obj, "sample_rate", 0)` 取到 0，前端 waveform-chart 又把 0 兜底成
+        # 100 MHz，于是 2 MHz 采的 AE 包络被按 100 MHz 画时间轴——横轴差 50 倍，
+        # 而且看起来完全正常，只有对着已知脉宽量才发现。
+        env_frame = WaveformData(samples=envelope, sample_rate=int(sr))
+        self._data_bus.publish_ae_envelope(device_id, channel_id, env_frame)
 
         # Hit 检测
         ae_detector = self._proc_mgr.get_or_create_ae_peak_detector(device_id, channel_id)
@@ -290,8 +296,8 @@ class AEPipelineHandler:
         except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             logger.warning("[%s] AE 报警检测异常: %s", device_id, e, exc_info=True)
 
-        # 发布包络波形
-        self._data_bus.publish_waveform(device_id, channel_id, envelope, "ae")
+        # 发布包络波形（复用同一个带 sample_rate 的对象，理由见上面 env_frame 处）
+        self._data_bus.publish_waveform(device_id, channel_id, env_frame, "ae")
 
         return {
             "samples": envelope,

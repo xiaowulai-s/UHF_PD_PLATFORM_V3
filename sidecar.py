@@ -40,9 +40,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pulse-rate",
         type=float,
-        default=50.0,
-        help="模拟器每秒局放脉冲数。默认 50 是真实量级，但一帧只有 4096 点 @100MHz=41μs，"
-        "每帧落进脉冲的概率约 0.2%%，PRPD 面板基本是空的；演示/验收可给 2e4~1e5",
+        default=None,
+        help="模拟器每秒事件数：UHF 是局放脉冲数（默认 50），AE 是 burst 数（默认 5）。"
+        "默认 50 是真实量级，但一帧只有 4096 点 @100MHz=41μs，每帧落进脉冲的概率约 0.2%%，"
+        "PRPD 面板基本是空的；演示/验收可给 2e4~1e5。AE 侧原先把它写死成 5.0，"
+        "导致 ae_hit 约 5 秒才一个，无法验收——现在显式传值对两种仿真都生效",
     )
     parser.add_argument("--hardware", action="store_true", help="用配置里的真实设备而非模拟器")
     parser.add_argument("--db", type=str, default=None, help="SQLite 路径，默认 <状态根>/data/monitor.db")
@@ -138,11 +140,13 @@ def main() -> int:
     port, token = server.start(host=args.host, port=args.port)
 
     def start_simulator(params: dict) -> int:
+        raw = params.get("pulse_rate", args.pulse_rate)
         sources.add_simulator_source(
             params.get("sim_type", args.sim_type),
             params.get("pd_type", args.pd_type),
             int(params.get("fps", args.fps)),
-            float(params.get("pulse_rate", args.pulse_rate)),
+            # None 表示"按仿真类型取各自默认"，不能 float(None)
+            None if raw is None else float(raw),
         )
         return sources.start_all()
 
@@ -187,7 +191,13 @@ def main() -> int:
     else:
         sources.add_simulator_source(args.sim_type, args.pd_type, args.fps, args.pulse_rate)
         sources.start_all()
-        logger.info("模拟器: %s/%s @ %d FPS, 脉冲 %g/s", args.sim_type, args.pd_type, args.fps, args.pulse_rate)
+        logger.info(
+            "模拟器: %s/%s @ %d FPS, 事件率 %s",
+            args.sim_type,
+            args.pd_type,
+            args.fps,
+            "按类型默认" if args.pulse_rate is None else f"{args.pulse_rate:g}/s",
+        )
 
     print(
         f"\n  sidecar ready\n"

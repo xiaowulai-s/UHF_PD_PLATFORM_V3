@@ -119,7 +119,18 @@ async function snap(win: BrowserWindow, to: string): Promise<Record<string, unkn
   if (CAPTURE_ROUTE) {
     const drifted = await win.webContents.executeJavaScript(`location.hash !== "#/${CAPTURE_ROUTE}"`);
     if (drifted) {
-      console.log(`[capture] 路由漂移到别处，已强制回 #/${CAPTURE_ROUTE}`);
+      // 先分诊再纠正：实测"页面自己跳走"绝大多数不是应用缺陷，而是截图窗口带
+      // alwaysOnTop，谁在机器前动鼠标就会点到侧栏把它点走了。探针里有 pointerdown
+      // 就是外部输入，别当成路由 bug 去查。
+      const external = await win.webContents.executeJavaScript(
+        `(() => (window.__pdNav || []).some(e => e.includes('pointerdown')))()`,
+      );
+      console.log(
+        external
+          ? `[capture] 路由被外部鼠标点击改变（探针见 pointerdown），非应用自身跳转；仍强制回 #/${CAPTURE_ROUTE}`
+          : `[capture] 路由漂移到别处且无鼠标事件，已强制回 #/${CAPTURE_ROUTE}` +
+            `；无 pointerdown 的跳转才需要查前端`,
+      );
       await win.webContents.executeJavaScript(`location.hash = "#/${CAPTURE_ROUTE}"`);
       await new Promise((r) => setTimeout(r, 900));
     }
@@ -128,8 +139,8 @@ async function snap(win: BrowserWindow, to: string): Promise<Record<string, unkn
   writeFileSync(to, image.toPNG());
   const readout = await win.webContents.executeJavaScript(
     // 带上 location.hash：只读 main 的文本没法区分"路由没跳对"和"读错了元素"，
-    // 这两者的排查方向完全不同。
-    `(() => { const m = document.querySelector('main'); return { hash: location.hash, text: m ? m.innerText.slice(0, 400) : '', canvases: document.querySelectorAll('canvas').length, hidden: document.hidden }; })()`,
+    // 这两者的排查方向完全不同。nav 是导航探针记到的事件序列，用来定位"页面自己跳走"。
+    `(() => { const m = document.querySelector('main'); return { hash: location.hash, text: m ? m.innerText.slice(0, 400) : '', canvases: document.querySelectorAll('canvas').length, hidden: document.hidden, nav: window.__pdNav || [] }; })()`,
   );
   console.log(`[capture] 已写入 ${to}`);
   return { to, ...readout };
@@ -234,7 +245,15 @@ async function driveInteractions(win: BrowserWindow, prefix: string): Promise<vo
   await wait(3000);
   console.log(JSON.stringify(await snap(win, `${prefix}-prpd-heatmap.png`)));
 
-  // 9) 热力图点击读数：这条链路唯一的风险点是索引方向——矩阵是 (phase, amplitude)
+  // 9) AE 模式切换（M5.1）：右下角面板从 PRPS 换成 AE 命中参数。
+  //    这一步只能真点——模式是显式 UI 状态，不点就永远拍不到 AE 视图。
+  await click("AE 视图");
+  await wait(2500);
+  console.log(JSON.stringify(await snap(win, `${prefix}-ae-mode.png`)));
+  await click("局放视图");
+  await wait(1200);
+
+  // 10) 热力图点击读数：这条链路唯一的风险点是索引方向——矩阵是 (phase, amplitude)
   //    行主序、显示时才是 .T，读成 cells[ampIdx*phaseBins+phaseIdx] 不会越界也不报错，
   //    只会给出一个"看着像回事"的错数字。
   //
@@ -423,8 +442,32 @@ async function driveThrottle(win: BrowserWindow, prefix: string): Promise<void> 
   console.log(JSON.stringify(await snap(win, `${prefix}-cleared.png`)));
 }
 
+/**
+ * 截图模式下给渲染层装一个导航探针。
+ *
+ * 起因：实测有间歇性的"页面自己跳走"（强制纠正到 #/monitor 后 900ms 内又变成
+ * #/settings），而静态截图只能看到结果、看不到是谁触发的。路由表里没有任何自动
+ * 跳转逻辑，所以嫌疑只剩 keydown 与 hashchange 两类真实事件——把它们按序记下来
+ * 才能定性。只装在 capture 路径里，不进正常启动流程。
+ */
+async function installNavProbe(win: BrowserWindow): Promise<void> {
+  await win.webContents.executeJavaScript(`(() => {
+    window.__pdNav = [];
+    const t0 = performance.now();
+    const at = () => ((performance.now() - t0) / 1000).toFixed(2) + 's';
+    addEventListener('hashchange', (e) => window.__pdNav.push(
+      at() + ' hashchange ' + (location.hash || '(空)') + ' <- ' + (e.oldURL.split('#')[1] ? '#' + e.oldURL.split('#')[1] : '(空)')), true);
+    addEventListener('keydown', (e) => window.__pdNav.push(
+      at() + ' keydown ' + e.key + ' repeat=' + e.repeat + ' target=' + (e.target && e.target.tagName)), true);
+    addEventListener('pointerdown', (e) => window.__pdNav.push(
+      at() + ' pointerdown ' + (e.target && e.target.tagName)), true);
+    return true;
+  })()`);
+}
+
 async function takeCapture(win: BrowserWindow): Promise<void> {
   await new Promise((r) => win.webContents.once("did-finish-load", () => r(null)));
+  await installNavProbe(win);
   await new Promise((r) => setTimeout(r, CAPTURE_WAIT_MS));
   console.log(JSON.stringify(await snap(win, CAPTURE_TO)));
   try {
