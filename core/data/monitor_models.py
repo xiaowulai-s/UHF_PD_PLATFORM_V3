@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+
 """UHF-AE PD Detector 数据库模型
 
 局放监测专用数据模型，复用现有 Base 和 DatabaseManager。
 所有模型自动被 DatabaseManager 的 create_all() 识别。
 """
 
-from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
@@ -220,7 +220,7 @@ class PDAlarmModel(Base):
     alarm_type = Column(
         String(32), nullable=False
     )  # pd_over_limit, device_offline, optical_abnormal, adc_abnormal, sync_abnormal, storage_low
-    level = Column(String(16), nullable=False)  # critical, warning, info
+    level = Column(String(16), nullable=False)  # critical, high, medium, low
     amplitude = Column(Float, nullable=True)
     threshold = Column(Float, nullable=True)
     description = Column(Text, nullable=True)
@@ -235,17 +235,19 @@ class PDAlarmModel(Base):
         Index("idx_pd_alarm_ack", "acknowledged"),
     )
 
-    # NOTE: 告警颜色以 core/services/alarm_service.py:ALARM_LEVELS 为准
+    # NOTE: 告警颜色需与 core/services/alarm_service.py:ALARM_LEVELS 保持一致
     LEVEL_COLORS = {
-        "critical": "#CF222E",
-        "warning": "#D29922",
-        "info": "#1A7F37",
+        "critical": "#DC2626",
+        "high": "#EA580C",
+        "medium": "#CA8A04",
+        "low": "#2563EB",
     }
 
     LEVEL_NAMES = {
-        "critical": "严重报警",
-        "warning": "一般报警",
-        "info": "提示报警",
+        "critical": "紧急",
+        "high": "高级",
+        "medium": "中级",
+        "low": "低级",
     }
 
     ALARM_TYPE_NAMES = {

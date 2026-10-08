@@ -129,7 +129,7 @@ class UDPDriver(BaseDriver):
 
             except (OSError, socket.error) as e:
                 logger.error("UDP 绑定失败 [%s:%d]: %s", self._host, self._port, e)
-                self.error_occurred.emit(f"UDP 启动失败: {str(e)}")
+                self.connection_error.emit(f"UDP 启动失败: {str(e)}")
                 self._cleanup_socket()
                 return False
 
@@ -171,6 +171,10 @@ class UDPDriver(BaseDriver):
             except (OSError, socket.error) as e:
                 logger.error("UDP 发送到 [%s:%d] 失败: %s", self._remote_host, self._remote_port, e)
                 return False
+
+    def send(self, data: bytes) -> bool:
+        """发送数据（实现 BaseDriver 抽象接口）"""
+        return self.send_data(data)
 
     def send_to(self, data: bytes, host: str, port: int) -> bool:
         """
@@ -217,7 +221,7 @@ class UDPDriver(BaseDriver):
             except (OSError, socket.error) as e:
                 if self._is_running:
                     logger.warning("UDP 接收错误: %s", e)
-                    self.error_occurred.emit(f"UDP 接收错误: {str(e)}")
+                    self.connection_error.emit(f"UDP 接收错误: {str(e)}")
                 break
             except Exception as e:
                 if self._is_running:
@@ -326,9 +330,23 @@ class UDPDriver(BaseDriver):
         if self._socket:
             try:
                 self._socket.close()
+                logger.debug("UDP socket已关闭")
             except OSError as e:
                 logger.debug("Socket 关闭时出错: %s", e)
-            self._socket = None
+            finally:
+                self._socket = None
+
+    def __del__(self) -> None:
+        """析构函数 - 确保socket被关闭"""
+        self._cleanup_socket()
+
+    def __enter__(self) -> UDPDriver:
+        """上下文管理器入口"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """上下文管理器退出"""
+        self.disconnect()
 
     def __repr__(self) -> str:
         return (

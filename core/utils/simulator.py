@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import math
 import random
+import threading
 import time
 from typing import Callable, List, Optional
 
@@ -78,6 +79,7 @@ class PDSimulator:
 
         # 运行状态
         self._is_running = False
+        self._thread: Optional[threading.Thread] = None
         self._frame_count = 0
         self._power_line_freq = 50.0  # 工频 50Hz
 
@@ -183,16 +185,28 @@ class PDSimulator:
         Args:
             interval_ms: 帧间隔 (ms), 50ms = 20FPS
         """
-        import threading as _threading
-
         self._is_running = True
-        self._thread = _threading.Thread(target=self._run_loop, args=(interval_ms,), daemon=True)
+        self._thread = threading.Thread(target=self._run_loop, args=(interval_ms,), daemon=True)
         self._thread.start()
         logger.info("PD 模拟器已启动 [%s, %d FPS]", self._pd_type, 1000 // max(interval_ms, 1))
 
     def stop(self) -> None:
-        """停止模拟"""
+        """停止模拟，并等生成线程真的退出。
+
+        join 是必需的，不是保险：这个线程 daemon=True，而且它就是帧的源头。只置
+        标志位就返回的话，解释器开始收尾时它还在跑 `_on_waveform` → uhf_pipeline →
+        `PDDataBusSignals.emit()`，而那个 QObject 的 C++ 侧此时已被销毁，于是每次
+        退出都刷屏 `RuntimeError: Signal source has been deleted`（全套 pytest 跑完
+        时同样会刷）。超时上限取 2s：一帧最多 50ms 间隔 + 一次管线，2s 已经宽到
+        只可能在真卡死时才触发，而关停绝不能被一个卡死的线程拖住。
+        """
         self._is_running = False
+        thread = self._thread
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=2.0)
+            if thread.is_alive():
+                logger.warning("PD 模拟器生成线程 2.0s 内未退出，继续关停流程")
+        self._thread = None
         logger.info("PD 模拟器已停止 (帧数: %d)", self._frame_count)
 
     def _run_loop(self, interval_ms: int) -> None:

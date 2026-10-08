@@ -2,10 +2,11 @@
 """
 局放报警服务 - PDAlarmService
 
-三级报警体系:
-- critical (严重): 红色 #CF222E, 幅值 ≥ 80% 量程
-- warning (一般): 黄色 #D29922, 幅值 ≥ 50% 量程
-- info (提示): 绿色 #1A7F37, 幅值 ≥ 30% 量程
+四级报警体系 (ISA-18.2):
+- critical (紧急): 红色 #DC2626, 幅值 ≥ 80% 量程
+- high (高级):   橙色 #EA580C, 幅值 ≥ 60% 量程
+- medium (中级): 黄色 #CA8A04, 幅值 ≥ 40% 量程
+- low (低级):    蓝色 #2563EB, 幅值 ≥ 20% 量程
 
 六种报警类型:
 - pd_over_limit:    局放超限
@@ -22,21 +23,27 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import RLock
-from typing import Any, Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 from core.data.monitor_models import PDAlarmModel
 from core.foundation.signal_bus import PDDataBus
 
+try:
+    from sqlalchemy.exc import DatabaseError
+except ImportError:
+    DatabaseError = Exception  # 回退
+
 logger = logging.getLogger(__name__)
 
 
-# 报警等级配置
+# 报警等级配置 (ISA-18.2 四级标准)
 ALARM_LEVELS = {
-    "critical": {"name": "严重报警", "threshold_pct": 80.0, "color": "#CF222E", "db_level": 3},
-    "warning": {"name": "一般报警", "threshold_pct": 50.0, "color": "#D29922", "db_level": 2},
-    "info": {"name": "提示报警", "threshold_pct": 30.0, "color": "#1A7F37", "db_level": 1},
+    "critical": {"name": "紧急", "threshold_pct": 80.0, "color": "#DC2626", "db_level": 4},
+    "high": {"name": "高级", "threshold_pct": 60.0, "color": "#EA580C", "db_level": 3},
+    "medium": {"name": "中级", "threshold_pct": 40.0, "color": "#CA8A04", "db_level": 2},
+    "low": {"name": "低级", "threshold_pct": 20.0, "color": "#2563EB", "db_level": 1},
 }
 
 ALARM_TYPE_NAMES = {
@@ -114,8 +121,11 @@ class PDAlarmService:
         Returns:
             报警字典，无报警则返回 None
         """
-        # NaN/Inf 防护
-        if not isinstance(amplitude, (int, float)) or amplitude != amplitude or amplitude == float('inf') or amplitude == float('-inf'):
+        # NaN/Inf 防护。拆成两条 if 而不是一个多行布尔表达式：本仓库 .flake8 的 ignore
+        # 是覆盖默认表而非追加，W503 与 W504 同时生效，运算符放行首或行尾都会被报。
+        if not isinstance(amplitude, (int, float)):
+            return None
+        if amplitude != amplitude or amplitude in (float("inf"), float("-inf")):
             return None
 
         # 按通道阈值优先 (AE 通道独立配置), 再设备阈值, 最后全局默认
@@ -133,10 +143,12 @@ class PDAlarmService:
         level = None
         if pct >= level_thresholds.get("critical", ALARM_LEVELS["critical"]["threshold_pct"]):
             level = "critical"
-        elif pct >= level_thresholds.get("warning", ALARM_LEVELS["warning"]["threshold_pct"]):
-            level = "warning"
-        elif pct >= level_thresholds.get("info", ALARM_LEVELS["info"]["threshold_pct"]):
-            level = "info"
+        elif pct >= level_thresholds.get("high", ALARM_LEVELS["high"]["threshold_pct"]):
+            level = "high"
+        elif pct >= level_thresholds.get("medium", ALARM_LEVELS["medium"]["threshold_pct"]):
+            level = "medium"
+        elif pct >= level_thresholds.get("low", ALARM_LEVELS["low"]["threshold_pct"]):
+            level = "low"
 
         if level is None:
             return None
@@ -214,10 +226,10 @@ class PDAlarmService:
                 "device_id": device_id,
                 "channel_id": 0,
                 "alarm_type": "adc_abnormal",
-                "level": "warning",
+                "level": "high",
                 "amplitude": 0,
                 "threshold": 0,
-                "level_name": ALARM_LEVELS["warning"]["name"],
+                "level_name": ALARM_LEVELS["high"]["name"],
                 "description": f"{ALARM_TYPE_NAMES['adc_abnormal']} - ADC 状态码: {status_data.adc_status}",
                 "timestamp": time.time(),
             }
@@ -226,10 +238,10 @@ class PDAlarmService:
                 "device_id": device_id,
                 "channel_id": 0,
                 "alarm_type": "optical_abnormal",
-                "level": "warning",
+                "level": "high",
                 "amplitude": 0,
                 "threshold": 0,
-                "level_name": ALARM_LEVELS["warning"]["name"],
+                "level_name": ALARM_LEVELS["high"]["name"],
                 "description": f"{ALARM_TYPE_NAMES['optical_abnormal']} - 光模块状态码: {status_data.optical_status}",
                 "timestamp": time.time(),
             }
@@ -238,10 +250,10 @@ class PDAlarmService:
                 "device_id": device_id,
                 "channel_id": 0,
                 "alarm_type": "sync_abnormal",
-                "level": "warning",
+                "level": "medium",
                 "amplitude": 0,
                 "threshold": 0,
-                "level_name": ALARM_LEVELS["warning"]["name"],
+                "level_name": ALARM_LEVELS["medium"]["name"],
                 "description": f"{ALARM_TYPE_NAMES['sync_abnormal']} - 同步状态码: {status_data.sync_status}",
                 "timestamp": time.time(),
             }
@@ -255,10 +267,10 @@ class PDAlarmService:
                 "device_id": "system",
                 "channel_id": 0,
                 "alarm_type": "storage_low",
-                "level": "warning",
+                "level": "medium",
                 "amplitude": 0,
                 "threshold": 90,
-                "level_name": ALARM_LEVELS["warning"]["name"],
+                "level_name": ALARM_LEVELS["medium"]["name"],
                 "description": f"{ALARM_TYPE_NAMES['storage_low']} - 使用率: {usage_pct:.0f}%",
                 "timestamp": time.time(),
             }
@@ -275,7 +287,6 @@ class PDAlarmService:
         """
         device_id = alarm["device_id"]
         alarm_type = alarm["alarm_type"]
-        key = f"{device_id}:{alarm_type}"
 
         with self._lock:
             device_alarms = self._active_alarms.setdefault(device_id, {})
@@ -294,16 +305,21 @@ class PDAlarmService:
             self._stats[f"{alarm['level']}_count"] = self._stats.get(f"{alarm['level']}_count", 0) + 1
             self._stats["active_count"] = len(device_alarms)
 
-        # 发布到 DataBus
-        self._data_bus.publish_alarm(device_id, alarm)
-        logger.warning("[ALARM] [%s] %s", device_id, alarm.get("description", alarm_type))
-
-        # 持久化到数据库
+        # 先落库拿到主键再发布：告警帧必须带 id，否则前端无法确认某一条。
+        # 落库失败时 alarm_id 为 None，前端据此把该条显示为"未持久化"并禁用确认，
+        # 而不是给一个永远 ack 不掉的假标识。
+        alarm_id: Optional[int] = None
         if self._db_manager:
             try:
-                self._save_alarm_to_db(alarm)
+                alarm_id = self._save_alarm_to_db(alarm)
+            except (OSError, DatabaseError) as e:
+                logger.error("报警记录持久化失败 - 数据库错误: %s", e, exc_info=True)
             except Exception as e:
-                logger.error("报警记录持久化失败: %s", e)
+                logger.error("报警记录持久化失败: %s", e, exc_info=True)
+
+        published = {**alarm, "alarm_id": alarm_id}
+        self._data_bus.publish_alarm(device_id, published)
+        logger.warning("[ALARM] [%s] %s", device_id, alarm.get("description", alarm_type))
 
     def clear_alarm(self, device_id: str, alarm_type: str) -> None:
         """
@@ -348,30 +364,33 @@ class PDAlarmService:
         """设置全局最大幅值"""
         self._global_max_amplitude = max_amp
 
-    def set_amplitude_thresholds(self, critical: float, warning: float, info: float, max_amplitude: float) -> None:
+    def set_amplitude_thresholds(
+        self, critical: float, high: float, medium: float, low: float, max_amplitude: float
+    ) -> None:
         """
         直接设置各等级的绝对阈值（替代百分比体系）
 
         Args:
-            critical: 严重报警阈值 (mV)
-            warning: 一般报警阈值 (mV)
-            info: 提示报警阈值 (mV)
+            critical: 紧急报警阈值 (mV)
+            high: 高级报警阈值 (mV)
+            medium: 中级报警阈值 (mV)
+            low: 低级报警阈值 (mV)
             max_amplitude: 最大幅值
         """
         self._global_max_amplitude = max_amplitude
         if max_amplitude > 0:
-            import copy as _copy
-
             self._custom_thresholds = {
                 "critical": critical / max_amplitude * 100,
-                "warning": warning / max_amplitude * 100,
-                "info": info / max_amplitude * 100,
+                "high": high / max_amplitude * 100,
+                "medium": medium / max_amplitude * 100,
+                "low": low / max_amplitude * 100,
             }
         logger.info(
-            "报警阈值已更新: critical=%.1f, warning=%.1f, info=%.1f, max=%.1f",
+            "报警阈值已更新: critical=%.1f, high=%.1f, medium=%.1f, low=%.1f, max=%.1f",
             critical,
-            warning,
-            info,
+            high,
+            medium,
+            low,
             max_amplitude,
         )
 
@@ -402,12 +421,33 @@ class PDAlarmService:
         """获取报警统计"""
         return dict(self._stats)
 
+    def get_thresholds(self) -> dict:
+        """当前生效的阈值配置，供前端设置页回显。
+
+        _custom_thresholds 存的是相对 max_amplitude 的百分比，这里同时换算回绝对
+        mV，避免前端自己猜单位。
+        """
+        max_amp = self._global_max_amplitude
+        percent = self._custom_thresholds or {"critical": 80.0, "high": 60.0, "medium": 50.0, "low": 30.0}
+        absolute = {k: round(max_amp * v / 100.0, 3) for k, v in percent.items()}
+        return {
+            "max_amplitude": max_amp,
+            "custom_percent": dict(percent),
+            "custom_absolute_mv": absolute,
+            "hysteresis": self._hysteresis_threshold,
+            "per_device": {dev: dict(cfg) for dev, cfg in self._amplitude_thresholds.items()},
+        }
+
     # ── 持久化 ───────────────────────────────────────
 
-    def _save_alarm_to_db(self, alarm: dict) -> None:
-        """保存报警到数据库"""
+    def _save_alarm_to_db(self, alarm: dict) -> Optional[int]:
+        """保存报警到数据库，返回新行的自增主键。
+
+        返回 id 是为了让发布出去的告警帧带上可寻址的标识：前端"确认"一条告警时
+        必须能定位到数据库行，而告警字典里原本只有业务字段、没有任何主键。
+        """
         if not self._db_manager:
-            return
+            return None
         try:
             with self._db_manager.session() as session:
                 model = PDAlarmModel(
@@ -415,14 +455,55 @@ class PDAlarmService:
                     device_name=f"设备 {alarm.get('device_id', '')}",
                     channel_id=alarm.get("channel_id"),
                     alarm_type=alarm.get("alarm_type", "unknown"),
-                    level=alarm.get("level", "info"),
+                    level=alarm.get("level", "low"),
                     amplitude=alarm.get("amplitude", 0.0),
                     threshold=alarm.get("threshold", 0.0),
                     description=alarm.get("description", ""),
                 )
                 session.add(model)
+                session.flush()
+                return int(model.id)
+        except (OSError, DatabaseError) as e:
+            logger.error("报警持久化异常 - 数据库错误: %s", e, exc_info=True)
+        except (ValueError, TypeError, KeyError) as e:
+            logger.error("报警持久化异常 - 数据格式错误: %s", e, exc_info=True)
         except Exception as e:
-            logger.error("报警持久化异常: %s", e)
+            logger.error("报警持久化异常: %s", e, exc_info=True)
+        return None
+
+    def acknowledge(self, alarm_ids: list[int], acknowledged_by: str = "operator") -> dict:
+        """把告警标记为已确认。
+
+        只动 acknowledged / acknowledged_at / acknowledged_by 三列——这三列在
+        pd_alarms 里早就建好并加了索引（idx_pd_alarm_ack），但全仓此前没有任何
+        代码写入它们，旧 UI 的"确认"只改表格行状态、重启即丢。
+        """
+        ids = []
+        for raw in alarm_ids or []:
+            try:
+                ids.append(int(raw))
+            except (TypeError, ValueError):
+                continue
+        if not ids:
+            raise ValueError("alarm_ids 为空或全部非法")
+
+        if not self._db_manager:
+            raise RuntimeError("未配置数据库，告警无法确认")
+
+        with self._db_manager.session() as session:
+            updated = (
+                session.query(PDAlarmModel)
+                .filter(PDAlarmModel.id.in_(ids), PDAlarmModel.acknowledged.is_(False))
+                .update(
+                    {
+                        "acknowledged": True,
+                        "acknowledged_at": datetime.now(timezone.utc),
+                        "acknowledged_by": acknowledged_by,
+                    },
+                    synchronize_session=False,
+                )
+            )
+        return {"requested": len(ids), "acknowledged": int(updated or 0)}
 
     # ── 生命周期 ─────────────────────────────────────
 

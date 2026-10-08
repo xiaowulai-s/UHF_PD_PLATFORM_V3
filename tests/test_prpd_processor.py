@@ -278,3 +278,80 @@ class TestPrpdPolarityRegression:
         prpd = PRPDProcessor(phase_bins=360, amplitude_bins=256, max_amplitude=100.0)
         prpd.add_detected_events([], 0)
         assert len(prpd._events) == 0
+
+
+class TestPRPDNoResultRetention:
+    """回归：PRPD 结果曾经被塞进一层"缓存"，实测既省不了计算又常驻内存。
+
+    起因是长稳测试里 sidecar RSS 前 10.5 分钟以 17.4 MB/min 线性上升，到 +182.6 MB
+    后骤降为 0.7 MB/min 走平——正好停在 PRPDCache 的 200 MB LRU 天花板上。
+    缓存键取整条累积事件流的 md5，而事件只增不减，所以键每帧必变：连续事件下
+    60 次 compute() 命中 0 次，反而每帧多两次 md5 加一份矩阵副本。
+    """
+
+    PHASE_BINS = 120
+    AMP_BINS = 64
+
+    def _proc(self):
+        return PRPDProcessor(
+            phase_bins=self.PHASE_BINS,
+            amplitude_bins=self.AMP_BINS,
+            max_amplitude=100.0,
+        )
+
+    @staticmethod
+    def _prpd_retained(snapshot):
+        """只统计 prpd_processor.py 自己那些行上仍然活着的分配。
+
+        一开始写的是"全进程 traced memory 前后差值"，单跑很稳，但整套跑时会偶发
+        越限——别的用例在本用例两次取样之间也会分配、或延迟到此刻才释放。按文件名
+        过滤把这部分噪声摘掉，代价只是多两次 snapshot。
+        """
+        return sum(st.size for st in snapshot.statistics("filename") if "prpd_processor.py" in str(st.traceback))
+
+    def test_repeated_compute_does_not_retain_matrices(self):
+        """结果被丢弃后不得留在内存里——包括任何形式的"结果缓存"。"""
+        import gc
+        import tracemalloc
+
+        proc = self._proc()
+        one_matrix = self.PHASE_BINS * self.AMP_BINS * 8  # float64
+
+        for i in range(5):  # 预热：首次 compute 会分配 scipy/linspace 等一次性对象
+            proc.add_event(phase=float(i), amplitude=float(20 + i))
+            proc.compute(PRPDMode.HEATMAP)
+        gc.collect()
+
+        tracemalloc.start()
+        try:
+            base = self._prpd_retained(tracemalloc.take_snapshot())
+            for i in range(60):
+                # 每帧都有新事件，所以任何以事件集合为键的缓存必然换键、必然 miss
+                proc.add_event(phase=float(i % 120), amplitude=float(10 + (i % 50)))
+                proc.compute(PRPDMode.HEATMAP)
+            gc.collect()
+            leaked = self._prpd_retained(tracemalloc.take_snapshot()) - base
+        finally:
+            tracemalloc.stop()
+
+        # 滞留一份以上矩阵即视为回归：四份以下算瞬时对象噪声
+        assert leaked < one_matrix * 4, "重复 compute() 滞留了 %.0f KB，约 %.1f 份矩阵" % (
+            leaked / 1024,
+            leaked / one_matrix,
+        )
+
+    def test_compute_has_no_cache_knob(self):
+        """缓存开关必须彻底消失，不能被"顺手打开"。"""
+        import inspect
+
+        sig = inspect.signature(PRPDProcessor.__init__)
+        assert "use_cache" not in sig.parameters, "以累积事件流为键的结果缓存对本项目是净亏损，见类内 compute() 说明"
+        proc = self._proc()
+        assert not hasattr(proc, "_cache"), "实例上不该再挂着任何结果缓存"
+
+    def test_result_cache_module_is_gone(self):
+        """`add_event` 已增量维护矩阵，compute() 只剩一次 copy，无处可缓存。"""
+        import importlib
+
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module("core.processing.result_cache")

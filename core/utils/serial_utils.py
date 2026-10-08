@@ -146,16 +146,17 @@ def test_serial_port(
             connection.write(test_data)
             try:
                 connection.read(100)
-            except Exception as e:
+            except (serial.SerialException, OSError, RuntimeError) as e:
                 import logging
-                logging.getLogger(__name__).debug("清空串口缓冲区异常: %s", e)
+
+                logging.getLogger(__name__).debug("清空串口缓冲区异常: %s", e, exc_info=True)
         finally:
             connection.close()
 
         return True, f"串口 {device} 测试成功"
     except serial.SerialException as exc:
         return False, f"串口错误：{exc}"
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
         return False, f"测试失败：{exc}"
 
 

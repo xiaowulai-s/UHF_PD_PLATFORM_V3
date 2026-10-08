@@ -17,6 +17,10 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from core.utils.logger import get_logger
+
+logger = get_logger("fft_processor")
+
 
 @dataclass
 class FFTResult:
@@ -97,6 +101,43 @@ class FFTProcessor:
         self._norm_factor = 2.0 / np.sum(self._window)
         self._bands = bands
 
+        # 缓存频率数组（采样率不变时避免重复计算）
+        self._frequencies: Optional[np.ndarray] = None
+
+        # 尝试导入 FFTW 加速库
+        self._use_fftw = False
+        try:
+            import pyfftw
+
+            self._pyfftw = pyfftw
+            self._use_fftw = True
+            self._build_fft_plans()
+        except ImportError:
+            self._pyfftw = None
+
+    def _build_fft_plans(self) -> None:
+        """构建 FFTW 执行计划（如果 pyfftw 可用）"""
+        if not self._use_fftw or not self._pyfftw:
+            return
+
+        try:
+            # 预分配输入/输出数组
+            self._fft_input = self._pyfftw.zeros_aligned(self._window_size, dtype=np.float64)
+            self._fft_output = self._pyfftw.zeros_aligned(self._window_size // 2 + 1, dtype=np.complex128)
+
+            # 创建 FFT 计划
+            self._fft_plan = self._pyfftw.FFTW(
+                self._fft_input,
+                self._fft_output,
+                direction="FFTW_FORWARD",
+                flags=["FFTW_ESTIMATE"],
+                threads=1,
+            )
+            logger.info("FFTW 加速已启用")
+        except (ImportError, RuntimeError, OSError, AttributeError) as e:
+            logger.warning("FFTW 初始化失败: %s，回退到 numpy.fft", e, exc_info=True)
+            self._use_fftw = False
+
     @property
     def sample_rate(self) -> int:
         return self._sample_rate
@@ -125,6 +166,10 @@ class FFTProcessor:
         """
         计算 FFT 频谱
 
+        不做结果缓存：波形是流式数据，逐帧不重复，以波形字节为键的缓存必然零命中。
+        曾经实测证伪过这条"优化"——它只会额外滞留一份频谱副本，命中路径还会丢掉
+        band_stats（管线本来也一直以 detect_peaks=True 调用，缓存从未被触发）。
+
         Args:
             waveform: 输入波形数据 (1D numpy array)
             detect_peaks: 是否检测峰值
@@ -144,14 +189,27 @@ class FFTProcessor:
         windowed = waveform[:n] * self._window[:n]
 
         # FFT 计算
-        spectrum = np.fft.rfft(windowed, n=self._window_size)
-        frequencies = np.fft.rfftfreq(self._window_size, d=1.0 / self._sample_rate)
-
-        magnitudes = np.abs(spectrum) * self._norm_factor
-        phases = np.angle(spectrum)
+        if self._use_fftw:
+            # 使用 FFTW 加速
+            self._fft_input[:n] = windowed
+            self._fft_input[n:] = 0  # 零填充
+            self._fft_plan()
+            spectrum = self._fft_output
+            magnitudes = np.abs(spectrum) * self._norm_factor
+            phases = np.angle(spectrum)
+        else:
+            # 使用 numpy.fft
+            spectrum = np.fft.rfft(windowed, n=self._window_size)
+            magnitudes = np.abs(spectrum) * self._norm_factor
+            phases = np.angle(spectrum)
 
         # 直流分量不缩放
         magnitudes[0] = magnitudes[0] * self._window_size / np.sum(self._window)
+
+        # 使用缓存的频率数组
+        if self._frequencies is None or len(self._frequencies) != len(magnitudes):
+            self._frequencies = np.fft.rfftfreq(self._window_size, d=1.0 / self._sample_rate)
+        frequencies = self._frequencies
 
         result = FFTResult(
             frequencies=frequencies,

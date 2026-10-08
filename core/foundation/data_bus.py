@@ -23,11 +23,13 @@ DataBus - 全局事件总线（v2.0 网关化重构版）
     DataBus.instance().shutdown()
 """
 
+from __future__ import annotations
+
 import logging
 import math
 import threading
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 from PySide6.QtCore import QObject, Signal
 
@@ -53,7 +55,7 @@ class DeadbandFilter:
         self._last_values: Dict[str, Dict[str, Any]] = {}
         self._deadband_config: Dict[str, Dict[str, float]] = {}
         self._global_deadband: float = self.DEFAULT_DEADBAND
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     def set_global_deadband(self, threshold: float) -> None:
         self._global_deadband = max(0.0, threshold)
@@ -217,36 +219,33 @@ class SubscriptionManager:
     """
 
     def __init__(self):
-        self._subscriptions: List[Dict[str, Any]] = []
+        self._subscriptions: Dict[tuple, Dict[str, Any]] = {}
         self._lock = threading.Lock()
 
     def register(self, signal: Signal, slot: Callable) -> None:
         with self._lock:
+            key = (id(signal), id(slot))
+            if key in self._subscriptions:
+                return
             try:
                 signal.connect(slot)
-                self._subscriptions.append(
-                    {
-                        "signal": signal,
-                        "slot": slot,
-                    }
-                )
+                self._subscriptions[key] = {"signal": signal, "slot": slot}
             except (RuntimeError, TypeError) as e:
                 logger.warning("订阅注册失败: %s", e)
 
     def unregister(self, signal: Signal, slot: Callable) -> None:
         with self._lock:
+            key = (id(signal), id(slot))
             try:
                 signal.disconnect(slot)
-                self._subscriptions = [
-                    s for s in self._subscriptions if not (s["signal"] is signal and s["slot"] is slot)
-                ]
             except (RuntimeError, TypeError) as e:
                 logger.debug("取消订阅失败: %s", e)
+            self._subscriptions.pop(key, None)
 
     def release_all(self) -> int:
         with self._lock:
             count = len(self._subscriptions)
-            for sub in self._subscriptions:
+            for sub in self._subscriptions.values():
                 try:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore", RuntimeWarning)
@@ -334,6 +333,7 @@ class DataBus(QObject):
                     cls._instance._subscription_mgr.release_all()
                 except Exception as e:
                     import logging
+
                     logging.getLogger(__name__).debug("DataBus reset 清理异常: %s", e)
             cls._instance = None
 

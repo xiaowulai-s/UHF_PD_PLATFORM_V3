@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+
 """
 硬件设备连接配置数据类
 
@@ -6,7 +8,6 @@
 用于 HardwareManager 创建设备连接。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import List

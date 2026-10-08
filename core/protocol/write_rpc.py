@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 COUPLING_TYPES = ("uhf", "hfct", "tev", "ae")
 
+# 单次确认的上限：防前端（或失控的批量操作）一次塞进上万个 id 变成大事务
+MAX_ACK_BATCH = 500
+
 DEVICE_FIELDS = (
     "id",
     "name",
@@ -76,10 +79,13 @@ class WriteRpc:
         if self._acq is not None:
             out.append(("config.set_channel_coupling", self.set_channel_coupling))
             out.append(("config.set_ae_thresholds", self.set_ae_thresholds))
+            out.append(("config.set_prpd_mode", self.set_prpd_mode))
+            out.append(("config.get_prpd_mode", lambda _p: {"mode": self._acq.get_prpd_mode()}))
         if self._alarm is not None:
             out.append(("config.set_amplitude_threshold", self.set_amplitude_threshold))
             out.append(("config.set_channel_max_amplitude", self.set_channel_max_amplitude))
             out.append(("config.get_thresholds", lambda _p: self._alarm.get_thresholds()))
+            out.append(("alarm.acknowledge", self.acknowledge_alarms))
         return out
 
     def storage_handlers(self) -> list[tuple[str, Callable[[dict], Any]]]:
@@ -112,6 +118,18 @@ class WriteRpc:
         self._acq.set_ae_alarm_thresholds(**kwargs)
         return kwargs
 
+    def set_prpd_mode(self, params: dict) -> dict:
+        """切换 PRPD 发布模式。
+
+        密度图与热力图共用同一份计数矩阵，高斯平滑发生在内核 compute 里，
+        所以这个开关只能落在服务端——做成纯前端切换会得到一个"按了没反应"的按钮。
+        """
+        mode = str(_require(params, "mode"))
+        applied = self._acq.set_prpd_mode(mode)
+        if applied != mode:
+            raise ValueError(f"不支持的 PRPD 模式: {mode}")
+        return {"mode": applied}
+
     def set_amplitude_threshold(self, params: dict) -> dict:
         """设置 PD 幅值量程。
 
@@ -137,6 +155,16 @@ class WriteRpc:
         device_id = str(_require(params, "device_id"))
         self._alarm.set_amplitude_threshold(device_id, max_amplitude=max_amplitude)
         return {"scope": "device", "device_id": device_id, "max_amplitude": max_amplitude}
+
+    def acknowledge_alarms(self, params: dict) -> dict:
+        """批量确认告警。落库只动 acknowledged 三列，不物理删除记录。"""
+        ids = params.get("alarm_ids")
+        if not isinstance(ids, list) or not ids:
+            raise ValueError("alarm_ids 必须是非空数组")
+        if len(ids) > MAX_ACK_BATCH:
+            raise ValueError(f"单次最多确认 {MAX_ACK_BATCH} 条，收到 {len(ids)} 条")
+        by = params.get("acknowledged_by")
+        return self._alarm.acknowledge(ids, str(by) if by else "operator")
 
     def set_channel_max_amplitude(self, params: dict) -> dict:
         device_id = str(_require(params, "device_id"))

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 from PySide6.QtCore import QObject, Signal
 
@@ -65,6 +65,11 @@ class PDDataBusSignals(QObject):
     # AE 信号
     ae_hit_detected = Signal(str, int, object)  # device_id, channel_id, ae_hit_dict
     ae_envelope_ready = Signal(str, int, object)  # device_id, channel_id, envelope_array
+
+    # 数据源管理信号 (多源共存场景)
+    source_attached = Signal(str)  # source_id (新数据源接入总线)
+    source_detached = Signal(str)  # source_id (数据源移除)
+    active_source_changed = Signal(str)  # source_id (UI 切换激活的数据源)
 
 
 class PDDataBus:
@@ -147,6 +152,18 @@ class PDDataBus:
     def ae_envelope_ready(self) -> Signal:
         return self._signals.ae_envelope_ready
 
+    @property
+    def source_attached(self) -> Signal:
+        return self._signals.source_attached
+
+    @property
+    def source_detached(self) -> Signal:
+        return self._signals.source_detached
+
+    @property
+    def active_source_changed(self) -> Signal:
+        return self._signals.active_source_changed
+
     # ── 原始 DataBus 代理 ────────────────────────────
 
     @property
@@ -182,7 +199,7 @@ class PDDataBus:
         self._data_bus.publish_alarm(
             device_id,
             alarm_dict.get("alarm_type", "pd_alarm"),
-            alarm_dict.get("level", "info"),
+            alarm_dict.get("level", "low"),
             alarm_dict.get("amplitude", 0.0),
         )
 
@@ -216,6 +233,18 @@ class PDDataBus:
         """发布采集错误"""
         self._signals.acquisition_error.emit(device_id, error_msg)
         self._data_bus.publish_comm_error(device_id, error_msg)
+
+    def publish_source_attached(self, source_id: str) -> None:
+        """发布数据源接入信号"""
+        self._signals.source_attached.emit(source_id)
+
+    def publish_source_detached(self, source_id: str) -> None:
+        """发布数据源移除信号"""
+        self._signals.source_detached.emit(source_id)
+
+    def publish_active_source_changed(self, source_id: str) -> None:
+        """发布激活数据源切换信号"""
+        self._signals.active_source_changed.emit(source_id)
 
     # ── 订阅管理 ─────────────────────────────────────
 

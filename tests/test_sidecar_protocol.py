@@ -1041,8 +1041,7 @@ def test_fft_frame_carries_band_stats():
 def test_prpd_mode_switch_changes_the_matrix():
     """密度模式必须真的换掉矩阵，而不是前端自己贴个标签。
 
-    两个曾被实测证伪的假设：一是缓存命中会返回未平滑的计数矩阵却盖上
-    mode=density 的戳；二是 PublishThrottle 写死 compute() 不带 mode，
+    曾被实测证伪的假设：PublishThrottle 写死 compute() 不带 mode，
     导致内核永远只发计数矩阵，前端切密度等于切了个空开关。
     """
     from types import SimpleNamespace

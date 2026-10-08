@@ -10,12 +10,8 @@ PD 监测系统集成测试
 5. UI 页面基本交互
 """
 
-import json
-import os
 import sys
-import tempfile
 import time
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -26,7 +22,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.data import DatabaseManager
 from core.data.monitor_models import PDAlarmModel, PDDeviceModel, PDEventModel, PDTrendDataModel
 from core.processing import FFTProcessor, PeakDetector, PRPDProcessor, PRPSProcessor, RingBuffer
 from core.services import PDAlarmService  # noqa: F401 (used by all alarm tests)
@@ -198,9 +193,9 @@ class TestAlarmEngine:
     def test_amplitude_threshold(self):
         svc = PDAlarmService()
 
-        # 首次调用通过防抖
-        a1 = svc.check_amplitude("DEV001", 1, 85.0)
-        a2 = svc.check_amplitude("DEV001", 1, 85.0)
+        # 首次调用通过防抖（前两次只推进防抖计数，不产生报警）
+        svc.check_amplitude("DEV001", 1, 85.0)
+        svc.check_amplitude("DEV001", 1, 85.0)
         a3 = svc.check_amplitude("DEV001", 1, 85.0)
         assert a3 is not None
         assert a3["level"] == "critical"
@@ -217,10 +212,10 @@ class TestAlarmEngine:
         a = svc.check_amplitude("DEV002", 1, 45.0)  # 45% >= 30% => info
         assert a is None  # 级别变化重置计数器
 
-        a2 = svc.check_amplitude("DEV002", 1, 45.0)
+        svc.check_amplitude("DEV002", 1, 45.0)
         a3 = svc.check_amplitude("DEV002", 1, 45.0)
         assert a3 is not None
-        assert a3["level"] == "info"
+        assert a3["level"] == "medium"
 
     def test_no_alarm_low_amplitude(self):
         svc = PDAlarmService()
@@ -353,8 +348,8 @@ class TestDatabasePersistence:
             assert loaded.level == "critical"
             # level_name/level_color are to_dict() properties only
             d = loaded.to_dict()
-            assert d["level_name"] == "严重报警"
-            assert d["level_color"] == "#CF222E"
+            assert d["level_name"] == "紧急"
+            assert d["level_color"] == "#DC2626"
 
 
 # ═══════════════════════════════════════════════════════
@@ -415,7 +410,7 @@ class TestFpgaProtocol:
     def test_frame_build_and_parse(self):
         import struct
 
-        from core.communication import DataType, FpgaProtocol, WaveformData
+        from core.communication import DataType, FpgaProtocol
 
         proto = FpgaProtocol()
 
@@ -509,10 +504,10 @@ class TestSystemController:
         # 连接模拟器 → 采集服务
         sim.set_on_waveform_callback(lambda dev, ch, wf: acq.process_data_frame(dev, ch, wf))
 
-        # 生成几帧数据
+        # 生成几帧数据（process_data_frame 有副作用，返回值不参与断言）
         for _ in range(5):
             wf = sim.generate_waveform()
-            result = acq.process_data_frame(sim.device_id, 1, wf)
+            acq.process_data_frame(sim.device_id, 1, wf)
         # 即使 scipy 不可用，管线也不应崩溃
         stats = acq.get_stats()
         assert stats["frames_received"] >= 5

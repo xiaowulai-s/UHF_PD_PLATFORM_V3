@@ -80,11 +80,11 @@ class AEEnvelopeProcessor:
     # ── 滤波 ─────────────────────────────────────────
 
     def _ensure_filter(self) -> tuple:
-        """缓存 Butterworth 滤波器系数，避免重复计算"""
+        """缓存 Butterworth 滤波器系数（使用 SOS 二阶节以保证数值稳定性）"""
         if self._filter_coeffs is not None:
             return self._filter_coeffs
 
-        from scipy.signal import butter
+        from scipy.signal import butter, sosfreqz
 
         nyquist = 0.5 * self._sample_rate
         low = self._lowcut / nyquist
@@ -97,8 +97,20 @@ class AEEnvelopeProcessor:
             self._filter_coeffs = (np.array([1.0]), np.array([1.0]))
             return self._filter_coeffs
 
-        b, a = butter(self._order, [low, high], btype="band")
-        self._filter_coeffs = (b, a)
+        # 使用 sos (second-order sections) 代替 b/a 以提高数值稳定性
+        sos = butter(self._order, [low, high], btype="band", output="sos")
+        # 稳定性检查：极点必须在单位圆内
+        try:
+            import numpy as np
+
+            w, h = sosfreqz(sos)
+            if np.any(np.abs(h) > 1.0 + 1e-6):
+                logger.warning("AE 带通滤波器不稳定，降阶至 2 阶")
+                sos = butter(2, [low, high], btype="band", output="sos")
+        except (ValueError, TypeError, ImportError, RuntimeError):
+            logger.warning("AE 滤波器稳定性检查异常，使用 2 阶保底")
+            sos = butter(2, [low, high], btype="band", output="sos")
+        self._filter_coeffs = sos
         return self._filter_coeffs
 
     def bandpass_filter(self, samples: np.ndarray) -> np.ndarray:
@@ -115,16 +127,16 @@ class AEEnvelopeProcessor:
             return samples.copy()
 
         try:
-            from scipy.signal import filtfilt
+            from scipy.signal import sosfilt
 
-            b, a = self._ensure_filter()
-            # filtfilt 零相位滤波（无群延迟）
-            return filtfilt(b, a, samples)
+            sos = self._ensure_filter()
+            # sosfilt 零相位滤波（二阶节串联，数值稳定）
+            return sosfilt(sos, samples)
         except ImportError:
             logger.debug("scipy 不可用，跳过带通滤波")
             return samples.copy()
-        except Exception as e:
-            logger.debug("带通滤波异常: %s", e)
+        except (ValueError, TypeError, RuntimeError) as e:
+            logger.debug("带通滤波异常: %s", e, exc_info=True)
             return samples.copy()
 
     # ── 包络提取 ─────────────────────────────────────
@@ -168,16 +180,13 @@ class AEEnvelopeProcessor:
         if len(rectified) < 10:
             return rectified
         try:
-            from scipy.signal import butter, filtfilt
+            from scipy.signal import butter, sosfilt
 
             nyquist = 0.5 * self._sample_rate
             # 低通截止: 50kHz（足够提取 AE 包络轮廓）
             cutoff = min(50_000, nyquist * 0.95)
-            b, a = butter(2, cutoff / nyquist, btype="low")
-            padlen = min(3 * max(len(b), len(a)), len(rectified) - 1)
-            if padlen < 1:
-                return rectified
-            return filtfilt(b, a, rectified, padlen=padlen)
+            sos = butter(2, cutoff / nyquist, btype="low", output="sos")
+            return sosfilt(sos, rectified)
         except ImportError:
             # 无 scipy: 简单移动平均
             window = max(1, self._sample_rate // 100_000)  # ~10us @ 10MHz

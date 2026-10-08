@@ -79,6 +79,8 @@ class PDStorageService:
         self._is_running = False
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.RLock()
+        # 刷写周期用 Event.wait 而不是 time.sleep：见 _flush_loop
+        self._stop_event = threading.Event()
 
         # 统计
         self._stats = {
@@ -107,6 +109,7 @@ class PDStorageService:
             self._last_cleanup_time = time.time()
 
         self._thread = threading.Thread(target=self._flush_loop, daemon=True, name="PDStorageFlush")
+        self._stop_event.clear()
         self._thread.start()
         logger.info("PD 存储服务已启动 [间隔=%.1fs, 批量=%d]", self._flush_interval, self._batch_size)
         return True
@@ -116,8 +119,12 @@ class PDStorageService:
         with self._lock:
             self._is_running = False
 
+        # 先唤醒正在等周期的线程，join 才能在毫秒级返回而不是等满 timeout
+        self._stop_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                logger.warning("PDStorageFlush 线程 5.0s 内未退出，可能残留")
 
         # 最终写入
         self._flush_all()
@@ -286,9 +293,17 @@ class PDStorageService:
         self._flush_trends()
 
     def _flush_loop(self) -> None:
-        """后台定期刷新循环"""
+        """后台定期刷新循环
+
+        等周期用 `Event.wait` 而不是 `time.sleep`：后者要在睡眠里把
+        `flush_interval`（默认 5s）整段睡完才回头看 `_is_running`，于是 `stop()`
+        的 `join(timeout=5.0)` 变成抛硬币——实测 `test_start_with_db` /
+        `test_double_start` 各花 5.81s，而整套跑完还留着 55 个 `PDStorageFlush`
+        线程没退干净（join 超时后就直接放走了）。
+        """
         while self._is_running:
-            time.sleep(self._flush_interval)
+            if self._stop_event.wait(self._flush_interval):
+                break
             try:
                 self._flush_all()
                 # 定期清理过期数据
@@ -300,7 +315,7 @@ class PDStorageService:
                         logger.info("数据留存清理: 清除 %d 条过期记录", deleted)
             except (OSError, DatabaseError) as e:
                 logger.error("存储服务刷新循环异常: %s", e, exc_info=True)
-                time.sleep(1)  # 出错后暂停1秒再试
+                self._stop_event.wait(1)  # 出错后暂停1秒再试（同样可被 stop 打断）
                 self._stats["errors"] += 1
 
     # ── 数据查询 ─────────────────────────────────────
