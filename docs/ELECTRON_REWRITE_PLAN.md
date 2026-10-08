@@ -686,11 +686,113 @@ FileNotFoundError，要用 `node_modules/electron/dist/electron.exe`；仿真参
 `PD_SIDECAR_ARGS` 环境变量，当 electron 的 argv 传进去会被静默丢掉；跑得太短时
 "预热吃掉全部样本"会被误报成"没采到渲染进程"，两者处置方向完全不同，已分开报。
 
-**待查项：sidecar 常驻内存 313 MB**（4 分钟烟雾实测，UHF 仿真 @20FPS）。而
-`AGENTS.md` 记的性能目标是"峰值 < 100MB"。候选来源是 per-channel 环形缓冲
-（1M 点 × float64 = 8MB/通道）与 `PRPDProcessor._events` 的 100k 事件 deque，
-但**未定位**，等 60 分钟长稳的斜率数据出来再判断是"一次性预分配"还是"持续泄漏"——
-这两种的处置完全不同，前者只是目标值定错了，后者才是 bug。
+**sidecar 内存增长已定位并修掉（2026-09-30）**。60 分钟口径的长稳实测里，sidecar
+从 265 MB 起以 **17.38 MB/min 线性上升 10.5 分钟**，到 **+182.6 MB 后骤降成
+0.71 MB/min 走平**。这条"先直线、后平台"的曲线本身就是答案：**有界消耗，不是无界泄漏**
+（我先前判断成"确认的无界泄漏 ~1 GB/h"是错的——当时只看了前 9 分钟的斜率，没等到平台段）。
+真正的问题是它永久停在 `PRPDCache` 的 200 MB LRU 天花板上。
+
+根因是 `core/processing/result_cache.py` 那层"Phase 11 结果缓存"：缓存键取
+**整条累积事件流的 md5**，而 `PRPDProcessor._events` 只增不减，所以键每帧必变。
+连续事件下实测 **60 次 `compute()` 命中 0 次**，代价是每帧多两次 md5 加一份矩阵副本，
+`compute()` 从 1.7 ms/帧变成 3.1 ms/帧。FFT 侧同理，而且更彻底：管线一直用
+`detect_peaks=True` 调用，缓存分支的门槛是 `not detect_peaks`，**生产路径从未触发过**；
+它唯一的命中路径既会丢掉 `band_stats`，又会因为 `fft_processor` 模块里根本没有
+`logger` 而直接 `NameError`。
+
+处置是整层删除（含 `use_cache` 开关和 `invalidate_cache`），理由是这里**没有可缓存的
+东西**：`add_event` 已经增量维护 `self._matrix`，`compute()` 的全部开销只剩一次
+`.copy()` 和一遍 max/min。顺带补上 `fft_processor` 缺失的 `logger`。
+
+删除后同负载复测（`--pd-type corona --pulse-rate 60000`，无客户端，6 分钟）：
+RSS **249.1 → 251.3 MB，+0.38 MB/min**，原来那段 17.38 MB/min 的直线整段消失。
+回归测试在 `TestPRPDNoResultRetention` / `TestFFTCacheRemoved`，其中滞留检测用
+tracemalloc 差值判定（numpy ndarray 不受 `gc` 跟踪，用 `gc.get_objects()` 数矩阵会
+恒为 0、测试直接失去牙齿）；变异验证：人为把结果 matrix append 到实例上，该测试报
+"滞留 3620 KB ≈ 60.3 份矩阵"，与 60 次 compute 精确对上。
+
+**sidecar 常驻基线已定量归因（2026-09-30，`tools/mem_baseline_probe.py`）**。上一段写的
+"候选是 per-channel 环形缓冲（1M 点 × float64 = 8 MB/通道）"这个估算**错了近 4 倍**：
+`RingBuffer` 是 `collections.deque` 装**装箱 Python float**，不是 float64 数组，
+实测 1M 点 = **30.8 MB**（tracemalloc 归属 `ring_buffer.py:48`，1,015,625 个对象）。
+
+拆开的结论：库的常驻地板 **~160 MB**（scipy.signal+ndimage 72、sqlalchemy+core.data.models 37、
+numpy 12、structlog+rich 12、PySide6.QtCore 6.6、解释器 19），加一次性 linecache ~14.5 MB
+（运行时把 scipy 源码读进缓存，涨到 523 个文件后走平），再加**每通道 39.8 MB 且严格线性**
+（灌 8 个通道实测每通道 40.1→39.8）。实测单通道稳态 247–250 MB；生产配置 4 UHF + 4 AE
+= 8 通道，外推 **~510 MB**。所以 `AGENTS.md` 原来的"峰值内存 <100MB"在这套架构下**不可达**，
+已按实测改成分档口径（单通道 <300 MB、8 通道 <600 MB、长稳后半段斜率 <1 MB/min）。
+
+探针本身踩了两个会给出假结论的坑，都记在工具注释里：
+
+1. 第一版只 `QCoreApplication(...)` 而没 `exec()`，SidecarServer 的 10ms flush 定时器
+   从不触发，待发帧在内部堆到 15 秒涨 360 MB——那是夹具毛病不是应用的。必须真跑事件循环，
+   并把 main() 实际装的 RPC / log_stream / StatsPusher 一起装上，数字才对得上独立跑
+   `sidecar.py` 的 249 MB。
+2. `tracemalloc` 会把被测进程自己撑大：15 帧时同一负载 RSS 从 249 → **594 MB**，且
+   `take_snapshot()` 在 160 MB 存活分配上直接卡死（实测超时）；降到 1 帧仍撑到 456 MB。
+   所以 RSS 权威值必须在**不开 tracemalloc** 的那一轮取，tracemalloc 只用于对象归因。
+   linecache 那 48 MB 也是 `statistics()` 渲染 traceback 自己读源码读出来的，别算到应用头上
+   ——应用真实值是渲染前的 523 个文件 / 14.5 MB。
+
+`RingBuffer` 那 31 MB/通道经确认是**只写不读**的（两个管线 `buffer.extend(samples)` 后再不碰，
+全仓库唯一读点在它自己的单测里，`ui/` 也无消费者），本可省 ~248 MB@8 通道；
+决定**暂不动、只记档**，理由是它是旧 UI"历史回放/导出"的支撑，属未迁移的意图而非死代码。
+
+**ORM 那 37 MB 的真正来源不是 logger。** 用 `sys.audit("import")` 抓到链路：
+`core/services/__init__.py:12` 急切重导出 `alarm_service` → `alarm_service.py:30`
+`from core.data.monitor_models import PDAlarmModel` → `core/data/__init__.py:4`
+`from .models import ...` → `models.py:13` `from sqlalchemy import ...`。
+已把 `core/utils/logger.py` 顶层的 ORM 导入改惰性（实测 `setup_logging` 那一步
++60.2 → +23.4 MB，与预测的 37.4 MB 吻合），**但 sidecar 总 RSS 没降**，因为下一步
+`AcquisitionService` 就把 ORM 载回来了。要真拿到这笔收益得动
+`core/services/__init__.py` 的公开导入面（PEP 562 惰性 `__getattr__`），属另一项决策。
+
+配套测试 `tests/test_logger_db_handler.py`（8 个用例；改之前 `_write_batch` 零覆盖，
+tests/ 里原本根本没有 logger 测试）。三项变异验证都有牙齿：ORM 放回顶层 → 3 红；
+删局部导入 → `NameError`；删 `from __future__ import annotations` → AST 守卫红。
+最后这条只能静态查：开发机是 3.14，PEP 649 已把注解默认延迟求值，注掉那行 7 个用例仍全绿，
+而 `requires-python` 的地板 3.10~3.13 会在类定义时就 NameError。
+
+**关停刷屏已修（2026-09-30）**。sidecar 退出与全套 pytest 跑完时会刷
+`RuntimeError: Signal source has been deleted`（栈顶 `signal_bus.py:181/185`）。
+排查结论是**三个独立成因**，都不是"关停顺序写反了"——`sidecar.py` 的 shutdown 里
+`sources.stop_all()` 本来就排在 `acquisition.stop()` 之前：
+
+1. `PDSimulator.stop()` / `AESimulator.stop()` 只置 `_is_running = False`，**从不 join**
+   那个 `daemon=True` 的生成线程。线程手上那一帧还没跑完回调，解释器就开始收尾，
+   QObject 先没，于是往已死的信号源上 emit。修法：置完标志 join(2.0s)，并对齐仓库
+   既有先例（`udp_driver.py:145`、`storage_service.py:120`、`logger.py:195`）。
+2. `tests/test_controller_integration.py` 的 `ctrl` 夹具只 `return` 不 teardown，
+   于是 `test_start_simulator_success` 起来的模拟器一路跑到会话结束（实测 1990 帧）。
+   夹具改成 `yield` + `controller.shutdown()`。
+3. `PDStorageService._flush_loop` 把 `time.sleep(flush_interval)`（默认 5s）睡在循环开头，
+   `stop()` 的 `join(timeout=5.0)` 就成了抛硬币：实测 `test_start_with_db` /
+   `test_double_start` 各花 5.81s，且 join 超时后代码直接放走线程——会话结束时
+   `threading.enumerate()` 里躺着 **55 个 `PDStorageFlush`**。改成 `Event.wait(周期)`
+   + `stop()` 里 `set()` 唤醒，并给 join 超时补上 warning 而不是静默。
+
+验证：连跑 3 次 sidecar `--duration`，退出 0 错误 0 traceback、exit=0；全套
+**577 passed / 2 skipped**，输出里 `Signal source has been deleted` 出现 0 次。
+耗时改善只能说清楚到单测一级：`tests/test_storage_service.py` 整档从约 12s 降到 1.4s
+（`test_start_with_db` / `test_double_start` 各 5.81s → 毫秒级）。**整套总时长在这台机器上
+噪声很大**（同一份代码实测过 77.6s / 101.7s / 151.5s），别拿它当验收指标。
+
+回归测试：`tests/test_simulator_shutdown.py`（8 个，两个模拟器参数化覆盖）与
+`TestStopWakesTheFlushWaiter`（2 个），均做过变异验证。两条设计细节值得记：
+① 行为面用例里**计数必须放在回调的 sleep 之后**才有牙齿——放之前则"正确实现"和"没 join
+的错误实现"给出同样结果（一帧完成后循环条件即退出），这是实测确认过的；
+② 我曾以为"errors 计数排在退避之后会被 stop() 吞掉"并据此调整了顺序，变异验证证伪了这个
+说法（原代码是 `sleep` → 计数 → 回到 `while` 检查，计数从来不会丢），于是还原顺序并删掉
+那条断言幽灵 bug 的测试——**错误的注释比 bug 更糟**。
+
+**遗留（低优先，判给 M8）**：`TestControllerInitialization` 里 5 个用例
+（`test_controller_integration.py:103/112/118/125/131`）各自直接
+`PDSystemController(...).initialize(...)`，绕过夹具，仍会各漏一个存储刷写线程。
+这些属 `ui/` 旧界面测试，而 `ui/` 按计划 M8 整体下线，此刻清理它们价值低。
+
+**仍待查**：修掉缓存层后残余 +0.38 MB/min 的慢增长（旧曲线平台期是 0.71 MB/min，
+量级接近，怀疑同源），要等 60 分钟长稳再定性。
 
 ---
 
