@@ -4,37 +4,40 @@
 Structured Logging System with Async Batch DB Writer
 """
 
-import logging
+from __future__ import annotations
+
 import io
+import logging
 import queue
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 try:
     import structlog
 except ImportError:
     structlog = None  # type: ignore
-from sqlalchemy.exc import SQLAlchemyError
 
-from core.data.models import DatabaseManager, SystemLogModel
+if TYPE_CHECKING:
+    from core.data.models import DatabaseManager
+
+logger = logging.getLogger(__name__)
 
 
 def _create_console_handler(log_level: str) -> logging.Handler:
     """UTF-8编码控制台处理器，兼容所有终端环境"""
     try:
-        utf8_stream = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        utf8_stream = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     except (AttributeError, OSError):
         utf8_stream = sys.stdout
     handler = logging.StreamHandler(utf8_stream)
     handler.setLevel(getattr(logging, log_level.upper()))
-    handler.setFormatter(logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    ))
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
     return handler
 
 
@@ -146,6 +149,13 @@ class AsyncDatabaseLogHandler(logging.Handler):
         if not batch:
             return
 
+        # 这两个符号只在本函数用到，所以放函数内：logger 被 core/ 到处 import，
+        # 顶层引 sqlalchemy 会让纯推流模式(--no-db)也常驻 37 MB。
+        # 签名里的 DatabaseManager 不需要运行时符号——本文件有 __future__.annotations。
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from core.data.models import SystemLogModel
+
         session = None
         try:
             session = self._db_manager.get_session()
@@ -170,7 +180,7 @@ class AsyncDatabaseLogHandler(logging.Handler):
             logging.getLogger(__name__).warning("批量数据库写入失败(回滚 %d 条): %s", len(batch), e)
             if session:
                 session.rollback()
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError, OSError) as e:
             logging.getLogger(__name__).error("批量写入时发生未预期错误(%d 条): %s", len(batch), e, exc_info=True)
             if session:
                 session.rollback()
@@ -209,6 +219,10 @@ def setup_logging(
     log_file: Optional[str] = None,
     db_manager: Optional[DatabaseManager] = None,
     console_output: bool = True,
+    log_rotation: str = "size",  # "size" or "time"
+    max_bytes: int = 10 * 1024 * 1024,  # 10MB
+    backup_count: int = 5,
+    rotation_interval: str = "midnight",  # 用于时间轮转
 ) -> structlog.stdlib.BoundLogger:
     """
     配置结构化日志系统
@@ -218,6 +232,10 @@ def setup_logging(
         log_file: 日志文件路径
         db_manager: 数据库管理器（用于写入数据库）
         console_output: 是否输出到控制台
+        log_rotation: 日志轮转方式 ("size"-按大小, "time"-按时间)
+        max_bytes: 按大小轮转时的最大文件大小（字节）
+        backup_count: 保留的备份文件数量
+        rotation_interval: 按时间轮转的间隔 ("S"-秒, "H"-小时, "D"-天, "midnight"-午夜, "W0"-周一)
     """
 
     handlers: list = []
@@ -229,9 +247,19 @@ def setup_logging(
         log_path = Path(log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
-        from logging.handlers import RotatingFileHandler
+        from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 
-        file_handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8")
+        if log_rotation == "time":
+            # 按时间轮转
+            file_handler = TimedRotatingFileHandler(
+                log_path, when=rotation_interval, backupCount=backup_count, encoding="utf-8"
+            )
+            # 时间轮转使用不同文件名格式
+            file_handler.suffix = "%Y-%m-%d_%H-%M-%S.log"
+        else:
+            # 按大小轮转（默认）
+            file_handler = RotatingFileHandler(log_path, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8")
+
         file_handler.setLevel(getattr(logging, log_level.upper()))
         file_formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
@@ -274,6 +302,126 @@ def setup_logging(
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """获取结构化日志记录器"""
     return structlog.get_logger(name)
+
+
+def archive_logs(log_dir: str, archive_dir: str, days_to_keep: int = 30, compress: bool = True) -> Dict[str, Any]:
+    """
+    归档旧日志文件
+
+    Args:
+        log_dir: 日志目录
+        archive_dir: 归档目录
+        days_to_keep: 保留最近N天的日志在原位，其余归档
+        compress: 是否压缩归档文件
+
+    Returns:
+        归档统计信息
+    """
+    import shutil
+
+    stats = {
+        "archived": 0,
+        "deleted": 0,
+        "errors": 0,
+        "total_size_bytes": 0,
+    }
+
+    try:
+        log_path = Path(log_dir)
+        archive_path = Path(archive_dir)
+        archive_path.mkdir(parents=True, exist_ok=True)
+
+        if not log_path.exists():
+            logger.warning("日志目录不存在: %s", log_dir)
+            return stats
+
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+        cutoff_timestamp = cutoff_date.timestamp()
+
+        # 查找所有日志文件
+        log_files = []
+        for pattern in ["*.log", "*.log.*"]:
+            log_files.extend(log_path.glob(pattern))
+
+        for log_file in log_files:
+            try:
+                # 检查文件修改时间
+                file_mtime = log_file.stat().st_mtime
+
+                if file_mtime < cutoff_timestamp:
+                    # 文件超过保留天数，归档
+                    if compress:
+                        import gzip
+
+                        archive_name = archive_path / f"{log_file.name}.gz"
+                        with open(log_file, "rb") as f_in:
+                            with gzip.open(archive_name, "wb") as f_out:
+                                f_out.writelines(f_in)
+                        log_file.unlink()
+                        stats["archived"] += 1
+                        stats["total_size_bytes"] += archive_name.stat().st_size
+                    else:
+                        archive_name = archive_path / log_file.name
+                        shutil.move(str(log_file), str(archive_name))
+                        stats["archived"] += 1
+                        stats["total_size_bytes"] += archive_name.stat().st_size
+
+            except (OSError, PermissionError, IOError, shutil.Error, ValueError) as e:
+                logger.error("归档日志文件失败 %s: %s", log_file, e, exc_info=True)
+                stats["errors"] += 1
+
+        logger.info(
+            "日志归档完成: 归档%d个, 删除%d个, 错误%d个, 总大小%.2f MB",
+            stats["archived"],
+            stats["deleted"],
+            stats["errors"],
+            stats["total_size_bytes"] / (1024 * 1024),
+        )
+
+    except Exception as e:
+        logger.error("日志归档失败: %s", e, exc_info=True)
+        stats["errors"] += 1
+
+    return stats
+
+
+def cleanup_old_archives(archive_dir: str, days_to_keep: int = 90) -> int:
+    """
+    清理过期的归档日志
+
+    Args:
+        archive_dir: 归档目录
+        days_to_keep: 保留最近N天的归档
+
+    Returns:
+        删除的文件数
+    """
+    deleted_count = 0
+
+    try:
+        archive_path = Path(archive_dir)
+        if not archive_path.exists():
+            return 0
+
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+        cutoff_timestamp = cutoff_date.timestamp()
+
+        for archive_file in archive_path.glob("*.gz"):
+            try:
+                if archive_file.stat().st_mtime < cutoff_timestamp:
+                    archive_file.unlink()
+                    deleted_count += 1
+                    logger.debug("删除过期归档: %s", archive_file)
+            except (OSError, PermissionError, FileNotFoundError, ValueError) as e:
+                logger.error("删除归档失败 %s: %s", archive_file, e, exc_info=True)
+
+        if deleted_count > 0:
+            logger.info("清理旧归档完成: 删除%d个文件", deleted_count)
+
+    except Exception as e:
+        logger.error("清理归档失败: %s", e, exc_info=True)
+
+    return deleted_count
 
 
 class LoggerMixin:
