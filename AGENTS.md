@@ -4,13 +4,20 @@
 
 ## 当前状态：一次进行中的架构迁移（最重要的一条）
 
-这个仓库正处于 **UI 层重写中途**，两套界面同时存在。不了解这一点会立刻做错判断：
+这个仓库的 **UI 层重写已完成界面迁移**（M0–M6 完成），旧的 PySide6 界面已下线：
 
 - **现役开发对象**是 `desktop/`：Electron 33 + Vue 3 + TypeScript + Vite 的新界面。
 - **处理内核**是 `core/`（14,866 行 numpy/scipy DSP + FPGA 采集），保留为**无头 Python sidecar**，由 `sidecar.py` 启动，通过本机 WebSocket 与前端的 Electron 主进程/渲染进程通信。
-- **旧界面** `ui/`（23,183 行 PySide6）仍在仓库里、仍被 `main.py` 引用，是**回滚路径**，按计划在里程碑 M8 才归档删除。
+- **旧界面 `ui/`（23,183 行 PySide6）已于 M8 归档下线**，移到 `_archive/ui-offline-20261008/`
+  （该目录已 gitignore，**不参与运行、也不参与测试**）。归档时一并带走了旧入口 `main.py`/
+  `main_v2.py`、旧 PySide6 打包配置 `build.py`/`build.spec`/`PDMonitor.spec`/`installer.iss`，
+  以及 8 个 ui 耦合测试文件。**仓库里已无任何 `import ui` 的代码**（`core/`、`tools/`、
+  `sidecar.py` 早就与 `ui/` 无关）。
+- **没有回滚路径了**：`python main.py` 不再可用。要回滚就把 `_archive/ui-offline-20261008/`
+  下的 `ui/` 与 `main.py` 移回仓库根，并把 `pyproject.toml`/`.coveragerc`/`pytest.ini` 的
+  覆盖率目标改回 `["core", "ui"]`。改 UI 一律改 `desktop/`。
 
-因此：`python main.py` 仍然可用但**不是**日常工作流；改 UI 请改 `desktop/`，不要改 `ui/`（除非明确要维护回滚路径）。完整的迁移决策、里程碑状态与实测数据在 `docs/ELECTRON_REWRITE_PLAN.md`——**动架构相关代码前先读它**。
+完整的迁移决策、里程碑状态与实测数据在 `docs/ELECTRON_REWRITE_PLAN.md`——**动架构相关代码前先读它**。
 
 ## 快速开始
 
@@ -23,7 +30,7 @@ python sidecar.py --sim-type uhf --pd-type corona --pulse-rate 60000
 python sidecar.py --help          # 全部参数见 --help，不要凭记忆猜 flag
 
 # 测试
-python -m pytest -q --no-cov                          # 内核全套（当前 544 passed / 2 skipped）
+python -m pytest -q --no-cov                          # 内核全套（当前 468 passed / 2 skipped，约 20s）
 python -m pytest tests/test_sidecar_protocol.py -q    # 跨进程协议
 cd desktop && npm run typecheck                       # vue-tsc + tsc(electron)
 cd desktop && npm run build                           # 类型检查 + vite 打包 + 主进程编译
@@ -58,10 +65,10 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
 |---|---|
 | M0 边界协议 / M1 sidecar 生产化 / M2 前端骨架 / M3 第一批页面 | ✅ 完成 |
 | M4 流式渲染层（4.1–4.6） | ✅ 完成，全部经截图 + 真点验收 |
-| M5 第二批页面 | 🟡 5.1 AE 模式与 5.2 趋势页已完成；**5.1 的"连续 1h 无内存增长"验收只跑到 29.5 min，需复跑**；5.3 仪表板未开始 |
-| M6 第三批页面（AE 与分析） | ⬜ 未开始（`ae-view` / `analysis-view` 仍是 7 行桩） |
-| M7 性能长稳 | 🟡 7.1 渲染探针已就绪并在开发机实测（软件渲染最坏路径 p95 1.1ms，余量 45 倍），待现场复跑；7.2–7.5 未做 |
-| M8 切换收尾 | ⬜ 未开始（旧 `main.py`/`ui/` 下线、装机包、文档收尾） |
+| M5 第二批页面 | ✅ 5.1 AE 模式、5.2 趋势页、5.3 仪表板均完成。5.1 的"连续 1h 无内存增长"已复跑通过（60.05 min / 120 采样点，四角色全有界；侧车那段 +30 MB/h 是 `prpd_processor` 的 `deque(maxlen=100000)` 填满，40.9 分钟到平台，属有界消耗） |
+| M6 第三批页面（AE 与分析） | ✅ 6.1 AE 特征分析、6.2 定位精度热图（真 GDOP，无量纲）、6.3 传感器阵列配置、6.4 数据分析页均完成并截图/真点验收。**实验数据导入已补**（`data.import_file` RPC + 分析页导入区，带放电类型识别与逐周期类型分布，测试 `tests/test_data_rpc.py`）。仍缺：3D 定位视图（内核无 TDOA 通路）、等效放电量（无计数→物理量换算）、最大重复率（口径未定义）、实时事件的类型标签 |
+| M7 性能长稳 | 🟡 7.1 探针待现场复跑；**7.5 启动时间已实测达标**（`tools/measure_startup.py`，当前 HEAD 重建产物：日常重启 0.82s、首次建库 1.01s、全新拷贝首启最差 1.05s，线 3s）；7.2 24h 长稳 / 7.3 多通道线性度 / 7.4 崩溃恢复未做 |
+| M8 切换收尾 | 🟡 旧 `main.py`/`main_v2.py`/`ui/` 已归档下线（`_archive/ui-offline-20261008/`）、AGENTS.md 已更新；装机包与其余文档收尾未做 |
 
 ## 内核侧的两个语义陷阱（会毁掉读数可信度）
 
@@ -101,7 +108,7 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
   实测单通道稳态 RSS **247–250 MB**；生产配置 4 UHF + 4 AE = **8 通道 → 外推 ~510 MB**。
   分档口径：**单通道 <300 MB；8 通道 <600 MB；长稳后半段斜率 <1 MB/min**。
 
-- **每通道 39.8 MB 里约 31 MB 是 `RingBuffer`，而它只写不读**——已决定暂不动，只记档，别重复调查。`uhf_pipeline.py:104` 与 `ae_pipeline.py:203` 各自 `buffer.extend(samples)` 塞进一个 1,000,000 点的 `deque`（元素是装箱 Python float，tracemalloc 归属 `ring_buffer.py:48` = 30.8 MB / 1,015,625 个对象），之后函数内再没碰过；全仓库唯一的读点在它自己的单测（`tests/test_ring_buffer_thread.py`、`tests/test_integration.py`），`ui/` 也没有消费者。附带 CPU：8 通道 @20FPS ≈ 每秒 65 万次 float 装箱。
+- **每通道 39.8 MB 里约 31 MB 是 `RingBuffer`，而它只写不读**——已决定暂不动，只记档，别重复调查。`uhf_pipeline.py:104` 与 `ae_pipeline.py:203` 各自 `buffer.extend(samples)` 塞进一个 1,000,000 点的 `deque`（元素是装箱 Python float，tracemalloc 归属 `ring_buffer.py:48` = 30.8 MB / 1,015,625 个对象），之后函数内再没碰过；全仓库唯一的读点在它自己的单测（`tests/test_ring_buffer_thread.py`、`tests/test_integration.py`），旧 `ui/` 也没有消费者（且已归档）。附带 CPU：8 通道 @20FPS ≈ 每秒 65 万次 float 装箱。
   不删的理由：它是旧 UI"历史回放/导出"的支撑，属**尚未迁移的意图**而非死代码。真要收，方向是改成 numpy 预分配环形数组（31→8 MB/通道，且不装箱），但要同步改 `get_all/get_last/get_range` 的返回类型。
 
 - **ORM 是被谁拖进来的**：`core/services/__init__.py:12` 急切重导出 `alarm_service`，后者 `:30` 引 `core.data.monitor_models`，经 `core/data/__init__.py:4` → `models.py:13` 拉起 sqlalchemy。所以只要 import 任何 `core.services.X`，这 37 MB 就跑不掉——`--no-db` 也一样。已把 `core/utils/logger.py` 的顶层 ORM 导入改惰性（`setup_logging` 那步从 +60.2 降到 +23.4 MB），但**对 sidecar 总 RSS 无净收益**，因为上面这条路随后就会把 ORM 载回来；要真拿到这 37 MB 得动 `core/services/__init__.py` 的公开导入面，是另一项决策。
@@ -127,7 +134,7 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
 ## Git 安全（本仓库特有，违反过会出事）
 
 - **`origin` 指向另一个项目**（`Equipment-Management.git`）。绝不裸跑 `git push`。`pd-origin` 是 `main` 跟踪的上游，`partial-discharge` 是新增远端。任何 push/fetch 前先 `git remote -v`。
-- 工作区**长期存在上百个用户未提交的在制品**（`core/`、`ui/`、`tests/`、`docs/` 下数百文件）。绝不 `git add -A` / `git add <宽目录>`；逐个写明确文件名，提交前用 `git status --short` 与 `git diff --cached --name-only` 复核。
+- 工作区**长期存在上百个用户未提交的在制品**（`core/`、`tests/`、`docs/`、`desktop/` 下数百文件）。绝不 `git add -A` / `git add <宽目录>`；逐个写明确文件名，提交前用 `git status --short` 与 `git diff --cached --name-only` 复核。
 - **`??` 不等于"新文件"**：仓库里有大量**早就存在、从未被 add 过**的源码（曾经的 `processor_manager.py`、`uhf_pipeline.py`、`tests/test_data_bus.py`、`docs/architecture.md` 等）。改在这些文件里的代码，若提交只带"已跟踪的修改"会**静默丢失**。判断用 `git cat-file -e HEAD:<路径>`。
 - **工作区测试通过 ≠ HEAD 可运行**。部分提交状态下必须 `git archive HEAD | tar -x -C <tmp>` 再逐个 import 验一遍——曾靠这一步抓出"已跟踪代码 import 了未跟踪模块"的断链。
 - 全量暂存会被自动策略直接拦掉（连生成全量清单也拦）。用户即便要求"全部提交"，也要预期只能提交显式点名的那一批，并如实报告剩余项。
@@ -163,7 +170,7 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
 - `config/default_config.json:55-58` 只有两级：warning **50** / critical **80**。
 - 旧版 `AGENTS.md` 写的"general ≥50%、info ≥30%"**两边都对不上**，是过期描述。
 
-去抖是连续 3 次触发（`_hysteresis_threshold`）。百分比的基准是"通道量程"（通道级 `channel_max` 优先，其次设备级，最后全局 100.0 mV），而 AE 通道的基准值本身存在矛盾：`ui/controller_config.py` 给 100.0、`core/foundation/data_source_manager.py` 给 800.0，注释分别称 mV 与 μV。**这条待领域确认，不要自行统一。**
+去抖是连续 3 次触发（`_hysteresis_threshold`）。百分比的基准是"通道量程"（通道级 `channel_max` 优先，其次设备级，最后全局 100.0 mV），而 AE 通道的基准值本身存在矛盾：已归档的旧 `ui/controller_config.py` 给 100.0、`core/foundation/data_source_manager.py` 给 800.0，注释分别称 mV 与 μV。**这条待领域确认，不要自行统一。**（`ui/` 归档后只剩 `core/` 一侧在生效，但矛盾本身没解决。）
 
 数据库位置 `data/monitor.db`（SQLite + WAL），真实表名是 `pd_devices` / `pd_channels` / `pd_events` / `pd_alarms` / `pd_trend_data`（旧文档里写的 `trend_data`、`alarms` 不存在）。冻结态下可写状态落在 `%LOCALAPPDATA%\UHF-PD`（可用 `PD_STATE_DIR` 覆盖），只读资源走 `sys._MEIPASS`——见 `core/foundation/runtime_paths.py`。
 

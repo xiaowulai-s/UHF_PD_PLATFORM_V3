@@ -815,7 +815,7 @@ tests/ 里原本根本没有 logger 测试）。三项变异验证都有牙齿�
 | 7.2 | 24h 长稳 + 内存增长 | RSS 增长 < 10% | ⬜ |
 | 7.3 | 双通道/四通道线性度 | 无背压丢弃 | ⬜ |
 | 7.4 | sidecar 崩溃恢复与采集断点续传 | 恢复 < 5s，无告警丢失 | ⬜ |
-| 7.5 | 启动时间 | 冷启 < 3s | ⬜ |
+| 7.5 | 启动时间 | 冷启 < 3s | ✅ 实测最差 1.05s，见下 |
 
 ### M7.1 渲染探针（提前到 M2 之后做，因为它能推翻整个方案）
 
@@ -845,6 +845,50 @@ tests/ 里原本根本没有 logger 测试）。三项变异验证都有牙齿�
 探针量的是 **2D canvas 绘制成本**，不含：uPlot / ECharts / three.js 等真实图表库的开销、
 Vue 响应式与 DOM 更新、msgpack 解码。所以它是"能不能行"的指示器，不是最终验收。
 M4 图表层落地后需在同一台机器上复测。
+
+### M7.5 启动时间（2026-10-09 实测通过，最差 1.05s / 线 3s）
+
+**先说一次更正**：`AGENTS.md` 此前写"冻结内核冷文件缓存 7.13s、热缓存 2.4s，未达标"。
+这个数复现不出来，而且它**没有任何支撑**——全仓只有那一句、没有测量记录、没有产出它的
+工具、`git log -S"7.13" -- AGENTS.md` 也是空（说明是未提交时写进去的）。按本仓库"未提交的
+断言不可信"的老规矩，它应当被可复现的数据替换，而不是被引用。
+
+**工具**：`tools/measure_startup.py`。口径是**进程 spawn → stdout 出现
+`sidecar ready` 且解析出 stream URL + token**，刻意与
+`desktop/src/main/sidecar.ts` 用同一套正则：因为对 Electron 来说，内核"可用"的时刻
+就是能拿到端点的时刻，而不是进程存在的时刻。报 min/median/max，不用单次数字。
+
+**形态**：`sidecar.spec` 是 **onedir**（`COLLECT` + 独立 exe，341 文件 / 185 MB），
+所以启动开销**不是** onefile 的自解压，而是 bootloader + 解释器初始化 +
+把 scipy.signal/ndimage、PySide6.QtCore、SQLAlchemy 按 import 链拉起来。
+
+**关键一点：必须按生产参数量。** `sidecar.ts` 只加 `--duration 0`，**不加 `--no-db`**，
+所以 SQLAlchemy 建引擎与 `create_all` 在关键路径上。一开始我用 `--no-db` 量出 0.65s，
+与那条 2.4s 的"热缓存"差着 4 倍——不是谁算错了，是**量的不是同一件事**。
+
+当前 HEAD（重建 `dist/uhf-sidecar` 后，先经 `tools/verify_frozen_sidecar.py` 确认
+"能干活"：12s 内 469 帧、PRPD/PRPS 热图可解码）实测：
+
+| 模式 | median | 说明 |
+|---|---|---|
+| A 无库 `--no-db` | 0.83 s | 下限参照，非生产形态 |
+| B 生产形态·库已存在 | 0.82 s | **日常重启的真实数字** |
+| C 生产形态·首次运行（要建库建表） | 1.01 s | 全新装机 |
+| D 生产形态·尽力挤文件缓存 | 0.82 s | 见下方口径限制 |
+| E 整目录拷到新路径后的首次执行 | **1.05 s**（max） | 最接近"装机后第一次启动" |
+
+E 额外量了"首启溢价"：同一份新拷贝第一次 0.99–1.05s、第二次 0.79–0.85s，
+差 **+0.15~0.26s**（新路径上杀软的一次扫描 + 冷页）。**结论：达标，且余量约 3 倍。**
+
+**口径限制（别把 D 当真实冷启动）**：Windows 上清不了 standby 文件缓存
+（要 Sysinternals `EmptyStandbyList` + 调试权限），D 只是"读 300MB 大文件挤一挤"，
+实测与 warm 无差。真正的冷启动请用 E，或在**目标工控机**上跑
+`python tools/measure_startup.py --cold-copies 3` 复测一次——现场的杀软与磁盘
+状态和开发机不同，这条和 M7.1 一样属于"待现场复跑"。
+
+**没测的东西**：本项只覆盖"内核就绪"。端到端的"双击图标 → 屏幕上出现第一帧波形"
+还含 Electron 自身启动、渲染进程加载与 WS 握手，那是 #52（装机版冷启动冒烟到首帧）
+的口径，不要用本表数字去替代它。
 
 ---
 
@@ -942,6 +986,37 @@ asar 从 210MB 降到 29.6MB 证实了"内核被 `files: ["dist/**/*"]` 重复�
 验收：`npm run package:dir` 产出的 `resources/uhf-sidecar/uhf-sidecar.exe` 与
 `resolveLaunch()` 的拼接路径一致；`verify_frozen_sidecar.py` 在产物上收到
 waveform/fft/prpd/prps 帧且 `codec=zlib` 解码正确。
+
+---
+
+### M8 进展（2026-10-08）：旧 UI 已归档下线
+
+`ui/`（23,183 行 PySide6）连同旧入口一起移到 `_archive/ui-offline-20261008/`（已 gitignore）。
+**这次操作不可逆地取消了回滚路径**，所以把范围与依据记清楚：
+
+一起归档的（15 项）：
+- `ui/`（34 个已跟踪文件 + 34 个从未入库的源文件）
+- 旧入口 `main.py`、`main_v2.py`
+- 旧 PySide6 打包配置 `build.py`、`build.spec`、`PDMonitor.spec`、`installer.iss`
+- 8 个 ui 耦合测试：`test_basic.py`、`test_controller_integration.py`、`test_discharge_comparator.py`、
+  `test_multi_device_sync.py`、`test_pdf_chart_snapshot.py`、`test_performance_monitor.py`、
+  `test_ui_components.py`、`test_ui_pages.py`
+
+**前提是实测过的，不是假定**：`core/`、`tools/`、`sidecar.py` 对 `ui` 的 import 数为 **0**
+（`core/foundation/hardware_config_loader.py` 是从 `ui/controller_config.py` 迁入的，
+迁完就切断了 sidecar→`ui/` 的依赖）。归档后全仓库 `grep -r "import ui"` 只剩注释引用。
+
+连带改的配置（否则覆盖率目标会指向不存在的目录）：
+`pyproject.toml` 的 `[tool.coverage.run].source`、`.coveragerc` 的 `source`、
+`pytest.ini` 的 `--cov=ui`、`.github/workflows/tests.yml` 的 `--cov=ui`。
+
+效果：**450 passed / 2 skipped / 0 failed，整套从 ~98s 降到 21.8s**（被移除的 128 个用例
+基本都是 Qt 相关的慢用例）。桌面端 `npm run typecheck` + `npm run build` 通过，
+仪表板截图复验正常（3 个 canvas、波形快照显示 `uhf · 41.0 µs @ 100.00 MHz`）。
+
+**没做**：装机包（electron-builder 出包）与其余过期文档（`architecture.md`/`api.md`/
+`contributing.md`/`build_guide.md`/`README.md`/`TESTING.md`/`Update.md`）的校正。
+`AGENTS.md` 已同步更新。
 
 ---
 
