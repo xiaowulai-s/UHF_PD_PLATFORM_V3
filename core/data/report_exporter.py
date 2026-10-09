@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """PRPD 报告导出 — JSON/Excel/Word"""
 from __future__ import annotations
+
 import json
+import os
 from typing import Optional
-from ui.design_tokens import DT
+
+from core.data.discharge_classifier import DischargeClassifier
 
 
 class ReportExporter:
@@ -83,10 +86,15 @@ class ReportExporter:
     @staticmethod
     def export_word(data: dict, path: str, chart_path: Optional[str] = None) -> str:
         """导出 Word 报告（含 PRPD 截图）"""
+        # 图表存在性先算，再导 docx。放在导库之后会有个副作用：这台机器没装
+        # python-docx，而用例普遍套着 importorskip("docx")，于是带 chart_path 的
+        # 分支从来没被执行过——正是这个模块缺 `import os` 却长期全绿的原因。
+        include_chart = bool(chart_path) and os.path.exists(chart_path)
+
         try:
             from docx import Document
             from docx.enum.text import WD_ALIGN_PARAGRAPH
-            from docx.shared import Cm, Inches, Pt, RGBColor
+            from docx.shared import Inches
         except ImportError:
             raise ImportError("需要安装 python-docx: pip install python-docx")
 
@@ -112,7 +120,7 @@ class ReportExporter:
             tbl.cell(i, 1).text = v
 
         # PRPD 图谱截图
-        if chart_path and os.path.exists(chart_path):
+        if include_chart:
             doc.add_heading("2. PRPD 图谱", level=1)
             doc.add_picture(chart_path, width=Inches(5.5))
 
@@ -121,7 +129,9 @@ class ReportExporter:
         doc.add_heading("3. 放电类型分析（按周期统计）", level=1)
         if isinstance(dc, dict):
             ref = dc.get("reference_result", {})
-            doc.add_paragraph(f"参考结果: {ref.get('name', dc.get('name', ''))} ({ref.get('name_en', '')}) [标记为参考结果]")
+            doc.add_paragraph(
+                f"参考结果: {ref.get('name', dc.get('name', ''))} ({ref.get('name_en', '')}) [标记为参考结果]"
+            )
             doc.add_paragraph(f"置信度(占比): {ref.get('confidence', dc.get('confidence', 0)):.0%}")
             doc.add_paragraph(f"采样次数: {dc.get('total_samples', 0)}")
             doc.add_paragraph(f"严重等级: {dc.get('severity', 'normal')}")
@@ -130,7 +140,7 @@ class ReportExporter:
             type_counts = dc.get("type_counts", {})
             type_ratios = dc.get("type_ratios", {})
             if type_counts:
-                tbl3 = doc.add_table(rows=len(type_counts)+1, cols=3)
+                tbl3 = doc.add_table(rows=len(type_counts) + 1, cols=3)
                 tbl3.style = "Light Shading Accent 1"
                 tbl3.cell(0, 0).text = "放电类型"
                 tbl3.cell(0, 1).text = "出现次数"
@@ -169,18 +179,22 @@ class ReportExporter:
 # 数据分析页面
 # ═══════════════════════════════════════════════════════
 
-# 等级颜色
+# 等级颜色 (硬编码避免 core 层依赖 UI 层)
 LEVEL_COLORS = {
-    "critical": DT.C.STATUS_ERROR,
-    "warning": DT.C.STATUS_WARNING,
-    "attention": DT.C.ACCENT_PRIMARY,
-    "normal": DT.C.STATUS_SUCCESS,
+    "critical": "#DC2626",
+    "high": "#EA580C",
+    "warning": "#D29922",
+    "medium": "#CA8A04",
+    "attention": "#2563EB",
+    "low": "#2563EB",
+    "normal": "#16A34A",
 }
 LEVEL_NAMES = {
     "critical": "严重",
+    "high": "高级",
     "warning": "警告",
+    "medium": "中级",
+    "low": "低级",
     "attention": "注意",
     "normal": "正常",
 }
-
-
