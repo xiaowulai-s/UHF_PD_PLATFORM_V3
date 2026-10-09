@@ -17,8 +17,9 @@ from __future__ import annotations
 import logging
 import math
 import random
+import threading
 import time
-from typing import Any, Callable, List, Optional
+from typing import Callable, List, Optional
 
 import numpy as np
 
@@ -88,6 +89,7 @@ class AESimulator:
 
         # 运行状态
         self._is_running = False
+        self._thread: Optional[threading.Thread] = None
         self._frame_count = 0
         self._power_line_freq = 50.0  # 工频 50Hz
         self._time = 0.0  # 模拟时间
@@ -98,9 +100,7 @@ class AESimulator:
         """设置 AE 突发类型: burst, continuous, mixed"""
         if burst_type in self.BURST_TYPES:
             self._burst_type = burst_type
-            logger.info(
-                "AE 模拟器类型: %s (%s)", burst_type, self.BURST_TYPES[burst_type]["description"]
-            )
+            logger.info("AE 模拟器类型: %s (%s)", burst_type, self.BURST_TYPES[burst_type]["description"])
 
     def set_burst_rate(self, rate: float) -> None:
         """设置每秒突发数"""
@@ -136,9 +136,7 @@ class AESimulator:
         # 基线: 机械振动噪声 (0.5-5kHz) + 白噪声
         # 机械振动: 低频正弦 + 随机相位调制
         vib_freq = random.uniform(0.5, 5) * 1000  # 0.5-5 kHz
-        mechanical_noise = (
-            np.sin(2 * np.pi * vib_freq * t + random.uniform(0, 2 * math.pi)) * self._noise_level * 0.5
-        )
+        mechanical_noise = np.sin(2 * np.pi * vib_freq * t + random.uniform(0, 2 * math.pi)) * self._noise_level * 0.5
         white_noise = np.random.randn(n) * self._noise_level
         waveform = mechanical_noise + white_noise
 
@@ -175,9 +173,7 @@ class AESimulator:
         trigger_pos = int(np.argmax(np.abs(waveform)))
 
         self._frame_count += 1
-        self._phase_offset = (
-            self._phase_offset + 360 * n / self._sample_rate * self._power_line_freq
-        ) % 360
+        self._phase_offset = (self._phase_offset + 360 * n / self._sample_rate * self._power_line_freq) % 360
 
         return AEWaveformData(
             samples=waveform.tolist(),
@@ -198,12 +194,8 @@ class AESimulator:
         Args:
             interval_ms: 帧间隔 (ms)
         """
-        import threading as _threading
-
         self._is_running = True
-        self._thread = _threading.Thread(
-            target=self._run_loop, args=(interval_ms,), daemon=True
-        )
+        self._thread = threading.Thread(target=self._run_loop, args=(interval_ms,), daemon=True)
         self._thread.start()
         logger.info(
             "AE 模拟器已启动 [%s, %d FPS]",
@@ -212,8 +204,18 @@ class AESimulator:
         )
 
     def stop(self) -> None:
-        """停止模拟"""
+        """停止模拟，并等生成线程真的退出。
+
+        与 PDSimulator 同一问题：daemon 生成线程只置标志位不 join，退出时它还在
+        回调 AE 管线 → `PDDataBusSignals.emit()`，而 QObject 已被销毁。
+        """
         self._is_running = False
+        thread = self._thread
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=2.0)
+            if thread.is_alive():
+                logger.warning("AE 模拟器生成线程 2.0s 内未退出，继续关停流程")
+        self._thread = None
         logger.info("AE 模拟器已停止 (帧数: %d)", self._frame_count)
 
     def _run_loop(self, interval_ms: int) -> None:
