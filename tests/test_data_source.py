@@ -290,3 +290,68 @@ class TestSimulatorPulseAmplitude:
         peak = max(abs(x) for x in sim.generate_waveform().samples)
         # 允许基线工频正弦的 ±0.5 余量
         assert 99.0 <= peak <= 101.0, f"脉冲峰值 {peak:.1f} 偏离标称 100，包络与振荡未对齐"
+
+
+class TestSimulatorDeviceIdUniqueness:
+    """回归：多个 UHF 模拟源必须各自独立成一路，不能共用 PDSimulator 的类默认 id。
+
+    原先 `SimulatorSource.start()` 只在 AE 分支调 `set_device_info`，UHF 分支漏了，
+    于是每个 UHF 源都退回类默认 "SIM-001"。后果是两层串台：
+      - ProcessorManager 以 (device, channel) 为键 → 四路共用同一套 PRPD/FFT/RingBuffer；
+      - 推流合并键 (topic, device, channel) 也跟着撞 → 同一 flush 窗口后帧顶掉前帧。
+    实测 N=4 时内核处理 79.5 fps、客户端只收到 50.6 fps，而 dropped=0、coalesced=706
+    ——这笔缺口会被误读成"背压丢弃"，所以必须先修命名才能谈 M7.3 多通道线性度。
+    """
+
+    @pytest.fixture
+    def manager(self, qapp):
+        from unittest.mock import MagicMock
+
+        from core.foundation.data_source_manager import DataSourceManager
+        from core.foundation.signal_bus import PDDataBus
+
+        acquisition = MagicMock()
+        mgr = DataSourceManager(acquisition, PDDataBus.instance(), db_manager=None)
+        yield mgr, acquisition
+        # 生成线程是 daemon，不 stop_all 就会漏到会话结束（本仓库踩过两次）
+        mgr.stop_all()
+
+    def test_two_uhf_sources_emit_two_device_ids(self, manager):
+        import time
+
+        mgr, acquisition = manager
+        ids = [mgr.add_simulator_source("uhf", "corona", 20, 60000.0) for _ in range(2)]
+        assert len(set(ids)) == 2, "两个源的 source_id 就撞了"
+        assert mgr.start_all() == 2
+
+        seen = set()
+        deadline = time.time() + 6.0
+        while time.time() < deadline and len(seen) < 2:
+            seen = {c[0][0] for c in acquisition.process_data_frame.call_args_list}
+            time.sleep(0.05)
+
+        mgr.stop_all()
+
+        msg = "只观察到 %d 个设备号 %s：两路源共用采集设备 id，处理器与合并键都会撞"
+        assert len(seen) >= 2, msg % (len(seen), sorted(seen))
+        assert "SIM-001" not in seen, "UHF 源仍在用 PDSimulator 的类默认 id SIM-001"
+        assert seen == set(ids), "设备号应当就是数据源 id（%s），实际 %s" % (sorted(ids), sorted(seen))
+
+    def test_device_id_follows_source_id_not_class_default(self, manager):
+        """单源也要用 source_id，否则命名空间与 stats.sources 仍对不上。"""
+        import time
+
+        mgr, acquisition = manager
+        sid = mgr.add_simulator_source("uhf", "corona", 20, 60000.0)
+        mgr.start_all()
+
+        deadline = time.time() + 6.0
+        first = None
+        while time.time() < deadline and first is None:
+            calls = acquisition.process_data_frame.call_args_list
+            if calls:
+                first = calls[0][0][0]
+            time.sleep(0.05)
+
+        mgr.stop_all()
+        assert first == sid, "采集设备 id 应为数据源 id %s，实际 %s" % (sid, first)

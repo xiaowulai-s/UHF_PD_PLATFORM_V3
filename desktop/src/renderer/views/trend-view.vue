@@ -85,8 +85,10 @@ const device = computed(() => devices.value.find((d) => d.id === deviceId.value)
 /**
  * 设备候选 = 库里真实有历史的 device_id，再补上已保存但还没有数据的设备。
  *
- * 不要用 stats.sources 的键：模拟器以**采集设备 id**（SIM-001）写事件，而数据源 id
- * 是另一套命名，拿它去查 pd_events 会得到"查询条件全对、结果恒为 0"，看起来像没数据。
+ * 不要用 stats.sources 的键当设备候选：那里是运行时数据源 id，会把"从没产生过事件的源"
+ * 也算进来；而 2026-10-09 之前模拟器事件的设备 id 是 PDSimulator 的类默认 SIM-001，并不
+ * 等于源 id sim-uhf-N（既有库里两种命名都有，此后新写入才统一）。用错命名得到的就是
+ * "查询条件全对、结果恒为 0"，看起来像没数据。
  * 实测踩过：下拉显示"模拟器-UHF（数据源）"、库里有 1937 条事件，趋势页仍是空图。
  */
 const deviceOptions = computed(() => {

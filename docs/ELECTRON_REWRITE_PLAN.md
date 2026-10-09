@@ -813,7 +813,7 @@ tests/ 里原本根本没有 logger 测试）。三项变异验证都有牙齿�
 |---|---|---|---|
 | 7.1 | **目标硬件实测**：现场工控机上跑渲染探针 | 四类图元单帧绘制 p95 远低于 50ms 预算 | 🟡 探针已就绪，待现场复跑 |
 | 7.2 | 24h 长稳 + 内存增长 | RSS 增长 < 10% | ⬜ |
-| 7.3 | 双通道/四通道线性度 | 无背压丢弃 | ⬜ |
+| 7.3 | 双通道/四通道线性度 | 无背压丢弃 | ✅ 1/2/4/8 全线性、dropped=0，见下 |
 | 7.4 | sidecar 崩溃恢复与采集断点续传 | 恢复 < 5s，无告警丢失 | ⬜ |
 | 7.5 | 启动时间 | 冷启 < 3s | ✅ 实测最差 1.05s，见下 |
 
@@ -845,6 +845,78 @@ tests/ 里原本根本没有 logger 测试）。三项变异验证都有牙齿�
 探针量的是 **2D canvas 绘制成本**，不含：uPlot / ECharts / three.js 等真实图表库的开销、
 Vue 响应式与 DOM 更新、msgpack 解码。所以它是"能不能行"的指示器，不是最终验收。
 M4 图表层落地后需在同一台机器上复测。
+
+### M7.3 多通道线性度与背压丢弃（2026-10-09 实测通过，1/2/4/8 路全线性、dropped=0）
+
+验收线是"无背压丢弃"，我另外加了一条**每通道处理速率保持 ≥80%**——只看 dropped 会漏掉
+另一种失败：通道数上去了、每路分到的速率掉下来了，帧一个没丢但读数已经失真。
+
+工具 `tools/measure_channel_linearity.py`（新增，用全局 `python` 跑，venv 缺 msgpack）：
+每个 N 起一个真 sidecar 子进程，用 `acquisition.start_simulator` RPC 建 N 路，`/stream`
+客户端**真解码 payload**（`unpack_array`）——只数帧不解码的话客户端比真前端快得多，背压
+永远堆不起来，"0 丢弃"就是自欺。窗口内用 `acquisition.stats` + `system.diagnostics`
+的头尾差算速率与三个"没发出去"的计数。
+
+#### 先抓到一个会伪造结论的内核缺陷
+
+第一次跑 N=4 时，内核聚合处理 79.5 fps（正好是单通道的 4 倍，看着很线性），但线上
+**只出现一个设备号 `SIM-001`**，客户端只有 50.6 fps，`dropped=0`、`coalesced=706`。
+根因在 `core/utils/simulator_source.py`：AE 分支会 `set_device_info(device_id, channel_id)`，
+UHF 分支漏了这行，于是每个 UHF 模拟源都退回 `PDSimulator` 的类默认 `"SIM-001"`。后果有两层：
+
+- `ProcessorManager` 以 `f"{device_id}:{channel_id}"` 为键，四路源共用同一套
+  PRPD/FFT/RingBuffer —— 图谱是混着累积的，不是四张独立图；
+- 推流侧合并键 `(topic, device, channel)` 也跟着撞，同一 10ms flush 窗口里后帧顶掉前帧，
+  客户端少收的帧会被记成 `coalesced`。
+
+也就是说**聚合吞吐是真的，per-channel  processing 是假的**（四路挤在同一套处理器里），
+而"客户端只到 50.6 fps"根本不是背压。如果当时按"通道数=请求数"直接采信聚合数，
+M7.3 会带着一个假通过结案。所以脚本现在硬性核对"观察到的设备数 == 请求通道数"，
+不等直接判失败。顺带修掉的一个自测坑：设备号统计最初把 `device=""` 的聚合帧
+（`stats`/`log`）也算进去，N=1 被数成 2 通道，每通道速率凭空除以 2。
+
+修复：UHF 分支补 `sim.set_device_info(device_id, channel_id)`。回归用例
+`tests/test_data_source.py::TestSimulatorDeviceIdUniqueness`（两路源必须给出 2 个不同
+设备号、且都不等于 `SIM-001`）。**变异验证已过**：注掉那行 → 2 failed（断言直接报
+`assert 'SIM-001' == 'sim-uhf-0'`）；还原 → 26 passed。
+
+UHF 分支没有补 `set_channel_coupling_type`：`ProcessorManager.get_channel_coupling_type`
+（`core/processing/processor_manager.py:94`）的默认值本来就是 `"uhf"`，加上去只是把默认
+值再写一遍。AE 必须显式设是因为默认偏向 UHF，反向不需要。
+
+修后 N=4 同一套脚本：设备=4、内核聚合 79.4 fps、客户端 19.9 fps/通道、`coalesced=0`——
+客户端速率与内核吻合，`coalesced` 归零，证实那 706 帧确实只是设备号撞键的合并，不是网络背压。
+
+#### 实测（`--channels 1,2,4,8 --seconds 20`，20 FPS、`--pulse-rate 60000`、corona）
+
+| N | 观察到的设备 | 内核处理 fps/通道 | 聚合 fps | 扩展比 | 客户端 fps/通道 | sent | coalesced | throttled | **dropped** | RSS 末/峰 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | 19.9 | 19.9 | 1.00 | 19.9 | 856 | 0 | 0 | **0** | 256 / 256 MB |
+| 2 | 2 | 19.8 | 39.7 | 1.00 | 19.8 | 1698 | 0 | 0 | **0** | 299 / 299 MB |
+| 4 | 4 | 19.9 | 79.4 | 1.00 | 19.9 | 3388 | 0 | 0 | **0** | 384 / 384 MB |
+| 8 | 8 | 19.9 | 158.9 | 1.00 | 19.7 | 6725 | 27 | 0 | **0** | 561 / 561 MB |
+
+每通道处理 fps min 19.8 / max 19.9，极差 0.1%。判定 **PASS**。
+
+RSS 从 256 → 561 MB，**每通道增量 43.6 MB**，与"每通道 39.8 MB"的记档同量级（多出的几 MB
+是每路源自己的模拟器与处理器实例）；8 通道 561 MB 落在既定 <600 MB 档内。
+
+#### 这个结论的边界
+
+- **8 路全是 UHF @100 MHz**，比生产配置（4 UHF + 4 AE）更重，所以是保守下界；不是硬件
+  UDP 路径，FPGA 侧的解包成本没进这个数。
+- 这里的"一路"= 一个独立**设备**：`SimulatorSource.start()` 把 `channel_id` 硬编码为 1
+  （`core/utils/simulator_source.py:83`），多通道要靠多设备造。同一设备内的多 channel
+  线性度没单独测。
+- N=8 出现的 `coalesced=27` 是 10ms 合并窗口里的 latest-wins 正常行为（约 0.4%），
+  与丢弃无关；`throttled=0` 说明本轮没受显式速率限制影响。
+- 没测带宽上限：6725 帧里热图大帧占比由 `prpd`/`prps` 的实际内容决定，本轮
+  `--pulse-rate 60000` 下 PRPD 帧很少（同参数的 `rpc_check` 另一次运行只观测到 prpd
+  2 帧/5s），所以 4 MB 背压线远未触及。**"无背压丢弃"不等于"带宽够用"**，后者要等大
+  热图真填起来再测。
+- 工具侧一个会吞结果的坑：判定行原先写 `✅/❌`，Windows 控制台默认 GBK 编不出来，
+  实测数据全跑完后在最后一行抛 `UnicodeEncodeError`，连退出码一起丢。已加
+  `sys.stdout.reconfigure(errors="replace")` 并把判定词改成 ASCII。
 
 ### M7.5 启动时间（2026-10-09 实测通过，最差 1.05s / 线 3s）
 
@@ -1031,7 +1103,7 @@ waveform/fft/prpd/prps 帧且 `codec=zlib` 解码正确。
 | M4 流式渲染层 | 10 | ✅ 4.1–4.6 全部完成并截图/真点验收（544 passed）。#21 量程、#20 脉冲偏低两条内核阻塞项均已修好 |
 | M5 第二批页面 | 8 | 🟡 前置已完成：持久化通路迁入内核（`persistence_service.py`）+ 按箱趋势聚合 RPC（`storage.query_trend_series`）。剩 5.1 收尾、5.2 趋势页、5.3 仪表板 |
 | M6 第三批页面 | 10 | ⬜ 未开始 |
-| M7 性能长稳 | 5 | 🟡 7.1 探针已就绪并在开发机实测，待现场复跑；7.2–7.5 未做 |
+| M7 性能长稳 | 5 | 🟡 7.3 线性度（1/2/4/8 全线性、dropped=0）与 7.5 启动时间（最差 1.05s）已实测通过；7.1 探针待现场复跑；7.2 24h 长稳、7.4 崩溃恢复未做 |
 | M8 切换收尾 | 3 | ⬜ 未开始（其中"AGENTS.md 更新"已于 2026-09-29 提前做完） |
 | **合计** | **57 pd** | 约 11.5 周（单人全职） |
 

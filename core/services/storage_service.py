@@ -409,9 +409,11 @@ class PDStorageService:
         """列出 pd_events 里真实出现过的 device_id，以及各自的条数与时间跨度。
 
         历史/趋势页的设备候选必须来自这里，而**不能**用 device.list 或
-        stats.sources 的键：模拟器以采集设备 id（SIM-001）写事件，而数据源 id 是
-        另一套命名（sim-uhf-N），pd_devices 在纯模拟器场景下甚至是空的。
-        用错命名空间的后果是查询条件完全正确、结果恒为 0，看起来像"没有数据"。
+        stats.sources 的键：前者在纯模拟器场景下是空的，后者是运行时数据源 id，
+        与"实际写过事件的设备"不等价——采集侧从未产生事件的源照样出现在那里。
+        另外模拟器的事件设备 id 在 2026-10-09 之前一直是 PDSimulator 的类默认
+        "SIM-001"（与源 id sim-uhf-N 不同名，且多源互相覆盖），此后才与源 id 统一；
+        所以既有库里同时存在两种命名，硬编码任一名字都会让另一半查不出来。
         """
         from sqlalchemy import func
 

@@ -108,6 +108,13 @@ class SimulatorSource(DataSource):
                 noise_level=2.0,
             )
             sim.set_pd_type(self._pd_type)
+            # AE 分支一直在设，UHF 分支原先漏了这行：每个 UHF 模拟源都退回
+            # PDSimulator 的类默认 "SIM-001"。多源时后果有两层——ProcessorManager 以
+            # (device, channel) 为键，四路源共用同一套 PRPD/FFT/RingBuffer，图谱是混着
+            # 累积的；推流侧合并键 (topic, device, channel) 也跟着撞，同一 flush 窗口里
+            # 后帧顶掉前帧，客户端少收的帧会被算成"背压丢弃"。实测 N=4 时内核 79.5 fps、
+            # 客户端只有 50.6 fps，而 dropped=0、coalesced=706。
+            sim.set_device_info(device_id, channel_id)
 
         sim.set_on_waveform_callback(self._on_waveform)
         sim.start(interval_ms=1000 // self._fps)

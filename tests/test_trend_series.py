@@ -147,9 +147,10 @@ def test_rpc_is_only_registered_when_storage_is_present():
 def test_history_device_ids_reports_what_actually_has_data(storage):
     """历史页的设备候选只能来自库里真实出现过的 device_id。
 
-    命名空间错配是实测踩出来的：模拟器以采集设备 id（SIM-001）写事件，
-    而 stats.sources 的键是另一套命名、pd_devices 在纯模拟器下是空的。
-    用错来源的后果是查询条件全对、结果恒为 0，看起来像"没有数据"。
+    来源选错是实测踩出来的：模拟器事件的设备 id 在 2026-10-09 之前是 PDSimulator 的
+    类默认 SIM-001，并不等于数据源 id；stats.sources 会把从没产生过事件的源也算进来，
+    pd_devices 在纯模拟器下又是空的。用它们当查询条件会得到"条件全对、结果恒为 0"，
+    看起来像"没有数据"。
     """
     seed(storage, [(60, 10.0, 1, "uhf"), (120, 20.0, 2, "uhf"), (300, 30.0, 1, "ae")])
     rows = storage.query_history_device_ids()
