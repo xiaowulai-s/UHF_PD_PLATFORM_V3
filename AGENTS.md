@@ -67,14 +67,15 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
 | M4 流式渲染层（4.1–4.6） | ✅ 完成，全部经截图 + 真点验收 |
 | M5 第二批页面 | ✅ 5.1 AE 模式、5.2 趋势页、5.3 仪表板均完成。5.1 的"连续 1h 无内存增长"已复跑通过（60.05 min / 120 采样点，四角色全有界；侧车那段 +30 MB/h 是 `prpd_processor` 的 `deque(maxlen=100000)` 填满，40.9 分钟到平台，属有界消耗） |
 | M6 第三批页面（AE 与分析） | ✅ 6.1 AE 特征分析、6.2 定位精度热图（真 GDOP，无量纲）、6.3 传感器阵列配置、6.4 数据分析页均完成并截图/真点验收。**实验数据导入已补**（`data.import_file` RPC + 分析页导入区，带放电类型识别与逐周期类型分布，测试 `tests/test_data_rpc.py`）。仍缺：3D 定位视图（内核无 TDOA 通路）、等效放电量（无计数→物理量换算）、最大重复率（口径未定义）、实时事件的类型标签 |
-| M7 性能长稳 | 🟡 7.1 探针待现场复跑；**7.5 启动时间已实测达标**（`tools/measure_startup.py`，当前 HEAD 重建产物：日常重启 0.82s、首次建库 1.01s、全新拷贝首启最差 1.05s，线 3s）；**7.3 多通道线性度达标**（`tools/measure_channel_linearity.py`，N=1/2/4/8 每通道 19.8–19.9 fps、扩展比 1.00、`dropped` 恒 0，8 通道 RSS 561 MB；客户端真解码 payload，只数帧会假性把背压测成 0）；7.2 24h 长稳 / 7.4 崩溃恢复未做 |
+| M7 性能长稳 | 🟡 7.1 探针待现场复跑；**7.5 启动时间已实测达标**（`tools/measure_startup.py`，当前 HEAD 重建产物：日常重启 0.82s、首次建库 1.01s、全新拷贝首启最差 1.05s，线 3s）；**7.3 多通道线性度达标**（`tools/measure_channel_linearity.py`，N=1/2/4/8 每通道 19.8–19.9 fps、扩展比 1.00、`dropped` 恒 0，8 通道 RSS 561 MB；客户端真解码 payload，只数帧会假性把背压测成 0）；**7.4 崩溃恢复达标**（`tools/verify_sidecar_recovery.py` 实测恢复 3.0s / 线 5s；`tools/verify_alarm_recovery.py` 量"告警不丢"，前提是先补回断掉的告警判定链，见上面第 4 条陷阱）；7.2 24h 长稳未做 |
 | M8 切换收尾 | 🟡 旧 `main.py`/`main_v2.py`/`ui/` 已归档下线（`_archive/ui-offline-20261008/`）、AGENTS.md 已更新；装机包与其余文档收尾未做 |
 
-## 内核侧的三个语义陷阱（会毁掉读数可信度）
+## 内核侧的四个语义陷阱（会毁掉读数可信度）
 
 1. **PRPD 幅值轴只增不减。** `ProcessorManager(default_max_amplitude=100.0)` 给的是**初值**；`publish_throttle.prpd_cycle` 只在观测幅值 > 轴×0.8 时把轴扩到观测值×1.2，**没有任何收缩路径**。所以初值取大了等于永久锁死（此前硬编码 10000 mV 时，mV 级数据全部挤在第 0~1 个幅值箱里）。也不要改成 auto-scale 掩盖问题——纵轴是测量量程，不是显示缩放。
 2. **单位口径本身是缺的。** 全链路没有任何计数→mV 换算：FPGA 侧按大端 int16 裸计数解包，`ChannelConfig.gain` 字段存在但从未作用于波形；`WaveformData.samples # (mV)` 只是未经实现的文档口径。真实数据（`prpd_report.json` ← `PD_data.csv`）幅值 max 8462，量级是原始计数；模拟器是 mV（满量程 100）。同一个 `amplitude` 字段承载两种相差约百倍量纲。未做现场标定前，任何"幅值 = mV"的表述都是假设。
 3. **事件里的 `device_id` 有两套命名，写死任何一个都只查得到一半。** 2026-10-09 之前 UHF 模拟源不调 `set_device_info`，所有 UHF 事件都落在 `PDSimulator` 的类默认 `"SIM-001"`（多源还共用同一个键，PRPD/FFT/RingBuffer 互相混积）；现在改为与数据源 id 同名（`sim-uhf-0`、`sim-ae-1`…）。既有库里两种都有，所以设备候选只能来自 `storage.device_ids`（读 `pd_events` 里真实出现过的 id），不要用 `device.list`（纯模拟器下为空）或 `stats.sources` 的键（含从未产生事件的源）。趋势页与 `tools/rpc_check.py` 已按此口径改。
+4. **内核里"有这个方法"和"这条链在跑"是两件事，测试全绿证明不了后者。** 2026-10-10 发现 `PDAlarmService.check_amplitude` / `check_device_status` / `check_storage` 在 `core/` 与 `sidecar.py` 里**零生产调用点**——旧架构是 `ui/controllers/signal_router.py` 在调，M8 归档 `ui/` 时没人接管。后果：UHF 幅值告警、设备状态告警、存储告警完全不产生，AE 告警绕过 AlarmService 所以不落库、不带 `alarm_id`、崩溃即丢。而 470 个用例一路绿，因为老测试都直接戳服务方法（`svc.check_amplitude(...)`），绕过了"谁去调它"这一层。**判断某个能力是否真在跑，从入口/总线订阅往下数调用点，别只看方法存在或测试通过**；`tools/verify_alarm_recovery.py` 那类端到端实测才是证据。
 
 另外：趋势**不要读 `pd_trend_data` 表**——那里的行是旧 `signal_router` 每 50 帧写一次的累计值与编造的常量关系（`avg=max*0.6`、`energy=count*max*0.1`、`noise=0`）。用 `storage.query_trend_series`，它从 `pd_events` 按箱即时聚合、空箱补 0。
 

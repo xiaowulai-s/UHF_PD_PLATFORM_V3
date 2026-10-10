@@ -147,6 +147,23 @@ async def run_config(n_channels: int, args) -> dict:
                     {"sim_type": "uhf", "pd_type": args.pd_type, "fps": args.fps, "pulse_rate": float(args.pulse_rate)},
                 )
 
+            if args.alarm_floor:
+                # 默认阈值下 check_amplitude 在 "level 为 None" 处就返回了，量不到告警判定的
+                # 成本；压到 1 mV 让每条检出事件都越限、都进锁、都被去抖兜住
+                await rpc(
+                    ctrl,
+                    "f",
+                    "config.set_amplitude_threshold",
+                    {
+                        "scope": "global",
+                        "max_amplitude": 100.0,
+                        "critical": 1.0,
+                        "high": 1.0,
+                        "medium": 1.0,
+                        "low": 1.0,
+                    },
+                )
+
             async with ws_connect(url + "/stream?token=" + token, max_size=None) as stream:
                 topic_counts: Counter = Counter()
                 device_counts: Counter = Counter()
@@ -284,6 +301,11 @@ async def main() -> int:
     ap.add_argument("--pd-type", default="corona")
     ap.add_argument("--no-decode", action="store_true", help="客户端不解码（会让背压假性为 0）")
     ap.add_argument(
+        "--alarm-floor",
+        action="store_true",
+        help="把四级阈值全压到 1 mV：每条检出事件都越限，用来量告警判定的最坏成本",
+    )
+    ap.add_argument(
         "--min-scale", type=float, default=0.8, help="每通道处理 fps 相对单通道的最低保持率（0.8=允许 20%% 退化）"
     )
     args = ap.parse_args()
@@ -293,7 +315,10 @@ async def main() -> int:
     ns = [int(x) for x in args.channels.split(",") if x.strip()]
     rows = []
     for n in ns:
-        print("\n=== N=%d 通道，测 %.0fs（另有 %.0fs 预热不计入）===" % (n, args.seconds, args.settle))
+        print(
+            "\n=== N=%d 通道，测 %.0fs（另有 %.0fs 预热不计入）%s ==="
+            % (n, args.seconds, args.settle, "，阈值压到 1 mV" if args.alarm_floor else "")
+        )
         rows.append(await run_config(n, args))
 
     print("\n判定（线：无背压丢弃 + 每通道处理速率保持 ≥%.0f%%）：" % (args.min_scale * 100))
