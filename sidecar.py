@@ -176,6 +176,12 @@ def main() -> int:
     data_methods = register_data_rpc(server)
     logger.info("数据导入 RPC 已注册: %s", ", ".join(data_methods))
 
+    # 分析报告导出（旧 ui/ 的 ReportExportWidget 只有按钮、内核侧没人调用 ReportExporter）
+    from core.protocol.report_rpc import register_report_rpc
+
+    report_methods = register_report_rpc(server)
+    logger.info("报告导出 RPC 已注册: %s", ", ".join(report_methods))
+
     from core.protocol.log_stream import attach as attach_log_stream
     from core.protocol.stats_push import StatsPusher
 
