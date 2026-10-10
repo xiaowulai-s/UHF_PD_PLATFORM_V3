@@ -93,6 +93,13 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
         # 必须带上 db_manager：否则告警不落库、也没有可确认的主键
         alarm = PDAlarmService(db_manager=db_manager)
 
+    # 阈值判定得有订阅者才会跑：check_amplitude 的生产调用点原本在
+    # ui/controllers/signal_router.py 里，ui/ 归档后这条线断了（详见 alarm_evaluator 模块注释）
+    from core.services.alarm_evaluator import AlarmEvaluator
+
+    alarm_eval = AlarmEvaluator(bus, alarm)
+    alarm_eval.start()
+
     from core.foundation.data_source_manager import DataSourceManager
 
     sources = DataSourceManager(
@@ -101,7 +108,7 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
         db_manager=db_manager,
         alarm_service=alarm,
     )
-    return bus, acquisition, sources, storage, db_manager, alarm, persistence
+    return bus, acquisition, sources, storage, db_manager, alarm, persistence, alarm_eval
 
 
 def _anchor(path: str | None, *default_parts: str) -> str:
@@ -135,7 +142,7 @@ def main() -> int:
     from core.protocol import SidecarServer
     from core.protocol.storage_rpc import register_storage_rpc
 
-    bus, acquisition, sources, storage, db_manager, alarm, persistence = _build_services(args, logger)
+    bus, acquisition, sources, storage, db_manager, alarm, persistence, alarm_eval = _build_services(args, logger)
     server = SidecarServer(bus)
     port, token = server.start(host=args.host, port=args.port)
 
@@ -162,6 +169,12 @@ def main() -> int:
 
     writes = register_write_rpc(server, db_manager=db_manager, acquisition=acquisition, alarm=alarm)
     logger.info("写入 RPC 共 %d 个", len(writes))
+
+    # 实验数据导入（旧 ui/ 的 data_import_widget 归档后，这是把它接回前端的唯一通路）
+    from core.protocol.data_rpc import register_data_rpc
+
+    data_methods = register_data_rpc(server)
+    logger.info("数据导入 RPC 已注册: %s", ", ".join(data_methods))
 
     from core.protocol.log_stream import attach as attach_log_stream
     from core.protocol.stats_push import StatsPusher
@@ -218,6 +231,14 @@ def main() -> int:
         log_handler.detach()
         sources.stop_all()
         acquisition.stop()
+        # 告警是"检出事件线程里直写 DB"的，必须赶在 storage/db_manager 关闭前断开订阅，
+        # 否则尾部事件会撞上已关闭的引擎
+        alarm_eval.stop()
+        # 两个数分开报：evaluated=0 说明判定链没接上（这正是 ui/ 归档后的状态），
+        # 而 evaluated>0、over_threshold=0 才是"真的没超阈值"。
+        # 注意 over_threshold 不等于新增告警条数——同级别重复事件被去抖，库里只有一条。
+        ev = alarm_eval.stats
+        logger.info("幅值告警判定: 送判 %d 条事件 / 越限放行 %d 次", ev["evaluated"], ev["over_threshold"])
         # 先断订阅再停刷写线程，否则停机过程中入队的事件会被丢在队列里没人写
         if persistence:
             persistence.stop()

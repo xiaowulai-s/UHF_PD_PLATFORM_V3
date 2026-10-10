@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """PRPD 放电类型分类器 — 统计特征参考剖面匹配"""
 from __future__ import annotations
-from typing import Optional
+
+from typing import List, Optional, Tuple
+
 import numpy as np
 
 
@@ -48,44 +50,44 @@ class DischargeClassifier:
     # 基于PRPD物理机理 + 真实实验数据校准
     PROFILES = {
         "corona": {
-            "quad13": 0.32,       # 低集中度(相位分散)
-            "spread": 0.68,       # 高扩散
-            "top2": 0.38,         # 低集中度
-            "symmetry": 0.88,     # 可对称可不对称
+            "quad13": 0.32,  # 低集中度(相位分散)
+            "spread": 0.68,  # 高扩散
+            "top2": 0.38,  # 低集中度
+            "symmetry": 0.88,  # 可对称可不对称
             "s1_s4_ratio": 1.10,  # S1略大于S4
-            "cv": 1.50,           # 中等变异
-            "pos_energy": 0.25,   # 核心: 负半周能量占绝对优势
-            "neg_tail": 0.33,     # S5+S6显著
+            "cv": 1.50,  # 中等变异
+            "pos_energy": 0.25,  # 核心: 负半周能量占绝对优势
+            "neg_tail": 0.33,  # S5+S6显著
         },
         "internal": {
-            "quad13": 0.75,       # 高集中度
-            "spread": 0.25,       # 低扩散
-            "top2": 0.75,         # 高集中度
-            "symmetry": 0.70,     # 中等对称(S1>S4)
+            "quad13": 0.75,  # 高集中度
+            "spread": 0.25,  # 低扩散
+            "top2": 0.75,  # 高集中度
+            "symmetry": 0.70,  # 中等对称(S1>S4)
             "s1_s4_ratio": 1.45,  # 核心: S1明显大于S4
-            "cv": 0.80,           # 低变异
-            "pos_energy": 0.50,   # 正负能量均衡
-            "neg_tail": 0.14,     # S5+S6少
+            "cv": 0.80,  # 低变异
+            "pos_energy": 0.50,  # 正负能量均衡
+            "neg_tail": 0.14,  # S5+S6少
         },
         "surface": {
-            "quad13": 0.88,       # 极高集中度
-            "spread": 0.12,       # 极低扩散
-            "top2": 0.88,         # 极高集中度
-            "symmetry": 0.95,     # 极高对称(S1≈S4)
+            "quad13": 0.88,  # 极高集中度
+            "spread": 0.12,  # 极低扩散
+            "top2": 0.88,  # 极高集中度
+            "symmetry": 0.95,  # 极高对称(S1≈S4)
             "s1_s4_ratio": 1.05,  # 核心: S1≈S4
-            "cv": 0.50,           # 低变异
-            "pos_energy": 0.50,   # 正负能量大致均衡
-            "neg_tail": 0.06,     # S5+S6极少
+            "cv": 0.50,  # 低变异
+            "pos_energy": 0.50,  # 正负能量大致均衡
+            "neg_tail": 0.06,  # S5+S6极少
         },
         "floating": {
-            "quad13": 0.38,       # 低集中度
-            "spread": 0.62,       # 高扩散
-            "top2": 0.40,         # 低集中度
-            "symmetry": 0.90,     # 较对称
+            "quad13": 0.38,  # 低集中度
+            "spread": 0.62,  # 高扩散
+            "top2": 0.40,  # 低集中度
+            "symmetry": 0.90,  # 较对称
             "s1_s4_ratio": 0.90,  # S4略大于S1
-            "cv": 2.50,           # 核心: 极高变异
-            "pos_energy": 0.49,   # 正负能量均衡
-            "neg_tail": 0.31,     # S5+S6中等
+            "cv": 2.50,  # 核心: 极高变异
+            "pos_energy": 0.49,  # 正负能量均衡
+            "neg_tail": 0.31,  # S5+S6中等
         },
     }
 
@@ -95,9 +97,9 @@ class DischargeClassifier:
         "spread": 0.8,
         "top2": 0.6,
         "symmetry": 0.7,
-        "s1_s4_ratio": 1.2,      # 区分内部vs沿面的核心
-        "cv": 1.2,               # 区分悬浮的核心
-        "pos_energy": 1.3,       # 区分电晕的核心
+        "s1_s4_ratio": 1.2,  # 区分内部vs沿面的核心
+        "cv": 1.2,  # 区分悬浮的核心
+        "pos_energy": 1.3,  # 区分电晕的核心
         "neg_tail": 0.8,
     }
 
@@ -178,19 +180,34 @@ class DischargeClassifier:
 
         return {
             # 匹配用特征
-            "quad13": quad13, "spread": spread, "top2": top2,
-            "symmetry": symmetry, "s1_s4_ratio": s1_s4_ratio,
-            "cv": amp_cv, "pos_energy": pos_energy, "neg_tail": neg_tail,
+            "quad13": quad13,
+            "spread": spread,
+            "top2": top2,
+            "symmetry": symmetry,
+            "s1_s4_ratio": s1_s4_ratio,
+            "cv": amp_cv,
+            "pos_energy": pos_energy,
+            "neg_tail": neg_tail,
             # 辅助特征(不参与匹配, 但返回给UI)
-            "S1": S1, "S2": S2, "S3": S3, "S4": S4, "S5": S5, "S6": S6,
-            "pos_ratio": pos_ratio, "s1_dominance": s1_dominance,
-            "corona_tail": corona_tail, "s1_ratio": s1_ratio,
-            "asymmetry_ratio": asymmetry_ratio, "bimodality": bimodality,
+            "S1": S1,
+            "S2": S2,
+            "S3": S3,
+            "S4": S4,
+            "S5": S5,
+            "S6": S6,
+            "pos_ratio": pos_ratio,
+            "s1_dominance": s1_dominance,
+            "corona_tail": corona_tail,
+            "s1_ratio": s1_ratio,
+            "asymmetry_ratio": asymmetry_ratio,
+            "bimodality": bimodality,
             # 元信息
-            "noise_removed": noise_removed, "clean_events": n_clean,
+            "noise_removed": noise_removed,
+            "clean_events": n_clean,
             "max_amp": float(np.max(amplitudes)),
             "p90": float(np.percentile(amplitudes, 90)),
             "amp_median": amp_median,
+            "noise_threshold": noise_threshold,  # 供 classify() 噪声拒判使用
         }
 
     @classmethod
@@ -203,7 +220,7 @@ class DischargeClassifier:
                 continue
             diff = features[fname] - profile[fname]
             sigma = cls.FEATURE_SIGMAS[fname]
-            sim = np.exp(-diff ** 2 / (2 * sigma ** 2))
+            sim = np.exp(-(diff**2) / (2 * sigma**2))
             score += weight * sim
             total_weight += weight
         return score / total_weight if total_weight > 0 else 0.0
@@ -212,20 +229,30 @@ class DischargeClassifier:
     def classify(cls, phases: np.ndarray, amplitudes: np.ndarray) -> dict:
         if len(phases) < 10:
             return {
-                "type": "unknown", "name": "未知", "name_en": "Unknown",
-                "confidence": 0, "severity": "normal",
-                "symmetry": False, "pos_ratio": 0.5,
-                "concentration": 0, "description": "数据不足",
+                "type": "unknown",
+                "name": "未知",
+                "name_en": "Unknown",
+                "confidence": 0,
+                "severity": "normal",
+                "symmetry": False,
+                "pos_ratio": 0.5,
+                "concentration": 0,
+                "description": "数据不足",
             }
 
         # ── 特征提取 ──
         feat = cls._extract_features(phases, amplitudes)
         if not feat:
             return {
-                "type": "unknown", "name": "未知", "name_en": "Unknown",
-                "confidence": 0, "severity": "normal",
-                "symmetry": False, "pos_ratio": 0.5,
-                "concentration": 0, "description": "特征提取失败",
+                "type": "unknown",
+                "name": "未知",
+                "name_en": "Unknown",
+                "confidence": 0,
+                "severity": "normal",
+                "symmetry": False,
+                "pos_ratio": 0.5,
+                "concentration": 0,
+                "description": "特征提取失败",
             }
 
         max_amp = feat["max_amp"]
@@ -234,23 +261,31 @@ class DischargeClassifier:
         spread = feat["spread"]
         pos_ratio = feat["pos_ratio"]
         symmetry = feat["symmetry"]
-        amp_cv = feat["cv"]
         noise_removed = feat["noise_removed"]
         n_clean = feat["clean_events"]
-        min_noise_threshold = max(1.0, float(np.min(amplitudes[amplitudes > 0])) if np.any(amplitudes > 0) else 1.0)
 
         # ── 纯噪声拒判 ──
-        if top2 < 0.40 and max_amp < min_noise_threshold * 5:
+        # 使用 _extract_features 中计算的 noise_threshold（基于 median×2, p5×1.5, min_nonzero 三者最大）
+        # 条件: 集中度低(top2<0.40) 且 最大幅值不超过噪声阈值×5
+        noise_threshold = feat.get("noise_threshold", 1.0)
+        if top2 < 0.40 and max_amp < noise_threshold * 5:
             return {
-                "type": "noise", "name": "纯噪声", "name_en": "Noise",
+                "type": "noise",
+                "name": "纯噪声",
+                "name_en": "Noise",
                 "description": "信号为随机噪声，无明显放电特征",
                 "confidence": float(f"{min(spread, 0.90):.2f}"),
-                "severity": "normal", "symmetry": False,
+                "severity": "normal",
+                "symmetry": False,
                 "pos_ratio": float(f"{pos_ratio:.2f}"),
                 "concentration": float(f"{top2:.3f}"),
-                "noise_removed": noise_removed, "clean_events": n_clean,
-                "features": {k: float(f"{v:.3f}") if isinstance(v, float) else v
-                             for k, v in feat.items() if k not in ("noise_removed", "clean_events", "max_amp", "p90", "amp_median")},
+                "noise_removed": noise_removed,
+                "clean_events": n_clean,
+                "features": {
+                    k: float(f"{v:.3f}") if isinstance(v, float) else v
+                    for k, v in feat.items()
+                    if k not in ("noise_removed", "clean_events", "max_amp", "p90", "amp_median", "noise_threshold")
+                },
                 "scores": {t: 0.0 for t in ["corona", "surface", "internal", "floating"]},
             }
 
@@ -295,8 +330,11 @@ class DischargeClassifier:
             "concentration": float(f"{top2:.3f}"),
             "noise_removed": noise_removed,
             "clean_events": n_clean,
-            "features": {k: float(f"{v:.3f}") if isinstance(v, float) else v
-                         for k, v in feat.items() if k not in ("noise_removed", "clean_events", "max_amp", "p90", "amp_median")},
+            "features": {
+                k: float(f"{v:.3f}") if isinstance(v, float) else v
+                for k, v in feat.items()
+                if k not in ("noise_removed", "clean_events", "max_amp", "p90", "amp_median")
+            },
             "scores": {k: float(f"{v:.3f}") for k, v in scores.items()},
         }
 
@@ -387,8 +425,10 @@ class DischargeClassifier:
                 "type_counts": {},
                 "type_ratios": {},
                 "reference_result": {
-                    "type": "unknown", "name": "未知",
-                    "name_en": "Unknown", "confidence": 0,
+                    "type": "unknown",
+                    "name": "未知",
+                    "name_en": "Unknown",
+                    "confidence": 0,
                     "marked_as": "参考结果",
                 },
                 "severity": "normal",
@@ -419,6 +459,14 @@ class DischargeClassifier:
         # 置信度 = 最高占比类型投票率
         confidence = best_ratio
 
+        # 聚合概率分布（从 per_sample_results 计算各类型平均得分）
+        type_scores: dict[str, list] = {t: [] for t in cls.PROFILES}
+        for sr in per_sample_results:
+            for t, s in sr.get("scores", {}).items():
+                if t in type_scores:
+                    type_scores[t].append(s)
+        agg_scores = {t: float(np.mean(vs)) if vs else 0.0 for t, vs in type_scores.items()}
+
         pattern = cls.PATTERNS.get(best_type, {})
         reference_result = {
             "type": best_type,
@@ -441,6 +489,7 @@ class DischargeClassifier:
             "severity": severity,
             "per_sample_results": per_sample_results,
             "amplitude_stats": amp_stats,
+            "scores": agg_scores,  # 聚合概率分布
         }
 
     @classmethod
@@ -473,12 +522,15 @@ class DischargeClassifier:
                 "type_counts": {},
                 "type_ratios": {},
                 "reference_result": {
-                    "type": "unknown", "name": "未知",
-                    "name_en": "Unknown", "confidence": 0,
+                    "type": "unknown",
+                    "name": "未知",
+                    "name_en": "Unknown",
+                    "confidence": 0,
                     "marked_as": "参考结果",
                 },
                 "severity": "normal",
                 "per_sample_results": [],
+                "cycle_ids": [],
                 "amplitude_stats": cls._calc_amplitude_stats(phases, amplitudes),
             }
 
@@ -486,6 +538,7 @@ class DischargeClassifier:
         unique_cycles = np.unique(cycles[cycles > 0]) if np.any(cycles > 0) else np.array([0])
         type_counts: dict[str, int] = {}
         per_sample_results = []
+        classified_cycle_ids = []
 
         for cyc in unique_cycles:
             mask = cycles == cyc
@@ -495,6 +548,7 @@ class DischargeClassifier:
                 continue
             result = cls.classify(cyc_ph, cyc_amp)
             per_sample_results.append(result)
+            classified_cycle_ids.append(int(cyc))
             t = result.get("type", "unknown")
             type_counts[t] = type_counts.get(t, 0) + 1
 
@@ -508,6 +562,14 @@ class DischargeClassifier:
 
         # 置信度 = 最高占比类型投票率
         confidence = best_ratio
+
+        # 聚合概率分布（从 per_sample_results 计算各类型平均得分）
+        type_scores: dict[str, list] = {t: [] for t in cls.PROFILES}
+        for sr in per_sample_results:
+            for t, s in sr.get("scores", {}).items():
+                if t in type_scores:
+                    type_scores[t].append(s)
+        agg_scores = {t: float(np.mean(vs)) if vs else 0.0 for t, vs in type_scores.items()}
 
         pattern = cls.PATTERNS.get(best_type, {})
         reference_result = {
@@ -529,8 +591,12 @@ class DischargeClassifier:
             "reference_result": reference_result,
             "severity": severity,
             "per_sample_results": per_sample_results,
+            # 与 per_sample_results 一一对应，供 UI 按实际 cycle 号筛选事件；
+            # 少于 5 个事件的周期在上面的循环中跳过，因此不会出现在这里。
+            "cycle_ids": classified_cycle_ids,
             "amplitude_stats": amp_stats,
-            "classification_mode": "per-cycle",  # 标识为按实际周期分类
+            "scores": agg_scores,  # 聚合概率分布
+            "classification_mode": "per-cycle",
         }
 
     @staticmethod
@@ -538,8 +604,12 @@ class DischargeClassifier:
         """计算幅值统计指标"""
         if len(amplitudes) == 0:
             return {
-                "total_events": 0, "max_amplitude": 0, "min_amplitude": 0,
-                "avg_amplitude": 0, "median_amplitude": 0, "p90": 0,
+                "total_events": 0,
+                "max_amplitude": 0,
+                "min_amplitude": 0,
+                "avg_amplitude": 0,
+                "median_amplitude": 0,
+                "p90": 0,
             }
         return {
             "total_events": int(len(amplitudes)),
@@ -567,5 +637,3 @@ class DischargeClassifier:
 # ═══════════════════════════════════════════════════════
 # 报告生成器
 # ═══════════════════════════════════════════════════════
-
-
