@@ -1,23 +1,35 @@
 # UHF-AE PD Detection System
-# Python 3.10+ | PySide6
+# Python 3.10+ | 处理内核（core/）+ 无头 sidecar（sidecar.py）
+#
+# 注意：version 必须与 core/version.py 的 __version__ 和
+# desktop/package.json 的 version 保持一致，否则装机包文件名与界面页脚会显示
+# 两个不同的版本号。
 
 [project]
 name = "uhf-ae-pd-detector"
-version = "1.1.0"
+version = "0.0.1"
 description = "超高频超声波局部放电检测系统 - UHF/AE dual-modality PD detection platform"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
+    # 内核基于 Qt 的 signal/slot 做跨线程通信（core/foundation、core/protocol）
     "PySide6>=6.6.0",
     "PySide6-Addons>=6.6.0",
-    "pyqtgraph>=0.13.0",
-    "openpyxl>=3.1.0",
-    "pyserial>=3.5",
+    # 信号处理
     "numpy>=1.24.0",
     "scipy>=1.10.0",
-    "structlog>=23.0.0",
+    # 跨进程协议：msgpack 帧编码 + 本机 WebSocket 传输
+    "msgpack>=1.0.0",
+    "websockets>=12.0",
+    # 持久化与日志
     "sqlalchemy>=2.0.0",
+    "structlog>=23.0.0",
+    # 采集驱动
+    "pyserial>=3.5",
+    # 报告导出（Excel / Word）
+    "openpyxl>=3.1.0",
+    "python-docx>=1.1.0",
 ]
 
 [project.optional-dependencies]
@@ -31,12 +43,12 @@ dev = [
     "toml>=0.10.2",
 ]
 
-# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
-# Black 浠ｇ爜鏍煎紡鍖?
-# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+# ───────────────────────────────────────────────────────────
+# Black 代码格式化（行宽与 .pre-commit-config.yaml 的钩子参数对齐）
+# ───────────────────────────────────────────────────────────
 
 [tool.black]
-line-length = 100
+line-length = 120
 target-version = ["py310"]
 skip-string-normalization = false
 include = '\.pyi?$'
@@ -48,6 +60,7 @@ exclude = '''
         | \.mypy_cache
         | \.tox
         | \.venv
+        | _archive
         | _build
         | buck-out
         | build
@@ -57,9 +70,9 @@ exclude = '''
     )/
 '''
 
-# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
-# pytest 娴嬭瘯妗嗘灦
-# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+# ───────────────────────────────────────────────────────────
+# pytest 测试框架
+# ───────────────────────────────────────────────────────────
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -83,7 +96,9 @@ markers = [
 qt_api = "pyside6"
 
 [tool.coverage.run]
-source = ["core", "ui"]
+# ui/ 已于 M8 归档到 _archive/ui-offline-20261008/（旧 PySide6 界面下线），
+# 覆盖率目标只剩 core/。
+source = ["core"]
 omit = [
     "tests/*",
     "**/__init__.py",
@@ -99,9 +114,9 @@ exclude_lines = [
     "raise NotImplementedError",
 ]
 
-# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
-# mypy 绫诲瀷妫€鏌?
-# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+# ───────────────────────────────────────────────────────────
+# mypy 类型检查
+# ───────────────────────────────────────────────────────────
 
 [tool.mypy]
 python_version = "3.10"
@@ -111,6 +126,5 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["pyqtgraph.*", "serial.*"]
+module = ["serial.*", "pyfftw.*", "h5py.*"]
 ignore_missing_imports = true
-

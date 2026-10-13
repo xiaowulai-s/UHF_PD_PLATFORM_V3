@@ -1,0 +1,149 @@
+{
+  "data": [
+    {
+      "id": "page-dashboard",
+      "title": "首页",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751779200000,
+      "devMetadata": {
+        "htmlSrc": "pages/dashboard.html",
+        "interactions": [
+          { "domId": "nav-monitor", "targetPageId": "page-monitor" },
+          { "domId": "nav-analysis", "targetPageId": "page-analysis" },
+          { "domId": "nav-trend", "targetPageId": "page-trend" },
+          { "domId": "nav-alarm", "targetPageId": "page-alarm" },
+          { "domId": "nav-device", "targetPageId": "page-device" },
+          { "domId": "nav-ae", "targetPageId": "page-ae" },
+          { "domId": "nav-log", "targetPageId": "page-log" },
+          { "domId": "nav-settings", "targetPageId": "page-settings" }
+        ]
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-monitor",
+      "title": "实时监测",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751779200001,
+      "devMetadata": {
+        "htmlSrc": "pages/monitor.html",
+        "interactions": [
+          { "domId": "nav-dashboard", "targetPageId": "page-dashboard" },
+          { "domId": "nav-analysis", "targetPageId": "page-analysis" },
+          { "domId": "nav-trend", "targetPageId": "page-trend" }
+        ]
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-analysis",
+      "title": "数据分析",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751779200002,
+      "devMetadata": {
+        "htmlSrc": "pages/analysis.html",
+        "interactions": [
+          { "domId": "nav-dashboard", "targetPageId": "page-dashboard" },
+          { "domId": "nav-monitor", "targetPageId": "page-monitor" },
+          { "domId": "nav-trend", "targetPageId": "page-trend" }
+        ]
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-trend",
+      "title": "趋势分析",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751779200003,
+      "devMetadata": {
+        "htmlSrc": "pages/trend.html",
+        "interactions": [
+          { "domId": "nav-dashboard", "targetPageId": "page-dashboard" },
+          { "domId": "nav-monitor", "targetPageId": "page-monitor" },
+          { "domId": "nav-analysis", "targetPageId": "page-analysis" }
+        ]
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-alarm",
+      "title": "报警管理",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751779200004,
+      "devMetadata": {
+        "htmlSrc": "pages/alarm.html",
+        "interactions": [
+          { "domId": "nav-dashboard", "targetPageId": "page-dashboard" }
+        ]
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-device",
+      "title": "设备管理",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751779200005,
+      "devMetadata": {
+        "htmlSrc": "pages/device.html",
+        "interactions": [
+          { "domId": "nav-dashboard", "targetPageId": "page-dashboard" }
+        ]
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-ae",
+      "title": "AE 特征分析",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751779200006,
+      "devMetadata": {
+        "htmlSrc": "pages/ae.html",
+        "interactions": [
+          { "domId": "nav-dashboard", "targetPageId": "page-dashboard" },
+          { "domId": "nav-monitor", "targetPageId": "page-monitor" }
+        ]
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-log",
+      "title": "系统日志",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751779200007,
+      "devMetadata": {
+        "htmlSrc": "pages/log.html",
+        "interactions": [
+          { "domId": "nav-dashboard", "targetPageId": "page-dashboard" }
+        ]
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-settings",
+      "title": "系统设置",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751779200008,
+      "devMetadata": {
+        "htmlSrc": "pages/settings.html",
+        "interactions": [
+          { "domId": "nav-dashboard", "targetPageId": "page-dashboard" }
+        ]
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "projectName": "UHF-AE局部放电检测平台"
+  }
+}

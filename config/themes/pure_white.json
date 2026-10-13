@@ -1,0 +1,112 @@
+{
+  "name": "Pure White Minimalist",
+  "description": "极简白色主题方案B",
+  "version": "1.0",
+  "colors": {
+    "text": {
+      "primary": "#18181B",
+      "secondary": "#52525B",
+      "tertiary": "#A1A1AA",
+      "disabled": "#D4D4D8",
+      "inverse": "#FFFFFF",
+      "link": "#0052CC",
+      "on_accent": "#FFFFFF",
+      "on_danger": "#FFFFFF"
+    },
+    "accent": {
+      "primary": "#0052CC",
+      "secondary": "#3B82F6",
+      "tertiary": "#DBEAFE",
+      "hover": "#003D99",
+      "active": "#002D6B",
+      "subtle": "#DDF4FF"
+    },
+    "status": {
+      "success": "#10B981",
+      "success_bg": "#D1FAE5",
+      "warning": "#F59E0B",
+      "warning_bg": "#FEF3C7",
+      "error": "#EF4444",
+      "error_bg": "#FEE2E2",
+      "info": "#0052CC",
+      "info_bg": "#EFF6FF"
+    },
+    "device": {
+      "online": "#10B981",
+      "online_light": "#34D399",
+      "offline": "#6B7280",
+      "offline_light": "#D4D4D8",
+      "warning": "#F59E0B",
+      "warning_light": "#FBBF24",
+      "error": "#EF4444",
+      "error_light": "#F87171",
+      "idle": "#0052CC",
+      "idle_light": "#3B82F6"
+    },
+    "border": {
+      "default": "#E4E4E7",
+      "focus": "#0052CC",
+      "hover": "#D4D4D8",
+      "strong": "#18181B",
+      "subtle": "#F4F4F5",
+      "transparent": "transparent"
+    },
+    "background": {
+      "primary": "#FFFFFF",
+      "secondary": "#FAFAFA",
+      "tertiary": "#F4F4F5",
+      "hover": "#F4F4F5",
+      "active": "#E4E4E7",
+      "disabled": "#F4F4F5",
+      "overlay": "rgba(0, 0, 0, 0.04)",
+      "modal": "#FFFFFF",
+      "tooltip": "#18181B",
+      "base": "#FFFFFF"
+    },
+    "special": {
+      "shadow": "rgba(0, 0, 0, 0.04)",
+      "divider": "#E4E4E7"
+    },
+    "chart": {
+      "background": "#F0F2F5",
+      "grid": "rgba(0, 0, 0, 0.05)",
+      "foreground": "#18181B",
+      "colormap": "viridis",
+      "waveform": "#0052CC",
+      "spectrum": "#3B82F6"
+    }
+  },
+  "typography": {
+    "font_family": "Microsoft YaHei, SimHei, sans-serif",
+    "title_xlarge": {"size": 24, "weight": "Bold"},
+    "title_large": {"size": 20, "weight": "Bold"},
+    "title_medium": {"size": 16, "weight": "Bold"},
+    "title_small": {"size": 14, "weight": "SemiBold"},
+    "body": {"size": 14, "weight": "Regular"},
+    "body_small": {"size": 12, "weight": "Regular"},
+    "caption": {"size": 11, "weight": "Regular"},
+    "data": {"size": 18, "weight": "Bold"}
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "xxl": 48
+  },
+  "border_radius": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "xl": 16,
+    "full": 9999
+  },
+  "buttons": {
+    "height_sm": 32,
+    "height_md": 40,
+    "height_lg": 48,
+    "padding_h": 16,
+    "padding_v": 8
+  }
+}

@@ -1,5 +1,6 @@
 [run]
-source = core,ui
+# ui/ 已于 M8 归档（_archive/ui-offline-20261008/），覆盖率目标只剩 core/
+source = core
 omit =
     */tests/*
     */__pycache__/*

@@ -1,0 +1,1711 @@
+﻿<!-- SLOT: activeNavItem=log -->
+<!-- SLOT: pageTitle=系统日志 -->
+<!-- SLOT: breadcrumbCurrent=系统日志 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统日志 — UHF-PD 局部放电检测系统</title>
+    <style id="theme-vars">
+/**
+ * UHF-PD 局部放电检测系统 — Light Modern Theme
+ * Based on TraeWork Design System
+ * Brand: #4B3FE3 (Purple)
+ */
+
+:root {
+  /* ===== radius ===== */
+  --radius-0: 0px;
+  --radius-2: 2px;
+  --radius-4: 4px;
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-10: 10px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-20: 20px;
+  --radius-24: 24px;
+  --radius-32: 32px;
+  --radius-full: 999px;
+  --radius-xs: var(--radius-2);
+  --radius-sm: var(--radius-4);
+  --radius-md: var(--radius-6);
+  --radius-lg: var(--radius-8);
+  --radius-xl: var(--radius-10);
+  --border-width-default: 1px;
+
+  /* ===== spacers ===== */
+  --spacer-0: 0px;
+  --spacer-2: 2px;
+  --spacer-3: 3px;
+  --spacer-4: 4px;
+  --spacer-6: 6px;
+  --spacer-8: 8px;
+  --spacer-10: 10px;
+  --spacer-12: 12px;
+  --spacer-16: 16px;
+  --spacer-20: 20px;
+  --spacer-24: 24px;
+  --spacer-32: 32px;
+  --spacer-40: 40px;
+  --spacer-48: 48px;
+  --spacer-64: 64px;
+
+  /* ===== icon sizes ===== */
+  --icon-size-12: 12px;
+  --icon-size-14: 14px;
+  --icon-size-16: 16px;
+  --icon-size-20: 20px;
+  --icon-size-24: 24px;
+
+  /* ===== font ===== */
+  --font-family-default: "SF Pro Text", "PingFang SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-heading: "SF Pro", "PingFang SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-metric: "Inter", "SF Pro Text", "PingFang SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-weight-default: 400;
+  --font-weight-code: 450;
+  --font-weight-medium: 500;
+  --font-weight-strong: 600;
+  --font-family-base: var(--font-family-default);
+  --font-family-heading-alias: var(--font-family-heading);
+  --font-family-mono-alias: var(--font-family-mono);
+
+  /* ===== body ===== */
+  --body-xs-font-family: var(--font-family-default);
+  --body-xs-font-size: 10px;
+  --body-xs-font-weight: 400;
+  --body-xs-line-height: 14px;
+  --body-xs-strong-font-family: var(--font-family-default);
+  --body-xs-strong-font-size: 10px;
+  --body-xs-strong-font-weight: 500;
+  --body-xs-strong-line-height: 14px;
+  --body-sm-font-family: var(--font-family-default);
+  --body-sm-font-size: 11px;
+  --body-sm-font-weight: 400;
+  --body-sm-line-height: 16px;
+  --body-sm-strong-font-family: var(--font-family-default);
+  --body-sm-strong-font-size: 11px;
+  --body-sm-strong-font-weight: 500;
+  --body-sm-strong-line-height: 16px;
+  --body-md-font-family: var(--font-family-default);
+  --body-md-font-size: 12px;
+  --body-md-font-weight: 400;
+  --body-md-line-height: 18px;
+  --body-md-strong-font-family: var(--font-family-default);
+  --body-md-strong-font-size: 12px;
+  --body-md-strong-font-weight: 500;
+  --body-md-strong-line-height: 18px;
+  --body-base-font-family: var(--font-family-default);
+  --body-base-font-size: 14px;
+  --body-base-font-weight: 400;
+  --body-base-line-height: 20px;
+  --body-base-letter-spacing: -0.02em;
+  --body-base-strong-font-family: var(--font-family-default);
+  --body-base-strong-font-size: 14px;
+  --body-base-strong-font-weight: 500;
+  --body-base-strong-line-height: 20px;
+  --body-lg-font-family: var(--font-family-default);
+  --body-lg-font-size: 18px;
+  --body-lg-font-weight: 400;
+  --body-lg-line-height: 28px;
+
+  /* ===== heading ===== */
+  --heading-3xs-font-family: var(--font-family-default);
+  --heading-3xs-font-size: 11px;
+  --heading-3xs-font-weight: 600;
+  --heading-3xs-line-height: 16px;
+  --heading-2xs-font-family: var(--font-family-default);
+  --heading-2xs-font-size: 12px;
+  --heading-2xs-font-weight: 600;
+  --heading-2xs-line-height: 18px;
+  --heading-xs-font-family: var(--font-family-default);
+  --heading-xs-font-size: 13px;
+  --heading-xs-font-weight: 600;
+  --heading-xs-line-height: 20px;
+  --heading-sm-font-family: var(--font-family-default);
+  --heading-sm-font-size: 16px;
+  --heading-sm-font-weight: 600;
+  --heading-sm-line-height: 24px;
+  --heading-md-font-family: var(--font-family-heading);
+  --heading-md-font-size: 20px;
+  --heading-md-font-weight: 600;
+  --heading-md-line-height: 28px;
+  --heading-lg-font-family: var(--font-family-heading);
+  --heading-lg-font-size: 22px;
+  --heading-lg-font-weight: 600;
+  --heading-lg-line-height: 30px;
+  --heading-xl-font-family: var(--font-family-heading);
+  --heading-xl-font-size: 24px;
+  --heading-xl-font-weight: 600;
+  --heading-xl-line-height: 32px;
+  --heading-2xl-font-family: var(--font-family-heading);
+  --heading-2xl-font-size: 28px;
+  --heading-2xl-font-weight: 600;
+  --heading-2xl-line-height: 36px;
+  --heading-3xl-font-family: var(--font-family-heading);
+  --heading-3xl-font-size: 32px;
+  --heading-3xl-font-weight: 600;
+  --heading-3xl-line-height: 40px;
+
+  /* ===== code ===== */
+  --code-editor-font-family: var(--font-family-mono);
+  --code-editor-font-size: 13px;
+  --code-editor-font-weight: 450;
+  --code-editor-line-height: 20px;
+  --code-terminal-font-family: var(--font-family-mono);
+  --code-terminal-font-size: 12px;
+  --code-terminal-font-weight: 450;
+  --code-terminal-line-height: 18px;
+
+  /* ===== bg ===== */
+  --bg-base-default: #FFFFFF;
+  --bg-base-secondary: #F5F5F5;
+  --bg-base-tertiary: #E5E5E5;
+  --bg-overlay-l1: rgba(115, 115, 115, 0.08);
+  --bg-overlay-l2: rgba(115, 115, 115, 0.12);
+  --bg-overlay-l3: rgba(115, 115, 115, 0.16);
+  --bg-overlay-l4: rgba(115, 115, 115, 0.20);
+  --bg-white: #FFFFFF;
+  --bg-menu: #FFFFFF;
+  --bg-tooltip: #FFFFFF;
+  --color-background: var(--bg-base-default);
+  --color-surface: var(--bg-base-secondary);
+  --color-surface-variant: var(--bg-base-tertiary);
+
+  /* ===== bg-brand ===== */
+  --bg-brand: #4B3FE3;
+  --bg-brand-hover: #6A6FFF;
+  --bg-brand-active: #3F31C6;
+  --bg-brand-disabled: rgba(75, 63, 227, 0.22);
+  --bg-brand-popup: rgba(170, 183, 255, 0.36);
+  --color-primary: var(--bg-brand);
+  --color-primary-hover: var(--bg-brand-hover);
+  --color-accent: var(--bg-brand);
+
+  /* ===== text ===== */
+  --text-default: #171717;
+  --text-default-hover: #262626;
+  --text-default-active: #262626;
+  --text-secondary: #404040;
+  --text-secondary-hover: #171717;
+  --text-secondary-active: #171717;
+  --text-tertiary: #737373;
+  --text-disabled: #A1A1A1;
+  --text-onbrand: #FFFFFF;
+  --text-onaccent: #FFFFFF;
+  --text-brand: #4B3FE3;
+  --text-brand-hover: #6A6FFF;
+  --color-foreground: var(--text-default);
+  --color-on-surface: var(--text-default);
+  --color-on-surface-variant: var(--text-secondary);
+  --color-muted-foreground: var(--text-secondary);
+
+  /* ===== icon ===== */
+  --icon-default: #262626;
+  --icon-default-hover: #171717;
+  --icon-secondary: #404040;
+  --icon-tertiary: #737373;
+  --icon-disabled: #A1A1A1;
+  --icon-onbrand: #FFFFFF;
+  --icon-brand: #4B3FE3;
+  --icon-brand-hover: #6A6FFF;
+
+  /* ===== border ===== */
+  --border-neutral-l1: rgba(115, 115, 115, 0.12);
+  --border-neutral-l2: rgba(115, 115, 115, 0.18);
+  --border-neutral-l3: rgba(115, 115, 115, 0.36);
+  --border-contrast: #000000;
+  --border-brand: #4B3FE3;
+  --color-border: var(--border-neutral-l1);
+  --color-border-strong: var(--border-neutral-l2);
+  --color-border-contrast: var(--border-contrast);
+  --color-outline: var(--border-neutral-l1);
+
+  /* ===== status ===== */
+  --status-success-default: #15A877;
+  --status-success-hover: #2FB287;
+  --status-success-surface-l1: rgba(64, 176, 139, 0.12);
+  --status-warning-default: #E27900;
+  --status-warning-hover: #F39A35;
+  --status-warning-surface-l1: rgba(226, 121, 0, 0.12);
+  --status-error-default: #E8463A;
+  --status-error-hover: #EA574C;
+  --status-error-surface-l1: rgba(232, 70, 58, 0.12);
+  --status-alert-default: #FEA900;
+  --status-alert-hover: #FFB700;
+  --status-alert-surface-l1: rgba(254, 169, 0, 0.14);
+  --color-info: #2F74FF;
+  --color-success: var(--status-success-default);
+  --color-warning: var(--status-warning-default);
+  --color-error: var(--status-error-default);
+
+  /* ===== brand palette ===== */
+  --brand-50: #F2F7FF;
+  --brand-100: #E5EAFF;
+  --brand-200: #CFD8FF;
+  --brand-300: #AAB7FF;
+  --brand-400: #8894FF;
+  --brand-500: #6A6FFF;
+  --brand-600: #4B3FE3;
+  --brand-700: #3F31C6;
+  --brand-800: #2C2290;
+  --brand-900: #1A1759;
+  --brand-950: #010109;
+  --brand-grey-100: #F5F5F5;
+  --brand-grey-200: #E5E5E5;
+  --brand-grey-300: #D4D4D4;
+  --brand-grey-400: #A1A1A1;
+  --brand-grey-500: #737373;
+  --brand-grey-600: #525252;
+  --brand-grey-700: #404040;
+  --brand-grey-800: #262626;
+  --brand-grey-900: #171717;
+
+  /* ===== viz ===== */
+  --viz-series-brand: var(--bg-brand);
+  --viz-series-brand-soft: var(--brand-300);
+  --viz-series-brand-mid: var(--brand-500);
+  --viz-series-brand-deep: var(--brand-700);
+  --viz-series-neutral: var(--brand-grey-500);
+  --viz-series-mint: #1DC981;
+  --viz-series-coral: #F87454;
+  --viz-series-amber: #EDAA45;
+  --viz-series-sky: #22A5F7;
+  --viz-series-teal: #59E8E8;
+  --viz-ui-bg-chart: var(--bg-menu);
+  --viz-ui-bg-tooltip: var(--bg-tooltip);
+  --viz-ui-chart-title: var(--text-default);
+  --viz-ui-chart-subtitle: var(--text-secondary);
+  --viz-ui-chart-axis: var(--border-neutral-l2);
+  --viz-ui-chart-tick: var(--text-secondary);
+  --viz-ui-legend-label: var(--text-secondary);
+  --viz-ui-legend-value: var(--text-default);
+
+  /* ===== layout aliases ===== */
+  --brand-1: var(--brand-600);
+  --brand-2: var(--brand-500);
+  --brand-3: var(--brand-300);
+  --brand-4: var(--brand-100);
+  --site-canvas: var(--bg-base-default);
+  --bg-layout-1: var(--bg-base-secondary);
+  --bg-layout-2: var(--bg-overlay-l1);
+  --border-1: var(--border-neutral-l1);
+
+  /* ===== code colors ===== */
+  --code-text: #17181A;
+  --code-doc: #8393A3;
+  --code-link: #2F74FF;
+  --code-number: #E54595;
+  --code-action: #5F36B2;
+  --code-function: #FF5D4D;
+  --code-constant: #175CE6;
+  --code-parameter: #4DA621;
+}
+
+/* ===== PD System Custom Tokens ===== */
+:root {
+  --pd-sidebar-width: 240px;
+  --pd-sidebar-collapsed: 64px;
+  --pd-topbar-height: 52px;
+  --pd-statusbar-height: 32px;
+  --pd-card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --pd-card-hover-shadow: 0 4px 12px rgba(75, 63, 227, 0.10);
+  --pd-status-online: var(--status-success-default);
+  --pd-status-offline: var(--status-error-default);
+  --pd-status-warning: var(--status-warning-default);
+  --pd-status-alert: var(--status-alert-default);
+}
+
+/* ===== Components CSS ===== */
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacer-2);
+  padding: var(--spacer-2) var(--spacer-4);
+  font-family: var(--font-family-default);
+  font-size: var(--body-base-font-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--body-base-line-height);
+  border-radius: var(--radius-6);
+  border: var(--border-width-default) solid transparent;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.ds-btn-primary {
+  background: var(--bg-brand);
+  color: var(--text-onbrand);
+}
+.ds-btn-primary:hover {
+  background: var(--bg-brand-hover);
+}
+.ds-btn-secondary {
+  background: var(--bg-base-secondary);
+  color: var(--text-default);
+  border-color: var(--color-border);
+}
+.ds-btn-secondary:hover {
+  background: var(--bg-overlay-l1);
+  border-color: var(--color-border-strong);
+}
+.ds-btn-ghost {
+  background: transparent;
+  color: var(--text-default);
+}
+.ds-btn-ghost:hover {
+  background: var(--bg-overlay-l1);
+}
+.ds-btn-danger {
+  background: var(--status-error-default);
+  color: var(--text-onbrand);
+}
+.ds-btn-danger:hover {
+  background: var(--status-error-hover);
+}
+.ds-btn-sm {
+  font-size: var(--body-sm-font-size);
+  padding: var(--spacer-1) var(--spacer-3);
+}
+.ds-btn-lg {
+  font-size: var(--body-lg-font-size);
+  padding: var(--spacer-3) var(--spacer-6);
+}
+.ds-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ds-card {
+  background: var(--bg-white);
+  border: var(--border-width-default) solid var(--color-border);
+  border-radius: var(--radius-12);
+  padding: var(--spacer-6);
+  box-shadow: var(--pd-card-shadow);
+  transition: box-shadow 200ms ease, border-color 200ms ease;
+}
+.ds-card:hover {
+  box-shadow: var(--pd-card-hover-shadow);
+  border-color: var(--brand-300);
+}
+
+.ds-input {
+  width: 100%;
+  padding: var(--spacer-2) var(--spacer-3);
+  font-family: var(--font-family-default);
+  font-size: var(--body-base-font-size);
+  color: var(--text-default);
+  background: var(--bg-white);
+  border: var(--border-width-default) solid var(--color-border);
+  border-radius: var(--radius-6);
+  outline: none;
+  transition: border-color 120ms ease;
+}
+.ds-input:focus {
+  border-color: var(--bg-brand);
+  box-shadow: 0 0 0 3px rgba(75, 63, 227, 0.10);
+}
+.ds-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.ds-select {
+  width: 100%;
+  padding: var(--spacer-2) var(--spacer-3);
+  font-family: var(--font-family-default);
+  font-size: var(--body-base-font-size);
+  color: var(--text-default);
+  background: var(--bg-white);
+  border: var(--border-width-default) solid var(--color-border);
+  border-radius: var(--radius-6);
+  outline: none;
+  cursor: pointer;
+}
+
+.ds-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacer-1);
+  padding: var(--spacer-1) var(--spacer-2);
+  font-family: var(--font-family-default);
+  font-size: var(--body-xs-font-size);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-4);
+  white-space: nowrap;
+}
+.ds-tag-success {
+  background: var(--status-success-surface-l1);
+  color: var(--status-success-default);
+}
+.ds-tag-warning {
+  background: var(--status-warning-surface-l1);
+  color: var(--status-warning-default);
+}
+.ds-tag-error {
+  background: var(--status-error-surface-l1);
+  color: var(--status-error-default);
+}
+.ds-tag-info {
+  background: rgba(47, 116, 255, 0.12);
+  color: var(--color-info);
+}
+.ds-tag-neutral {
+  background: var(--bg-base-secondary);
+  color: var(--text-secondary);
+}
+
+.ds-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-family-default);
+  font-size: var(--body-sm-font-size);
+}
+.ds-table thead th {
+  text-align: left;
+  padding: var(--spacer-2) var(--spacer-3);
+  font-weight: var(--font-weight-strong);
+  color: var(--text-secondary);
+  border-bottom: var(--border-width-default) solid var(--color-border);
+  white-space: nowrap;
+  user-select: none;
+}
+.ds-table tbody tr {
+  transition: background 120ms ease;
+}
+.ds-table tbody tr:hover {
+  background: var(--bg-overlay-l1);
+}
+.ds-table tbody td {
+  padding: var(--spacer-2) var(--spacer-3);
+  border-bottom: var(--border-width-default) solid var(--color-border);
+  color: var(--text-default);
+}
+.ds-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ds-tabs {
+  display: flex;
+  gap: var(--spacer-0);
+  border-bottom: var(--border-width-default) solid var(--color-border);
+}
+.ds-tab {
+  padding: var(--spacer-2) var(--spacer-4);
+  font-family: var(--font-family-default);
+  font-size: var(--body-base-font-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+.ds-tab:hover {
+  color: var(--text-default);
+}
+.ds-tab[data-active="true"] {
+  color: var(--bg-brand);
+  border-bottom-color: var(--bg-brand);
+}
+
+.ds-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-base-tertiary);
+  overflow: hidden;
+}
+.ds-progress-bar {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--bg-brand);
+  transition: width 300ms ease;
+}
+
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--spacer-1);
+  font-family: var(--font-family-default);
+  font-size: var(--body-xs-font-size);
+  font-weight: var(--font-weight-strong);
+  border-radius: var(--radius-full);
+}
+.ds-badge-brand {
+  background: var(--bg-brand);
+  color: var(--text-onbrand);
+}
+.ds-badge-success {
+  background: var(--status-success-default);
+  color: #fff;
+}
+.ds-badge-warning {
+  background: var(--status-warning-default);
+  color: #fff;
+}
+.ds-badge-error {
+  background: var(--status-error-default);
+  color: #fff;
+}
+
+.ds-switch {
+  width: 40px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--brand-grey-300);
+  position: relative;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.ds-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  transition: transform 120ms ease;
+}
+.ds-switch[data-on="true"] {
+  background: var(--bg-brand);
+}
+.ds-switch[data-on="true"]::after {
+  transform: translateX(18px);
+}
+
+/* ===== Page Shell ===== */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg-base-secondary);
+  font-family: var(--font-family-default);
+  color: var(--text-default);
+}
+
+.app-sidebar {
+  width: var(--pd-sidebar-width);
+  min-width: var(--pd-sidebar-width);
+  height: 100vh;
+  background: var(--bg-white);
+  border-right: var(--border-width-default) solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacer-3);
+  padding: var(--spacer-5) var(--spacer-4);
+  border-bottom: var(--border-width-default) solid var(--color-border);
+}
+.sidebar-brand-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-8);
+  background: var(--bg-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sidebar-brand-icon svg { width: 18px; height: 18px; fill: white; }
+.sidebar-brand-name {
+  font-size: var(--heading-sm-font-size);
+  font-weight: var(--font-weight-strong);
+  color: var(--text-default);
+  white-space: nowrap;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: var(--spacer-3) 0;
+  overflow-y: auto;
+}
+.sidebar-nav-section-label {
+  font-size: var(--body-xs-font-size);
+  font-weight: var(--font-weight-strong);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--spacer-3) var(--spacer-4) var(--spacer-1);
+}
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacer-3);
+  padding: var(--spacer-2) var(--spacer-4);
+  font-size: var(--body-base-font-size);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  position: relative;
+}
+.sidebar-nav-item:hover {
+  background: var(--bg-overlay-l1);
+  color: var(--text-default);
+}
+.sidebar-nav-item[data-active="true"] {
+  background: var(--brand-100);
+  color: var(--bg-brand);
+  font-weight: var(--font-weight-medium);
+}
+.sidebar-nav-item[data-active="true"]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  border-radius: 0 2px 2px 0;
+  background: var(--bg-brand);
+}
+.sidebar-nav-icon {
+  width: var(--icon-size-16);
+  height: var(--icon-size-16);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar-nav-icon svg { width: 16px; height: 16px; fill: currentColor; }
+.sidebar-nav-badge {
+  margin-left: auto;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.app-topbar {
+  height: var(--pd-topbar-height);
+  min-height: var(--pd-topbar-height);
+  background: var(--bg-white);
+  border-bottom: var(--border-width-default) solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--spacer-6);
+  gap: var(--spacer-4);
+  flex-shrink: 0;
+}
+.topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--spacer-2);
+  font-size: var(--body-sm-font-size);
+  color: var(--text-tertiary);
+}
+.topbar-breadcrumb-current {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-default);
+}
+.topbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--color-border);
+}
+.topbar-search {
+  flex: 1;
+  max-width: 360px;
+  margin-left: auto;
+  position: relative;
+}
+.topbar-search input {
+  width: 100%;
+  padding: var(--spacer-2) var(--spacer-3) var(--spacer-2) var(--spacer-8);
+  font-size: var(--body-sm-font-size);
+  border: var(--border-width-default) solid var(--color-border);
+  border-radius: var(--radius-6);
+  background: var(--bg-base-secondary);
+  outline: none;
+  transition: border-color 120ms ease;
+}
+.topbar-search input:focus {
+  border-color: var(--bg-brand);
+}
+.topbar-search-icon {
+  position: absolute;
+  left: var(--spacer-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--icon-size-14);
+  height: var(--icon-size-14);
+  fill: var(--text-tertiary);
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacer-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacer-5);
+}
+
+.app-statusbar {
+  height: var(--pd-statusbar-height);
+  min-height: var(--pd-statusbar-height);
+  background: var(--bg-white);
+  border-top: var(--border-width-default) solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--spacer-6);
+  gap: var(--spacer-6);
+  font-size: var(--body-xs-font-size);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.statusbar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacer-2);
+}
+.statusbar-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+}
+.statusbar-dot-online { background: var(--status-success-default); }
+.statusbar-dot-offline { background: var(--status-error-default); }
+.statusbar-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--color-border);
+}
+
+/* ===== Metric Card ===== */
+.metric-card {
+  background: var(--bg-white);
+  border: var(--border-width-default) solid var(--color-border);
+  border-radius: var(--radius-12);
+  padding: var(--spacer-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacer-3);
+  transition: box-shadow 200ms ease;
+}
+.metric-card:hover {
+  box-shadow: var(--pd-card-hover-shadow);
+}
+.metric-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.metric-card-label {
+  font-size: var(--body-sm-font-size);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+.metric-card-trend {
+  display: flex;
+  align-items: center;
+  gap: var(--spacer-1);
+  font-size: var(--body-xs-font-size);
+  font-weight: var(--font-weight-medium);
+}
+.metric-card-trend-up { color: var(--status-success-default); }
+.metric-card-trend-down { color: var(--status-error-default); }
+.metric-card-value {
+  font-family: var(--font-family-metric);
+  font-size: var(--heading-2xl-font-size);
+  font-weight: var(--font-weight-strong);
+  color: var(--text-default);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.metric-card-sub {
+  font-size: var(--body-xs-font-size);
+  color: var(--text-tertiary);
+}
+
+/* ===== Section Title ===== */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-title {
+  font-size: var(--heading-md-font-size);
+  font-weight: var(--font-weight-strong);
+  color: var(--text-default);
+}
+.section-action {
+  font-size: var(--body-sm-font-size);
+  color: var(--text-brand);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: var(--font-family-default);
+}
+
+/* ===== Alarm ticker ===== */
+.alarm-ticker {
+  background: var(--bg-white);
+  border: var(--border-width-default) solid var(--color-border);
+  border-radius: var(--radius-12);
+  padding: var(--spacer-3) var(--spacer-5);
+  display: flex;
+  align-items: center;
+  gap: var(--spacer-3);
+  overflow: hidden;
+}
+.alarm-ticker-icon {
+  width: var(--icon-size-16);
+  height: var(--icon-size-16);
+  flex-shrink: 0;
+}
+.alarm-ticker-text {
+  font-size: var(--body-sm-font-size);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.alarm-ticker-badge {
+  flex-shrink: 0;
+}
+
+/* ===== Grid helpers ===== */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacer-4);
+}
+.panel-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacer-4);
+}
+.panel-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--spacer-4);
+}
+.panel-grid-split {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--spacer-4);
+}
+
+/* ===== Panel ===== */
+.panel {
+  background: var(--bg-white);
+  border: var(--border-width-default) solid var(--color-border);
+  border-radius: var(--radius-12);
+  padding: var(--spacer-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacer-4);
+}
+.panel-title {
+  font-size: var(--heading-sm-font-size);
+  font-weight: var(--font-weight-strong);
+  color: var(--text-default);
+}
+.panel-body {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ===== Chart placeholder ===== */
+.chart-placeholder {
+  width: 100%;
+  height: 200px;
+  background: var(--bg-base-secondary);
+  border-radius: var(--radius-8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: var(--body-sm-font-size);
+  position: relative;
+  overflow: hidden;
+}
+.chart-placeholder-wave {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+.chart-placeholder-wave::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(75,63,227,0.04) 50%, transparent 100%);
+}
+.chart-svg-line {
+  stroke: var(--bg-brand);
+  stroke-width: 1.5;
+  fill: none;
+  opacity: 0.6;
+}
+.chart-svg-fill {
+  fill: url(#chartGradient);
+  opacity: 0.15;
+}
+
+/* ===== Tabs ===== */
+.view-tabs {
+  display: flex;
+  gap: var(--spacer-0);
+  border-bottom: var(--border-width-default) solid var(--color-border);
+}
+.view-tab {
+  padding: var(--spacer-2) var(--spacer-4);
+  font-size: var(--body-base-font-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.view-tab:hover { color: var(--text-default); }
+.view-tab[data-active="true"] {
+  color: var(--bg-brand);
+  border-bottom-color: var(--bg-brand);
+}
+
+/* ===== Device status ===== */
+.device-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  display: inline-block;
+  flex-shrink: 0;
+}
+.device-online { background: var(--status-success-default); }
+.device-offline { background: var(--status-error-default); }
+.device-warning { background: var(--status-warning-default); }
+
+/* ===== Responsive ===== */
+@media (max-width: 1280px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .panel-grid-split { grid-template-columns: 1fr; }
+}
+@media (max-width: 1024px) {
+  .app-sidebar { width: var(--pd-sidebar-collapsed); min-width: var(--pd-sidebar-collapsed); }
+  .sidebar-brand-name,
+  .sidebar-nav-section-label,
+  .sidebar-nav-item span:not(.sidebar-nav-icon) { display: none; }
+  .sidebar-nav-item { justify-content: center; padding: var(--spacer-3); }
+  .sidebar-nav-item[data-active="true"]::before { display: none; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .panel-grid-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .panel-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* ===== Print ===== */
+@media print {
+  .app-sidebar, .app-topbar, .app-statusbar { display: none; }
+  .app-content { padding: 0; }
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+
+  @layer base {
+    body { background: var(--pd-background); color: var(--pd-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+<div class="app-shell">
+  <!-- ===== Sidebar ===== -->
+  <nav class="app-sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon">
+        <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      </div>
+      <span class="sidebar-brand-name">PD 监测系统</span>
+    </div>
+    <div class="sidebar-nav">
+      <div class="sidebar-nav-section-label">概览</div>
+      <button class="sidebar-nav-item" data-nav-key="dashboard" onclick="navigateTo('page-dashboard')">
+        <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24"><path d="M3 13h1v7c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7h1a1 1 0 00.7-1.7l-9-9a1 1 0 00-1.4 0l-9 9A1 1 0 003 13zm7 7v-5h4v5h-4zm2-15.6l7 7V20h-3v-5c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v5H6v-8.6l7-7z"/></svg></span>
+        <span>首页</span>
+      </button>
+      <div class="sidebar-nav-section-label">分析</div>
+      <button class="sidebar-nav-item" data-nav-key="monitor" onclick="navigateTo('page-monitor')">
+        <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg></span>
+        <span>实时监测</span>
+      </button>
+      <button class="sidebar-nav-item" data-nav-key="analysis" onclick="navigateTo('page-analysis')">
+        <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg></span>
+        <span>数据分析</span>
+      </button>
+      <button class="sidebar-nav-item" data-nav-key="trend" onclick="navigateTo('page-trend')">
+        <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24"><path d="M3.5 18.5l9-9 9 9H3.5zM3.5 12.5l9-9 9 9H3.5zM3.5 6.5l9-9 9 9H3.5z"/></svg></span>
+        <span>趋势分析</span>
+      </button>
+      <div class="sidebar-nav-section-label">管理</div>
+      <button class="sidebar-nav-item" data-nav-key="alarm" onclick="navigateTo('page-alarm')">
+        <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg></span>
+        <span>报警管理</span>
+      </button>
+      <button class="sidebar-nav-item" data-nav-key="device" onclick="navigateTo('page-device')">
+        <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg></span>
+        <span>设备管理</span>
+      </button>
+      <button class="sidebar-nav-item" data-nav-key="ae" onclick="navigateTo('page-ae')">
+        <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/></svg></span>
+        <span>AE 特征分析</span>
+      </button>
+      <div class="sidebar-nav-section-label">系统</div>
+      <button class="sidebar-nav-item" data-nav-key="log" data-active="true" onclick="navigateTo('page-log')">
+        <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm0 4c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm6 12H6v-1.4c0-2 4-3.1 6-3.1s6 1.1 6 3.1V19z"/></svg></span>
+        <span>系统日志</span>
+      </button>
+      <button class="sidebar-nav-item" data-nav-key="settings" onclick="navigateTo('page-settings')">
+        <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></span>
+        <span>系统设置</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ===== Main Content Area ===== -->
+  <div class="app-main">
+    <header class="app-topbar">
+      <div class="topbar-breadcrumb">
+        <span>UHF-PD</span>
+        <span>/</span>
+        <span class="topbar-breadcrumb-current" id="breadcrumb-current">系统日志</span>
+      </div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-search">
+        <svg class="topbar-search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" placeholder="搜索功能或数据…" />
+      </div>
+    </header>
+
+    <!-- ===== Page Body ===== -->
+    <div class="page-content">
+      <!-- Filter toolbar -->
+      <div class="section-header">
+        <div class="section-title">系统日志</div>
+        <div class="filter-toolbar">
+          <!-- Severity filter -->
+          <div class="filter-group">
+            <span class="filter-label">级别</span>
+            <button class="severity-btn" data-active="true">全部</button>
+            <button class="severity-btn severity-error">错误</button>
+            <button class="severity-btn severity-warning">警告</button>
+            <button class="severity-btn severity-info">信息</button>
+            <button class="severity-btn severity-debug">调试</button>
+          </div>
+          <!-- Search -->
+          <div class="search-wrapper">
+            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input type="text" placeholder="搜索日志…" id="log-search" />
+          </div>
+          <!-- Date range -->
+          <input type="date" class="date-input" />
+          <span style="color:var(--text-tertiary);font-size:var(--body-xs-font-size);flex-shrink:0">至</span>
+          <input type="date" class="date-input" />
+          <!-- Export -->
+          <button class="ds-btn ds-btn-secondary" style="white-space:nowrap;flex-shrink:0;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            导出日志
+          </button>
+        </div>
+      </div>
+
+      <!-- Log table -->
+      <div class="log-card">
+        <div class="log-table-wrap">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th style="width:160px">时间戳</th>
+                <th style="width:80px">级别</th>
+                <th style="width:120px">模块</th>
+                <th>消息</th>
+                <th style="width:160px">详情</th>
+                <th style="width:48px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:12:34.120</span></td>
+                <td><span class="sev-badge sev-error"><span class="sev-dot"></span>错误</span></td>
+                <td><span class="log-module">FPGA</span></td>
+                <td><span class="log-msg">FPGA 数据流中断 — 通道 3 丢包率 47%</span></td>
+                <td><span class="log-details">err_code=0x3A, seq=18432</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:12:30.045</span></td>
+                <td><span class="sev-badge sev-warning"><span class="sev-dot"></span>警告</span></td>
+                <td><span class="log-module">DAQ</span></td>
+                <td><span class="log-msg">采样缓冲区接近上限，当前使用率 87%</span></td>
+                <td><span class="log-details">buf_used=1105920/1280000</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:12:28.903</span></td>
+                <td><span class="sev-badge sev-warning"><span class="sev-dot"></span>警告</span></td>
+                <td><span class="log-module">Alarm</span></td>
+                <td><span class="log-msg">报警阈值超出 — PD 幅值 ≥ 58 dBmV</span></td>
+                <td><span class="log-details">threshold=55, peak=58.3</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:12:25.671</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">Network</span></td>
+                <td><span class="log-msg">TCP 连接已恢复 — 192.168.1.100:502</span></td>
+                <td><span class="log-details">latency=12ms, retries=3</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:12:20.008</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">System</span></td>
+                <td><span class="log-msg">数据存储任务完成 — 写入 2048 条记录</span></td>
+                <td><span class="log-details">duration=1.2s, size=48MB</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:12:15.337</span></td>
+                <td><span class="sev-badge sev-warning"><span class="sev-dot"></span>警告</span></td>
+                <td><span class="log-module">Network</span></td>
+                <td><span class="log-msg">网络抖动检测 — RTT 峰值 186ms</span></td>
+                <td><span class="log-details">avg=14ms, p99=186ms</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:12:10.992</span></td>
+                <td><span class="sev-badge sev-debug"><span class="sev-dot"></span>调试</span></td>
+                <td><span class="log-module">DAQ</span></td>
+                <td><span class="log-msg">缓冲区预分配完成 — 1280 KB / 1280 KB</span></td>
+                <td><span class="log-details">slots=4096, stride=320</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:12:05.443</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">FPGA</span></td>
+                <td><span class="log-msg">FPGA 固件版本 v3.2.1 — 启动自检通过</span></td>
+                <td><span class="log-details">CRC=0x1F4A, checksum OK</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:12:00.871</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">System</span></td>
+                <td><span class="log-msg">系统巡检完成 — 所有模块状态正常</span></td>
+                <td><span class="log-details">uptime=12h 34m, temp=42C</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:55.218</span></td>
+                <td><span class="sev-badge sev-debug"><span class="sev-dot"></span>调试</span></td>
+                <td><span class="log-module">FPGA</span></td>
+                <td><span class="log-msg">UHF 传感器增益校准 — 通道 1~4 完成</span></td>
+                <td><span class="log-details">gain=[2.4, 2.3, 2.5, 2.4]dB</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:50.604</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">DAQ</span></td>
+                <td><span class="log-msg">数据采集速率已同步至 2048 S/s</span></td>
+                <td><span class="log-details">mode=UHF+AE, channels=6</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:45.129</span></td>
+                <td><span class="sev-badge sev-error"><span class="sev-dot"></span>错误</span></td>
+                <td><span class="log-module">Network</span></td>
+                <td><span class="log-msg">TCP 连接超时 — 服务器 192.168.1.100:502</span></td>
+                <td><span class="log-details">timeout=5000ms, attempt=3</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:40.877</span></td>
+                <td><span class="sev-badge sev-debug"><span class="sev-dot"></span>调试</span></td>
+                <td><span class="log-module">System</span></td>
+                <td><span class="log-msg">PRPD 分析模块初始化完成 — 网格分辨率 64×64</span></td>
+                <td><span class="log-details">mem_used=16MB, ready=true</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:35.001</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">System</span></td>
+                <td><span class="log-msg">配置重新加载 — 参数验证通过</span></td>
+                <td><span class="log-details">keys=12, changed=3</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:30.556</span></td>
+                <td><span class="sev-badge sev-warning"><span class="sev-dot"></span>警告</span></td>
+                <td><span class="log-module">Alarm</span></td>
+                <td><span class="log-msg">报警确认超时 — 报警 ID #2847 仍未确认</span></td>
+                <td><span class="log-details">elapsed=300s, level=高</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:25.302</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">FPGA</span></td>
+                <td><span class="log-msg">同步信号锁定 — GPS PPS 精度 ±1μs</span></td>
+                <td><span class="log-details">sat_count=8, fix=3D</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:20.814</span></td>
+                <td><span class="sev-badge sev-error"><span class="sev-dot"></span>错误</span></td>
+                <td><span class="log-module">DAQ</span></td>
+                <td><span class="log-msg">ADC 过采样保护触发 — 通道 2 幅值超限</span></td>
+                <td><span class="log-details">clipped=128, peak=3.2V</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:15.069</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">Network</span></td>
+                <td><span class="log-msg">DHCP 租约续签成功 — 有效期 24h</span></td>
+                <td><span class="log-details">ip=192.168.1.100, gw=.1</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:10.341</span></td>
+                <td><span class="sev-badge sev-debug"><span class="sev-dot"></span>调试</span></td>
+                <td><span class="log-module">DAQ</span></td>
+                <td><span class="log-msg">FFT 频谱分析完成 — 主频 152.3 Hz，谐波 3 次</span></td>
+                <td><span class="log-details">snr=24dB, bins=4096</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:05.700</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">System</span></td>
+                <td><span class="log-msg">数据备份任务触发 — 目标备份服务器</span></td>
+                <td><span class="log-details">src=/data/pd, dst=nas01</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:11:00.124</span></td>
+                <td><span class="sev-badge sev-warning"><span class="sev-dot"></span>警告</span></td>
+                <td><span class="log-module">Alarm</span></td>
+                <td><span class="log-msg">连续触发抑制 — 报警 #2845 已被抑制</span></td>
+                <td><span class="log-details">count=8, window=60s</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span class="log-ts">2025-07-06 08:10:55.680</span></td>
+                <td><span class="sev-badge sev-info"><span class="sev-dot"></span>信息</span></td>
+                <td><span class="log-module">System</span></td>
+                <td><span class="log-msg">日志服务已就绪 — 监听端口 514 (UDP)</span></td>
+                <td><span class="log-details">rate_limit=500/s, buffer=2MB</span></td>
+                <td><button class="row-action" title="查看详情"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer">
+          <span class="table-footer-count">共 15 条记录</span>
+          <div class="table-footer-actions">
+            <span style="color:var(--text-tertiary)">第 1–15 / 共 127 条</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Status bar ===== -->
+    <footer class="app-statusbar">
+      <div class="statusbar-item">
+        <span class="statusbar-dot statusbar-dot-online"></span>
+        <span>设备在线</span>
+      </div>
+      <div class="statusbar-sep"></div>
+      <div class="statusbar-item">
+        <span>FPGA 通信正常</span>
+      </div>
+      <div class="statusbar-sep"></div>
+      <div class="statusbar-item">
+        <span>数据采集: 2048 S/s</span>
+      </div>
+      <div class="statusbar-sep"></div>
+      <div class="statusbar-item">
+        <span>UHF-AE v1.0.7</span>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<script>
+  function navigateTo(pageId) {
+    var pages = {
+      'page-dashboard': 'pages/dashboard.html',
+      'page-monitor': 'pages/monitor.html',
+      'page-analysis': 'pages/analysis.html',
+      'page-trend': 'pages/trend.html',
+      'page-alarm': 'pages/alarm.html',
+      'page-device': 'pages/device.html',
+      'page-ae': 'pages/ae.html',
+      'page-log': 'pages/log.html',
+      'page-settings': 'pages/settings.html'
+    };
+    if (pages[pageId]) { window.location.href = pages[pageId]; }
+  }
+
+  // Severity filter toggle
+  document.querySelectorAll('.severity-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.severity-btn').forEach(function(b) { b.removeAttribute('data-active'); });
+      btn.setAttribute('data-active', 'true');
+    });
+  });
+</script>
+
+    <style>
+    /* ===== Page base ===== */
+    body { margin: 0; background: var(--bg-base-secondary); font-family: var(--font-family-default); color: var(--text-default); }
+    .page-content { padding: var(--spacer-6); display: flex; flex-direction: column; gap: var(--spacer-5); min-height: 0; }
+
+    /* ===== Section header ===== */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacer-4);
+      flex-wrap: wrap;
+    }
+    .section-title {
+      font-family: var(--font-family-heading);
+      font-size: var(--heading-md-font-size);
+      font-weight: var(--font-weight-strong);
+      color: var(--text-default);
+      white-space: nowrap;
+    }
+
+    /* ===== Filter toolbar ===== */
+    .filter-toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--spacer-3);
+      flex-wrap: wrap;
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: var(--spacer-2);
+    }
+    .filter-label {
+      font-size: var(--body-sm-font-size);
+      color: var(--text-secondary);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .severity-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--spacer-1);
+      padding: var(--spacer-1) var(--spacer-3);
+      font-family: var(--font-family-default);
+      font-size: var(--body-xs-font-size);
+      font-weight: var(--font-weight-medium);
+      line-height: var(--body-xs-line-height);
+      border-radius: var(--radius-pill, var(--radius-4));
+      border: var(--border-width-default) solid var(--color-border);
+      background: var(--bg-white);
+      color: var(--text-secondary);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    }
+    .severity-btn:hover {
+      background: var(--bg-overlay-l1);
+      color: var(--text-default);
+    }
+    .severity-btn[data-active="true"] {
+      background: var(--bg-brand);
+      color: var(--text-onbrand);
+      border-color: var(--bg-brand);
+    }
+    .severity-btn[data-active="true"].severity-error  { background: var(--status-error-default); border-color: var(--status-error-default); }
+    .severity-btn[data-active="true"].severity-warning { background: var(--status-warning-default); border-color: var(--status-warning-default); }
+    .severity-btn[data-active="true"].severity-info { background: var(--color-info); border-color: var(--color-info); }
+    .severity-btn[data-active="true"].severity-debug { background: var(--text-tertiary); border-color: var(--text-tertiary); color: #fff; }
+
+    .search-input {
+      flex: 1;
+      min-width: 200px;
+      padding: var(--spacer-2) var(--spacer-3) var(--spacer-2) var(--spacer-8);
+      font-size: var(--body-sm-font-size);
+      font-family: var(--font-family-default);
+      color: var(--text-default);
+      background: var(--bg-white);
+      border: var(--border-width-default) solid var(--color-border);
+      border-radius: var(--radius-6);
+      outline: none;
+      transition: border-color 120ms ease;
+      position: relative;
+    }
+    .search-input:focus {
+      border-color: var(--bg-brand);
+      box-shadow: 0 0 0 3px rgba(75, 63, 227, 0.10);
+    }
+    .search-wrapper {
+      position: relative;
+      flex: 1;
+      min-width: 200px;
+    }
+    .search-wrapper svg {
+      position: absolute;
+      left: var(--spacer-2);
+      top: 50%;
+      transform: translateY(-50%);
+      width: var(--icon-size-14);
+      height: var(--icon-size-14);
+      fill: var(--text-tertiary);
+      pointer-events: none;
+    }
+    .search-wrapper input {
+      width: 100%;
+      padding: var(--spacer-2) var(--spacer-3) var(--spacer-2) var(--spacer-8);
+      font-size: var(--body-sm-font-size);
+      font-family: var(--font-family-default);
+      color: var(--text-default);
+      background: var(--bg-white);
+      border: var(--border-width-default) solid var(--color-border);
+      border-radius: var(--radius-6);
+      outline: none;
+      transition: border-color 120ms ease;
+    }
+    .search-wrapper input:focus {
+      border-color: var(--bg-brand);
+      box-shadow: 0 0 0 3px rgba(75, 63, 227, 0.10);
+    }
+
+    .date-input {
+      padding: var(--spacer-2) var(--spacer-3);
+      font-size: var(--body-sm-font-size);
+      font-family: var(--font-family-default);
+      color: var(--text-default);
+      background: var(--bg-white);
+      border: var(--border-width-default) solid var(--color-border);
+      border-radius: var(--radius-6);
+      outline: none;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 120ms ease;
+    }
+    .date-input:focus {
+      border-color: var(--bg-brand);
+    }
+
+    /* ===== Log table card ===== */
+    .log-card {
+      background: var(--bg-white);
+      border: var(--border-width-default) solid var(--color-border);
+      border-radius: var(--radius-12);
+      box-shadow: var(--pd-card-shadow, 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04));
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .log-table-wrap {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--body-sm-font-size);
+    }
+    .log-table thead th {
+      text-align: left;
+      padding: var(--spacer-2) var(--spacer-3);
+      font-weight: var(--font-weight-strong);
+      color: var(--text-secondary);
+      border-bottom: var(--border-width-default) solid var(--color-border);
+      white-space: nowrap;
+      user-select: none;
+      font-size: var(--body-xs-font-size);
+      position: sticky;
+      top: 0;
+      background: var(--bg-white);
+      z-index: 1;
+    }
+    .log-table tbody tr {
+      transition: background 120ms ease;
+    }
+    .log-table tbody tr:hover {
+      background: var(--bg-overlay-l1);
+    }
+    .log-table tbody td {
+      padding: var(--spacer-2) var(--spacer-3);
+      border-bottom: var(--border-width-default) solid var(--color-border);
+      vertical-align: middle;
+    }
+    .log-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Timestamp & message mono */
+    .log-ts {
+      font-family: var(--font-family-mono);
+      font-size: var(--body-xs-font-size);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .log-msg {
+      font-family: var(--font-family-mono);
+      font-size: var(--body-xs-font-size);
+      color: var(--text-default);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 360px;
+    }
+    .log-module {
+      font-size: var(--body-xs-font-size);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .log-details {
+      font-size: var(--body-xs-font-size);
+      color: var(--text-tertiary);
+      font-family: var(--font-family-mono);
+      white-space: nowrap;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Severity badges */
+    .sev-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacer-1);
+      padding: 2px var(--spacer-2);
+      border-radius: var(--radius-pill, var(--radius-4));
+      font-size: var(--body-xs-font-size);
+      font-weight: var(--font-weight-medium);
+      white-space: nowrap;
+      font-family: var(--font-family-default);
+    }
+    .sev-error   { background: var(--status-error-surface-l1); color: var(--status-error-default); }
+    .sev-warning { background: var(--status-warning-surface-l1); color: var(--status-warning-default); }
+    .sev-info    { background: rgba(47, 116, 255, 0.12); color: var(--color-info); }
+    .sev-debug   { background: var(--bg-base-secondary); color: var(--text-tertiary); }
+    .sev-dot {
+      width: 6px; height: 6px; border-radius: var(--radius-full); flex-shrink: 0;
+    }
+    .sev-error .sev-dot   { background: var(--status-error-default); }
+    .sev-warning .sev-dot { background: var(--status-warning-default); }
+    .sev-info .sev-dot    { background: var(--color-info); }
+    .sev-debug .sev-dot   { background: var(--text-tertiary); }
+
+    /* Row action */
+    .row-action {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-tertiary);
+      padding: var(--spacer-1);
+      border-radius: var(--radius-4);
+      transition: color 120ms ease, background 120ms ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .row-action:hover {
+      color: var(--bg-brand);
+      background: var(--bg-overlay-l1);
+    }
+    .row-action svg { width: 16px; height: 16px; fill: currentColor; }
+
+    /* ===== Table footer ===== */
+    .table-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--spacer-3) var(--spacer-4);
+      border-top: var(--border-width-default) solid var(--color-border);
+      font-size: var(--body-xs-font-size);
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+    }
+    .table-footer-count {
+      white-space: nowrap;
+    }
+    .table-footer-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--spacer-2);
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 1280px) {
+      .log-msg { max-width: 260px; }
+      .log-details { max-width: 140px; }
+    }
+    @media (max-width: 768px) {
+      .filter-toolbar { gap: var(--spacer-2); }
+      .search-wrapper { min-width: 100%; order: -1; }
+      .severity-btn { padding: 2px var(--spacer-2); font-size: 10px; }
+      .log-table { display: block; overflow-x: auto; white-space: nowrap; }
+      .log-msg { max-width: 200px; }
+    }
+  </style>
+</body>
+</html>

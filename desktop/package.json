@@ -1,6 +1,6 @@
 {
   "name": "uhf-pd-desktop",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
   "description": "局部放电检测上位机 — Electron 前端 + Python 处理内核 sidecar",
   "type": "module",

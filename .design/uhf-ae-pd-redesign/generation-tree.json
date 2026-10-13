@@ -1,0 +1,23 @@
+{
+  "root": {
+    "nodeId": "gen-project-shell",
+    "kind": "project-shell",
+    "pageIds": ["page-dashboard", "page-monitor", "page-analysis", "page-trend", "page-alarm", "page-device", "page-ae", "page-log", "page-settings"],
+    "output": null,
+    "sharedRegions": ["sidebar", "topbar", "statusbar", "card styles", "table styles", "button styles", "badge styles", "chart containers"],
+    "privateRegions": [],
+    "mutableSlots": ["activeNavItem", "pageTitle", "breadcrumbCurrent"],
+    "status": "generated",
+    "children": [
+      {"nodeId": "page-dashboard", "kind": "page-leaf", "pageIds": ["page-dashboard"], "output": "pages/dashboard.html", "sharedRegions": [], "privateRegions": ["dashboard content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+      {"nodeId": "page-monitor", "kind": "page-leaf", "pageIds": ["page-monitor"], "output": "pages/monitor.html", "sharedRegions": [], "privateRegions": ["monitor content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+      {"nodeId": "page-analysis", "kind": "page-leaf", "pageIds": ["page-analysis"], "output": "pages/analysis.html", "sharedRegions": [], "privateRegions": ["analysis content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+      {"nodeId": "page-trend", "kind": "page-leaf", "pageIds": ["page-trend"], "output": "pages/trend.html", "sharedRegions": [], "privateRegions": ["trend content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+      {"nodeId": "page-alarm", "kind": "page-leaf", "pageIds": ["page-alarm"], "output": "pages/alarm.html", "sharedRegions": [], "privateRegions": ["alarm content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+      {"nodeId": "page-device", "kind": "page-leaf", "pageIds": ["page-device"], "output": "pages/device.html", "sharedRegions": [], "privateRegions": ["device content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+      {"nodeId": "page-ae", "kind": "page-leaf", "pageIds": ["page-ae"], "output": "pages/ae.html", "sharedRegions": [], "privateRegions": ["ae content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+      {"nodeId": "page-log", "kind": "page-leaf", "pageIds": ["page-log"], "output": "pages/log.html", "sharedRegions": [], "privateRegions": ["log content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+      {"nodeId": "page-settings", "kind": "page-leaf", "pageIds": ["page-settings"], "output": "pages/settings.html", "sharedRegions": [], "privateRegions": ["settings content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []}
+    ]
+  }
+}

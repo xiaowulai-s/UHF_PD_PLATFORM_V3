@@ -75,13 +75,27 @@ config/*.json
 temp/
 tmp/
 *.tmp
+# 编辑器原子保存的残留（正本名 + .tmp.<pid>.<hash>）：不匹配上面的 *.tmp，
+# 所以此前 23 个中间快照全部以未跟踪文件的形式污染 git status。
+*.tmp.[0-9]*
+
+# 清理归档区（2026-09-29 起）：只放"从工作区移走但保留"的历史内容，
+# 体积 ~500M 且全是死数据，纳入版本控制没有意义，也容易被宽 add 误提交。
+_archive/
 
 # Documentation build
 docs/_build/
 docs/.doctrees/
 
-# WorkBuddy memory (keep MEMORY.md, ignore daily logs)
-.workbuddy/memory/20[0-9][0-9]-*.md
+# Agent / IDE 本地状态（不进版本库：AI 助手记忆、截图、编辑器权限配置）
+.claude/
+.workbuddy/
+.workbuddy-ai/
+
+# 运行期日志与一次性报告
+logs/
+soak-*.json
+soak-*.log
 
 # Screenshots (keep in repo for documentation)
 # 截图*.png

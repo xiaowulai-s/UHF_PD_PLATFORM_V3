@@ -32,25 +32,31 @@ PRPD/PRPS 图谱、报警、历史趋势。
 2. **绝不 `git add -A` / `git add <宽目录>`**。工作区有上百个用户未提交的在制品
    （已跟踪修改 96 / 未跟踪 81）。逐个点名文件，提交前用 `git status --short` 和
    `git diff --cached --name-only` 复核。
-3. **`??` 不等于新文件**。`AGENTS.md`、`CLAUDE.md`、`build.py`、多个 `tests/*.py`、
-   `docs/PROJECT_CLEANUP_PLAN.md` 等**从未被 add**。改在这些文件里的代码，若提交只带
-   "已跟踪的修改"会**静默丢失**。用 `git cat-file -e HEAD:<路径>` 判断。
+3. **`??` 不等于新文件**。`AGENTS.md`、`CLAUDE.md`、`docs/HANDOVER.md`、
+   `docs/AI_HANDOFF_PROMPT.md`、`tools/mem_baseline_probe.py` 已在 2026-10-08 入库；
+   **但仍有**：`pytest.ini`、`docs/migration_coverage.md`、`desktop/src/renderer/lib/gdop.ts`
+   （及 `colormap.ts`/`ae-stats.ts`/`snapshot-draw.ts`）、`gdop-map.vue`/`prpd-scatter.vue`/`snapshot-mini.vue`、
+   多个 `tests/*.py`。改在这些文件里的代码，若提交只带"已跟踪的修改"会**静默丢失**，
+   而且 `analysis-view.vue` 这类**已跟踪**文件正 import 它们——只提已跟踪修改会让 HEAD 直接 ImportError。
+   用 `git cat-file -e HEAD:<路径>` 判断。
 4. **绝不 `--no-verify`** 绕 pre-commit。钩子改坏了就修根因。
 5. **审改动一律 `git diff --ignore-cr-at-eol`**。仓库无 `.gitattributes`，HEAD 内行尾本身
    就不一致，工作区约 60 个文件已整体 CRLF；普通 diff 会把"删 30 行加 8 行"报成整文件重写。
 6. **未跟踪文件删掉不可恢复** → 移到 `_archive/<name>-YYYYMMDD/`（已 gitignore），不要删。
 7. **不要动** 仓库里 2 个历史 `git stash`（`WIP on main: 211d38b`、`5169ee2`）和 `venv/`。
-8. **UI 改 `desktop/`，不要改 `ui/`**。仓库正处在 UI 重写中途，两套界面并存：
-   `desktop/`（Electron 33 + Vue 3，5,239 行）是现役开发对象；`core/`（Python DSP，14,597 行）
-   留作无头 sidecar；`ui/`（PySide6，23,181 行）是回滚路径，计划 M8 才删。
-   `python main.py` 可用但不是日常工作流。
+8. **UI 改 `desktop/`**。UI 层重写**已完成并收尾**，现在只有一套界面：
+   `desktop/`（Electron 33 + Vue 3）是现役；`core/`（Python DSP）是无头 sidecar；
+   旧的 PySide6 `ui/` 连同 `main.py`/`main_v2.py` 已归档到 `_archive/ui-offline-20261008/`
+   （已 gitignore，不参与运行与测试）。**`python main.py` 已不可用，没有回滚路径**
+   （回滚办法见 `AGENTS.md` 的"当前状态"节）。`ui/` 那 32 个文件的删除**至今仍在工作区**，
+   `git ls-tree HEAD` 里还有它们——别以为已经干净了。
 
 ### 3. 开工前必读（按序）
 
 1. `AGENTS.md`（指令与禁区；`CLAUDE.md` 只是指向它的指针，改动只改 `AGENTS.md`）
-2. `docs/PROJECT_MEMORY.md`（**技术决策的来历、被推翻的假设、前人踩过的判断错误**）
-3. `docs/HANDOVER.md`（现状、仓库风险、里程碑、验收纪律）
-4. `docs/ELECTRON_REWRITE_PLAN.md`（要动架构代码时的原始实测依据）
+2. `docs/HANDOVER.md`（现状、仓库风险、里程碑、验收纪律）
+3. `docs/ELECTRON_REWRITE_PLAN.md`（要动架构代码时的原始实测依据）
+4. `docs/migration_coverage.md`（新旧功能对照与迁移缺口处置）
 
 ### 4. 验证纪律：这里"做完"的定义
 
@@ -67,7 +73,7 @@ PRPD/PRPS 图谱、报警、历史趋势。
 - **部分提交状态下要验 HEAD 可运行**：`git archive HEAD | tar -x -C <tmp>` 再逐个 import。
 - 常用命令：
   ```bash
-  python -m pytest -q --no-cov              # 当前 577 passed / 2 skipped
+  python -m pytest -q --no-cov              # 当前 557 passed（约 33s）
   cd desktop && npm run typecheck && npm run build
   python sidecar.py --help                  # 参数看 --help，别凭记忆猜 flag
   ```
@@ -153,23 +159,23 @@ sqlalchemy。所以 import 任何 `core.services.X` 都会拖上 ORM，`--no-db`
 | `core/services/__init__.py` 公开导入面 | 改它才能拿到那 37 MB |
 | 历史回放/导出是否真需求 | 决定 `RingBuffer` 那 31 MB/通道是删是改 |
 
-### 7. 当前任务队列
+### 7. 当前任务队列（2026-10-12 复核）
 
-按建议顺序（先做 ① 因为风险最大且不需要写代码）：
+**迁移缺口 P0–P5 已全部交付**（P0 日志导出落盘 / P1 导入筛选+幅值直方图 / P2 报告导出
+JSON+Excel+Word / P3 运行时数据源启停 / P4 AE 历史持久化+散点+导出 / P4b 内核 CPU-RSS /
+P5a 暗色主题 / P5b 真 PRPD 3D / P5c 实时放电类型标签）。详见 `docs/migration_coverage.md`。
 
-1. **把未提交内容按文件名精确提交**。重点确认 §2.3 那批从未提交的文件是否已入库。
-   提交后跑 `git archive HEAD` 的 import 验证。
-2. **复跑 60 min 长稳**（M5.1 的"连续 1h 无内存增长"验收上次截在 29.5 min）。
-   `python tools/soak_memory.py --minutes 60 --sim-args "--pd-type corona --pulse-rate 60000"`。
-   同时给残余 +0.38 MB/min 定性。不改代码，可与 ③ 并行。
-3. **M5.3 仪表板**：指标卡 + 三类快照 + 最新告警；验收 20FPS 下 CPU < 15%。
-   `desktop/src/renderer/views/dashboard-view.vue` 已有 103 行（M3/M4 时期产物），是扩展
-   不是新建。
-4. **M6 第三批页面**：`ae-view.vue`、`analysis-view.vue` 目前是 **7 行桩**。
-   AE 数据通路（`ae_envelope` / `ae_hit` 帧、`AeHit` 协议类型、`ae-panel.vue`）已在 M5.1 打通。
-5. **M7.2–7.5**、**M8**（旧 `main.py`/`ui/` 下线、装机包、文档收尾）。
-   M8 时顺带清掉 `tests/test_controller_integration.py` 里 5 个绕过夹具、各漏一个存储线程的
-   用例（`:103/112/118/125/131`）——现在不修是因为 `ui/` 整体要删。
+剩下的按优先级：
+
+1. **统一提交**。工作区积压 46 个未推送提交 + 86 个已跟踪修改 + 39 个未跟踪 + 35 个删除。
+   按 §2.2 的纪律**逐个点名**，提交前跑 `git archive HEAD | tar -x -C <tmp>` 的 import 验证。
+   注意 §2.3：有一批关键源码（`pytest.ini`、`lib/gdop.ts` 等）从未入库，只提已跟踪修改会断链。
+2. **现场复跑 M7.1 渲染探针**（`npm run probe`）——目标工控机是软件渲染，这是唯一还没在现场验过的性能项。
+3. **领域口径三项**（都卡在需要人给口径，不是工程量）：
+   - 幅值单位（全链路无计数→mV 换算，`ChannelConfig.gain` 从未作用于波形）；
+   - 报警阈值三处不一致（代码 80/60/40/20 vs `config/default_config.json` 50/80 vs AE 通道 100.0/800.0）；
+   - 等效放电量、最大重复率、3D 定位视图（TDOA 需多通道时间同步）。
+4. **M7.2 24h 长稳**：按用户决定**跳过**（60 min 长稳已复跑通过，四角色全有界）。
 
 ### 8. 工作方式要求
 
@@ -178,7 +184,8 @@ sqlalchemy。所以 import 任何 `core.services.X` 都会拖上 ORM，`--no-db`
 - **逐件事显式授权改动**；提交、推送、删除等动作**先问再做**（推送在本仓库尤其危险，见 §2.1）。
 - 回复简洁。不要在每次动作后写总结段落；用户能看 diff。
 - 遇到"证据看着够但结论可疑"时，**先把曲线/原始数据拉出来看形状，再下结论**。
-  前任协作者在这里犯过 5 次判断错误并记录在 `docs/PROJECT_MEMORY.md` 第 5 节，值得先读。
+  前任协作者在这里犯过 5 次判断错误（记在已删除的 `docs/PROJECT_MEMORY.md` 第 5 节，
+  仍可从 git 历史取回），值得先了解。
 - 遇到工具/探针本身改变被测系统的迹象（数字反常地好或坏），先怀疑夹具。
 
 ## === 复制结束 ===
@@ -188,6 +195,6 @@ sqlalchemy。所以 import 任何 `core.services.X` 都会拖上 ORM，`--no-db`
 ### 附：给人类的一句话
 
 这段提示词里的数字来自实测，会随代码演进过期。**每次里程碑变更后请更新
-`docs/PROJECT_MEMORY.md` 与本文第 7 节的任务队列**，否则新的 AI 会话会拿着过期的
+`AGENTS.md`、`docs/HANDOVER.md` 与本文第 7 节的任务队列**，否则新的 AI 会话会拿着过期的
 "当前状态"做判断——这个仓库已经因为过期描述（报警阈值、`trend_data` 表名、
 "峰值 <100MB"）返工过多次。

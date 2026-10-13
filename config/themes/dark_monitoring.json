@@ -1,0 +1,113 @@
+{
+  "name": "Dark Monitoring Ops Alert",
+  "description": "深色监控运维风格 — 匹配 Ardot 设计系统",
+  "version": "1.0",
+  "colors": {
+    "text": {
+      "primary": "#FAFAFA",
+      "secondary": "#A1A1AA",
+      "tertiary": "#71717A",
+      "disabled": "#52525B",
+      "inverse": "#0E0E10",
+      "link": "#F2C94C",
+      "on_accent": "#0E0E10",
+      "on_danger": "#FAFAFA"
+    },
+    "accent": {
+      "primary": "#F2C94C",
+      "secondary": "#F5D56C",
+      "tertiary": "#F2C94C26",
+      "hover": "#E5BC3A",
+      "active": "#C9A230",
+      "subtle": "#F2C94C19"
+    },
+    "status": {
+      "success": "#4CAF50",
+      "success_bg": "#4CAF5019",
+      "warning": "#F2C94C",
+      "warning_bg": "#F2C94C19",
+      "error": "#FF5252",
+      "error_bg": "#FF525219",
+      "info": "#29B6F6",
+      "info_bg": "#29B6F619"
+    },
+    "device": {
+      "online": "#4CAF50",
+      "online_light": "#66BB6A",
+      "offline": "#52525B",
+      "offline_light": "#71717A",
+      "warning": "#F2C94C",
+      "warning_light": "#F5D56C",
+      "error": "#FF5252",
+      "error_light": "#FF6E6E",
+      "idle": "#29B6F6",
+      "idle_light": "#4FC3F7"
+    },
+    "border": {
+      "default": "#27272A",
+      "focus": "#F2C94C",
+      "hover": "#3F3F46",
+      "strong": "#52525B",
+      "subtle": "#1F1F23",
+      "transparent": "transparent"
+    },
+    "background": {
+      "primary": "#18181B",
+      "secondary": "#0E0E10",
+      "tertiary": "#27272A",
+      "hover": "#27272A",
+      "active": "#3F3F46",
+      "disabled": "#18181B",
+      "overlay": "rgba(0, 0, 0, 0.40)",
+      "modal": "#18181B",
+      "tooltip": "#3F3F46",
+      "base": "#0E0E10"
+    },
+    "special": {
+      "shadow": "rgba(0, 0, 0, 0.30)",
+      "divider": "#27272A"
+    },
+    "chart": {
+      "background": "#0E0E10",
+      "grid": "rgba(255, 255, 255, 0.05)",
+      "foreground": "#FAFAFA",
+      "colormap": "viridis",
+      "waveform": "#F2C94C",
+      "spectrum": "#3B82F6"
+    }
+  },
+  "typography": {
+    "font_family": "Sarasa Gothic SC, Microsoft YaHei, SimHei, sans-serif",
+    "mono_family": "JetBrains Mono, Consolas, monospace",
+    "title_xlarge": {"size": 24, "weight": "Bold"},
+    "title_large": {"size": 20, "weight": "Bold"},
+    "title_medium": {"size": 16, "weight": "Bold"},
+    "title_small": {"size": 14, "weight": "SemiBold"},
+    "body": {"size": 14, "weight": "Regular"},
+    "body_small": {"size": 12, "weight": "Regular"},
+    "caption": {"size": 11, "weight": "Regular"},
+    "data": {"size": 18, "weight": "Bold"}
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "xxl": 48
+  },
+  "border_radius": {
+    "sm": 6,
+    "md": 8,
+    "lg": 12,
+    "xl": 16,
+    "full": 9999
+  },
+  "buttons": {
+    "height_sm": 28,
+    "height_md": 32,
+    "height_lg": 40,
+    "padding_h": 12,
+    "padding_v": 6
+  }
+}

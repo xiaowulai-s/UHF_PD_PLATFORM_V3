@@ -805,6 +805,63 @@ tests/ 里原本根本没有 logger 测试）。三项变异验证都有牙齿�
 | 6.3 | 传感器阵列配置对话框 | 表格内联编辑 + 散点预览联动 |
 | 6.4 | 数据分析页 | v1/v2 分叉需先合并；含导入/分类/导出长流程 |
 
+### M6.5 分析报告导出（P2）— 2026-10-10 内核侧完成并实测，前端未入库
+
+旧 `ui/widgets/report_export_widget.py` 有 JSON/Excel/Word 三个按钮，内核侧
+`ReportExporter` 一直"有能力没人调用"。现在接上的形状是：内核在临时目录里生成、读成
+bytes 经 `/ctrl` 回传、临时目录随 `with` 块删除；**落盘路径只由主进程原生对话框决定**，
+渲染进程不传路径（否则这就是一个任意文件写入口）。
+
+- `report.export` / `report.formats` 已入库（759984c）。`report.formats` 让内核自报能导
+  哪些格式，而不是给一个必失败的按钮。
+- 真点验收（`tools/verify_report_export_ui.py`，未入库）：用 CDP `DOM.setFileInputFiles`
+  把 `tests/PD_data.csv` 的**真实路径**塞给 `input[type=file]`（Chromium 不允许脚本赋值，
+  而 `webUtils.getPathForFile` 只有真实路径才换得到），导入 6657 点后点 Excel/JSON，
+  落盘文件分别用 openpyxl / json 重新打开核对：`A1='PRPD 分析报告'`、`B10=6657`。
+- **这一轮真点抓到一个只在真点下才暴露的 bug**：`loadReportCaps()` 在 `onMounted` 里直接
+  发 RPC，没等 `/ctrl` 握手完成，报告按钮永久禁用。`store.ts` 里早就写着这个竞态
+  （"视图在 onMounted 里就发 RPC 会撞上 WebSocket 还没完成"），这次是我自己没照做。
+  Python 侧 15 个用例全绿也照样看不见它。
+- **Word 已交付（2026-10-10）**：`python-docx 1.2.0` 装进全局解释器、写进 `pyproject.toml`
+  依赖（该行的提交按决定留待后续），重跑 `npm run build:kernel` 得到 194MB 产物
+  （原 185MB，涨的是 docx+lxml）。用**冻结 exe** 实测：`report.formats` 自报
+  `json/excel/word` 全可用，三份报告都能重新打开，Word 里 `inline_shapes == 1`。
+  `npm run verify:kernel` 同时确认重建没把推流弄坏（8s 313 帧、prpd/prps 热图可解码）。
+  核对打包与否只能靠"让产物自己报"：openpyxl 是纯 Python 库，在 PyInstaller 里只存在于
+  PYZ 归档，`ls _internal` 看不到目录——我据此一度误判"openpyxl 没打进包"。
+- **装上依赖的当天就炸出 4 个失败用例，其中两个是我自己写的**：`test_export_word_with_chart`
+  原先只写 8 字节 PNG magic，注释还写着"够 docx 走路径判断"——docx 缺席时侥幸不报错，
+  装上之后 `add_picture` 真去解图就抛 `UnexpectedEndOfFileError`，所谓"带图路径已验证"
+  其实从没验证过。另外三个用例把"本机没装 docx"当前提断言 ImportError。
+  修法：改用一份合法的 1x1 PNG（并断言 `inline_shapes == 1`，不只断言文件存在），
+  需要"缺库"语义的用例改成显式 `sys.modules["docx"] = None`，
+  于是装了没装都跑得一样（494 passed / **0 skipped**）。
+- Word 的按钮状态由内核能力驱动，补依赖时**没有改一行前端代码**：`report.formats` 用
+  `find_spec("docx")` 自报，能力一变按钮自己从"禁用+原因"变成可点。真点脚本里那条断言
+  也改成"按钮状态 == 解释器里有没有 docx"，换机器不用改脚本。
+### 出包与装机版验证（2026-10-10）
+
+- `npm run package:dir` 的 electron-builder 阶段直连 GitHub 拉 winCodeSign 超时
+  （`connect ETIMEDOUT 20.205.243.166:443`，本机缓存里只有 nsis 与 7zip）。可用的组合是
+  `CSC_IDENTITY_AUTO_DISCOVERY=false` **加**
+  `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/`；
+  之后 `--win --dir` 与 `--win nsis` 都跑通，产物 `desktop/release/UHF PD 监测系统-Setup-0.0.1.exe`（151.8MB）。
+- 装机版真点（`tools/verify_report_export_ui.py --packaged`）：导入 `tests/PD_data.csv` 的 6657 点，
+  点 Excel / JSON / Word，落盘文件分别用 openpyxl、json、python-docx 重新打开核对，Word 里
+  `inline_shapes == 1`，页面回执"已导出 122.8 KB，含当前视图图谱" → PASS。
+- **内核来源是进程树证据，不是推断**：`uhf-sidecar.exe` 的路径是
+  `release/win-unpacked/resources/uhf-sidecar/uhf-sidecar.exe`，应用进程树里 `python.exe` 为 0。
+  同一次扫描出现的另一个 `python.exe` 是探测脚本本身（它的源码文本就在自己的 cmdline 里，
+  按名字串匹配会命中自己）——本仓库记过这个假阳性。
+- ⚠️ 这个包**不能用 HEAD 复现**：asar 里能查到 `导出分析报告` / `report.export` /
+  `file:save-binary`（前端未入库），依赖声明里的 `python-docx` 那行也没提交。
+  要出可交付的正式版，必须先把这两块入库。
+
+- 前端改动（preload `saveBinary`、主进程 `file:save-binary`、分析页导出区）按决定**暂不入库**：
+  它们与他人的在途改动同处四个文件（`analysis-view.vue` 954 行、`main/index.ts` 91 行、
+  `preload.cjs` 28 行、`env.d.ts` 22 行）。因此 HEAD 目前只有 RPC 没有入口，功能整体
+  只在工作区可用。
+
 ---
 
 ## M7 · 性能与长稳 — 5 pd
@@ -1159,9 +1216,10 @@ waveform/fft/prpd/prps 帧且 `codec=zlib` 解码正确。
 基本都是 Qt 相关的慢用例）。桌面端 `npm run typecheck` + `npm run build` 通过，
 仪表板截图复验正常（3 个 canvas、波形快照显示 `uhf · 41.0 µs @ 100.00 MHz`）。
 
-**没做**：装机包（electron-builder 出包）与其余过期文档（`architecture.md`/`api.md`/
-`contributing.md`/`build_guide.md`/`README.md`/`TESTING.md`/`Update.md`）的校正。
-`AGENTS.md` 已同步更新。
+**没做**：装机包（electron-builder 出包）与其余过期文档的校正。
+2026-10-13 已补：装机包已出并验收，`README.md` 已按新架构重写，
+`architecture.md`/`api.md`/`contributing.md`/`build_guide.md`/`TESTING.md`/`Update.md` 等
+旧架构派生文档已删除。`AGENTS.md` 已同步更新。
 
 ---
 

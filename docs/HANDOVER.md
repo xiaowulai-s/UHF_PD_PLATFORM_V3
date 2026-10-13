@@ -1,6 +1,9 @@
 # 项目交接文档（HANDOVER）
 
-生成日期：2026-10-08 ｜ 交接对象：接手本仓库的工程师
+生成日期：2026-10-08 ｜ 最后更新：**2026-10-12** ｜ 交接对象：接手本仓库的工程师
+
+> **本文第 1、3、5 节已按 2026-10-12 的仓库状态重写**（原版描述的是迁移归档**之前**的状态）。
+> 第 5.1 节是 M8 当时的追加记录，保留作历史。里程碑与剩余工作量以第 5 节为准。
 
 ---
 
@@ -9,15 +12,20 @@
 工业局部放电（Partial Discharge）在线监测主机应用。UHF + AE 双模态传感器，前端 FPGA 经
 UDP 采数，做实时波形/频谱/PRPD/PRPS 图谱、报警、历史与趋势分析。
 
-**当前正处在一次 UI 层重写中途，两套界面同时存在**，这是接手时最容易误判的一点：
+**UI 层重写已完成并收尾**，现在只有一套界面：
 
-| 目录 | 行数 | 状态 |
+| 目录 | 规模 | 状态 |
 |---|---|---|
-| `desktop/` | 5,239（TS+Vue） | **现役开发对象**。Electron 33 + Vue 3 + TS + Vite |
-| `core/` | 14,597（Python） | **处理内核**，保留为无头 sidecar，经本机 WebSocket 与前端通信 |
-| `ui/` | 23,181（PySide6） | **旧界面，是回滚路径**，仍被 `main.py` 引用，按计划 M8 才删 |
+| `desktop/` | Electron 33 + Vue 3 + TS + Vite | **现役界面**，唯一开发对象 |
+| `core/` | 约 15k 行 Python（numpy/scipy DSP + FPGA 采集） | **处理内核**，以无头 sidecar 运行，经本机 WebSocket 与前端通信 |
+| `_archive/ui-offline-20261008/` | 23,183 行 PySide6 | **旧界面，已归档下线**（该目录已 gitignore，不参与运行与测试） |
 
-所以 `python main.py` 仍可用，但**不是**日常工作流。改 UI 请改 `desktop/`，不要改 `ui/`。
+**没有回滚路径**：`python main.py` 已不可用（`main.py` / `main_v2.py` 连同旧打包配置一起归档）。
+要回滚就把 `_archive/ui-offline-20261008/` 下的 `ui/` 与 `main.py` 移回仓库根，并把
+`pyproject.toml` / `.coveragerc` / `pytest.ini` 的覆盖率目标改回 `["core", "ui"]`。
+改 UI 一律改 `desktop/`。
+
+启动方式、测试命令、出包流程见 `AGENTS.md`（唯一的 agent 指令来源）与 `README.md`。
 
 ---
 
@@ -53,9 +61,12 @@ Electron 33.4.11。测试 33 个文件。
 ## 3. 仓库当前状态 ⚠️ 交接时最要紧的一节
 
 ```
-分支：main @ c7f1aaf，[pd-origin/main: ahead 36] —— 36 个提交未推送
-未提交：已跟踪且修改 96 个 / 已暂存 1 个 / 未跟踪 81 个
+分支：main @ 759984c，[pd-origin/main: ahead 46] —— 46 个提交未推送
+未提交：已跟踪且修改 86 个 / 已暂存 0 个 / 未跟踪 39 个 / 已删除 35 个
 ```
+
+（35 个删除里 32 个是 `ui/`，另加 `main.py`、`build.spec`、`tests/test_basic.py`——
+即 M8 归档那批，**至今仍只在工作区**。）
 
 ### 3.1 远端配置有陷阱，务必先读
 
@@ -70,23 +81,29 @@ partial-discharge  → Partial_Discharge.git         ← 新增远端
 
 ### 3.2 `??` 不等于"新文件"——这条会直接导致丢代码
 
-工作区里有大量**早已存在、从未被 `git add`** 的源码。已核实下列关键文件在 HEAD 里**不存在**：
+工作区里仍有一批**早已存在、从未被 `git add`** 的源码。原版列的那批（`AGENTS.md`、
+`CLAUDE.md`、`docs/HANDOVER.md`、`docs/AI_HANDOFF_PROMPT.md`、
+`tools/mem_baseline_probe.py`）**已在 2026-10-08 入库**，现在 HEAD 里都有。
+
+**2026-10-12 复核后仍未入库的**（用 `git cat-file -e HEAD:<路径>` 逐个验过）：
 
 | 文件 | 后果 |
 |---|---|
-| `AGENTS.md` / `CLAUDE.md` | 全部 agent 指令与项目约定，**只存在于工作区** |
-| `build.py` | 构建入口 |
-| `docs/PROJECT_CLEANUP_PLAN.md`、`docs/PROJECT_MEMORY.md`、`docs/HANDOVER.md`、`docs/AI_HANDOFF_PROMPT.md` | 文档收尾产物 |
-| `tests/test_fft_processor.py`、`test_storage_service.py`、`test_controller_integration.py`、`test_logger_db_handler.py`、`test_simulator_shutdown.py` | 这些测试从未进过版本库 |
-| `tools/mem_baseline_probe.py` | 内存基线归因探针（未提交；`tools/soak_memory.py` 已在库内） |
-| `ui/widgets/performance_monitor_widget.py` | 旧界面组件（被测试 import） |
+| `pytest.ini` | pytest 配置（`--cov=core` 等），**HEAD 里没有** |
+| `docs/migration_coverage.md` | 新旧功能对照表 + P0–P5 实施计划 |
+| `desktop/src/renderer/lib/gdop.ts`、`colormap.ts`、`ae-stats.ts`、`snapshot-draw.ts` | 前端被 import 的库模块 |
+| `desktop/src/renderer/components/charts/gdop-map.vue`、`prpd-scatter.vue`、`snapshot-mini.vue` | 前端组件 |
+| `config/themes/`、`tools/benchmarks/`、`tools/make_app_icon.py`、`scripts/ui_lint.py` | 配置与工具 |
+| 多个 `tests/*.py`（`test_data_bus.py`、`test_peak_detector.py`、`test_ring_buffer_thread.py` 等） | 从未进过版本库 |
 
 判断某个路径是否已跟踪：`git cat-file -e HEAD:<路径>`。
-**提交时若只带"已跟踪的修改"，改在这些文件里的代码会静默丢失。**
+**提交时若只带"已跟踪的修改"，改在这些文件里的代码会静默丢失**——尤其危险的是
+`analysis-view.vue` 这类**已跟踪**文件正 import 上面那些**未跟踪**模块：
+只提已跟踪修改会让 HEAD 直接 ImportError。
 
 ### 3.3 其它 git 纪律
 
-- 工作区长期存在上百个**用户未提交的在制品**（`ui/` 64 个、`core/` 37 个、`tests/` 35 个）。
+- 工作区长期存在上百个**用户未提交的在制品**（当前 86 个已跟踪修改 + 39 个未跟踪）。
   **绝不 `git add -A` / `git add <宽目录>`**；逐个点名，提交前用 `git status --short` 与
   `git diff --cached --name-only` 复核。全量暂存会被自动策略直接拦掉。
 - 仓库有 2 个历史 `git stash`（`WIP on main: 211d38b`、`5169ee2`），**不要清**。
@@ -126,20 +143,41 @@ core/protocol/frames.py   ↔   desktop/src/shared/protocol.ts     （手工镜�
 
 ---
 
-## 5. 里程碑与剩余工作量
+## 5. 里程碑与剩余工作量（2026-10-12 复核）
 
 | 里程碑 | 状态 | 剩余 |
 |---|---|---|
-| M0 边界协议 / M1 sidecar 生产化 / M2 前端骨架 / M3 第一批页面 | ✅ 完成 | — |
-| M4 流式渲染层（4.1–4.6） | ✅ 完成，全部截图 + 真点验收 | — |
-| **M5 第二批页面** | 🟡 | **5.1 的"连续 1h 无内存增长"验收只跑到 29.5 min，需复跑**；5.3 仪表板（指标卡 + 三类快照 + 最新告警，20FPS 下 CPU < 15%）未开始 |
-| M6 第三批页面（AE 与分析） | ⬜ | `ae-view.vue`、`analysis-view.vue` 仍是 **7 行桩** |
-| M7 性能长稳 | 🟡 | 7.1 探针就绪待现场复跑；7.2–7.5 未做 |
-| M8 切换收尾 | ⬜ | 旧 `main.py`/`ui/` 下线、装机包、文档收尾 |
+| M0 边界协议 / M1 sidecar / M2 前端骨架 / M3 第一批页面 / M4 流式渲染层 | ✅ 完成（全部截图 + 真点验收） | — |
+| M5 第二批页面 | ✅ 完成。5.1 的"连续 1h 无内存增长"已复跑通过：**60.05 min / 120 采样点**，四角色全有界；侧车那段 +30 MB/h 是 `prpd_processor` 的 `deque(maxlen=100000)` 填满，40.9 分钟到平台，属**有界消耗** | — |
+| M6 第三批页面（AE 与分析） | ✅ 完成（含数据导入、报告导出内核侧）。**实时事件的放电类型标签已于 2026-10-12 补上** | 3D 定位视图（内核无 TDOA 通路）、等效放电量（无计数→物理量换算）、最大重复率（口径未定义）——三项都卡在领域口径，不是工程量 |
+| M7 性能长稳 | 🟡 7.3 线性度 / 7.4 崩溃恢复 / 7.5 启动时间均已实测结案 | **7.1 探针待现场复跑**；**7.2 24h 长稳按用户决定跳过** |
+| M8 切换收尾 | 🟡 归档、装机包、`AGENTS.md` 都已做 | 本次做：出包与文档收尾；统一提交见 §3 |
+| P0–P5 迁移缺口 | ✅ 全部交付：P0 日志导出落盘 / P1 导入筛选+幅值直方图 / P2 报告导出（JSON+Excel+Word）/ P3 运行时数据源启停 / P4 AE 历史持久化+散点+导出 / P4b 内核 CPU-RSS / P5a 暗色主题 / P5b 真 PRPD 3D / P5c 实时类型标签 | — |
 
-**建议接手顺序**：① 先把未提交内容按文件名精确提交（见 §3.2 的风险）→ ② 复跑 60 min 长稳
-（同时结掉 M5.1 验收和残余 +0.38 MB/min 的定性，且不改代码可并行做别的）→ ③ M5.3 仪表板
-→ ④ M6。
+**接手顺序建议**：① 读 `AGENTS.md`（规则与禁区）→ ② 要动架构时读 `docs/ELECTRON_REWRITE_PLAN.md`
+的原始实测依据 → ③ 需要补功能缺口时看 `docs/migration_coverage.md`（新旧对照 + P0–P5 的处置结论）
+→ ④ 按 §3 的提交纪律统一提交。
+
+---
+
+## 5.1 M8 进展（2026-10-08 追加，本文件上方各节仍描述归档前的状态）
+
+**旧 `ui/` 已归档下线**，本文件第 1 节那张"两套界面同时存在"的表**已经过期**：
+
+- `ui/`（PySide6）、旧入口 `main.py`/`main_v2.py`、旧打包配置 `build.py`/`build.spec`/
+  `PDMonitor.spec`/`installer.iss`、8 个 ui 耦合测试 → 全部移到
+  `_archive/ui-offline-20261008/`（已 gitignore，不参与运行与测试）。
+- 因此 **§1 的"`python main.py` 仍可用、`ui/` 是回滚路径"不再成立**：没有回滚路径了。
+  回滚办法见 `AGENTS.md` 的"当前状态"一节。
+- 实测前提：`core/`、`tools/`、`sidecar.py` 对 `ui` 的 import 数为 0；归档后全仓库只剩注释引用。
+- 连带改的配置：`pyproject.toml` / `.coveragerc` / `pytest.ini` / `.github/workflows/tests.yml`
+  的覆盖率目标从 `core,ui` 改成 `core`。
+- 效果：**450 passed / 2 skipped / 0 failed，整套 21.8s**（原先 ~98s、578 passed）。
+- **§3.2 那张"从未入库的文件"表也过期了**：`AGENTS.md`、`CLAUDE.md`、多份 `docs/*.md`、
+  多个 `tests/*.py`、`tools/mem_baseline_probe.py` 已在 2026-10-08 入库（提交 `fe276d3`、
+  `75415bd`）；`ui/widgets/performance_monitor_widget.py` 随 `ui/` 一起归档。
+
+仍未做：装机包、其余过期文档校正（见 `docs/ELECTRON_REWRITE_PLAN.md` 的 M8 进展一节）。
 
 ---
 
@@ -187,9 +225,10 @@ core/protocol/frames.py   ↔   desktop/src/shared/protocol.ts     （手工镜�
   属 `ui/` 旧界面测试，M8 删 `ui/` 时一并消失。
 
 ### 7.4 文档过期项
-`docs/architecture.md`、`api.md`、`contributing.md`、`build_guide.md`、`README.md`、
-`TESTING.md`、`Update.md` 都由旧架构文档派生，与 `AGENTS.md` 存在冲突描述，**M8 一并校正**。
-报警阈值的旧描述（"general ≥50%、info ≥30%"）两边都对不上实际代码。
+2026-10-13 已处理：`docs/architecture.md`、`api.md`、`contributing.md`、`build_guide.md`、
+`docs/PROJECT_MEMORY.md`、`docs/PROJECT_CLEANUP_PLAN.md` 与根目录 `TESTING.md`、`Update.md`
+均为旧架构（PySide6 单体）派生、与 `AGENTS.md` 冲突，**已删除**；`README.md` 已按新架构重写。
+报警阈值的旧描述（"general ≥50%、info ≥30%"）两边都对不上实际代码，仍是待确认项。
 
 ---
 
@@ -211,8 +250,9 @@ core/protocol/frames.py   ↔   desktop/src/shared/protocol.ts     （手工镜�
 | `tools/mem_baseline_probe.py` | 内存基线归因探针（A 库成本 / B 启动路径） |
 | `tools/soak_memory.py` | 长稳采样与斜率判定（M5.1 验收与 M7.2 共用） |
 | `tools/rpc_check.py` | 协议 RPC 手测 |
-| `docs/PROJECT_MEMORY.md` | **技术决策的来历与被推翻的假设** |
+| `docs/migration_coverage.md` | 旧界面功能在新端的覆盖度与缺口处置记录 |
 | `docs/ELECTRON_REWRITE_PLAN.md` | 迁移决策与全部实测记录 |
+| `README.md` | 面向使用者的项目说明（架构、特性、快速开始、打包） |
 | `AGENTS.md` | 给 AI 助手的指令（`CLAUDE.md` 只是指向它的指针） |
 
 ---
@@ -221,6 +261,6 @@ core/protocol/frames.py   ↔   desktop/src/shared/protocol.ts     （手工镜�
 
 1. 本文件（现状与风险）
 2. `AGENTS.md`（规则与禁区）
-3. `docs/PROJECT_MEMORY.md`（**为什么**这么定，以及前人踩过的判断错误）
-4. `docs/ELECTRON_REWRITE_PLAN.md`（要动架构时的原始实测依据）
-5. `docs/PROJECT_CLEANUP_PLAN.md`（仓库卫生历史）
+3. `docs/ELECTRON_REWRITE_PLAN.md`（要动架构时的原始实测依据）
+4. `docs/migration_coverage.md`（新旧功能对照与缺口处置）
+5. `README.md`（面向使用者的说明）

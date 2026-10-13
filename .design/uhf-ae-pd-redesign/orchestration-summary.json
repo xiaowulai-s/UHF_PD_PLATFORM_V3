@@ -1,0 +1,232 @@
+{
+  "project": {
+    "name": "UHF-AE局部放电检测平台",
+    "path": "d:\\Demo\\UHF_PD_PLATFORM_Python\\.design\\uhf-ae-pd-redesign",
+    "operation": "create",
+    "deviceType": "desktop",
+    "language": "zh-CN",
+    "dashboardMode": true,
+    "designRead": "Industrial monitoring dashboard / operators / professional industrial / high density / avoid consumer UI patterns",
+    "designDials": {
+      "layoutVariance": 1,
+      "motionIntensity": 1,
+      "visualDensity": 5
+    },
+    "styleContinuityAnchors": {
+      "colorSystem": {
+        "primaryColorRole": "Deep slate/navy backgrounds with electric blue (#3B82F6) and cyan (#06B6D4) accents for primary actions and highlights",
+        "brandHuePolicy": "free-explore uses no secondary/accent brand hue; status colors via semantic tokens",
+        "stateColors": "--state-success (#10B981), --state-warning (#F59E0B), --state-error (#EF4444), --state-info (#3B82F6)"
+      },
+      "shapeSystem": {
+        "radiusScale": "--radius-sm: 4px, --radius-md: 8px, --radius-lg: 12px, --radius-full: 9999px"
+      },
+      "typographySystem": {
+        "uiFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Segoe UI\", system-ui, sans-serif",
+        "dataFont": "\"JetBrains Mono\", \"Consolas\", monospace"
+      },
+      "spacingSystem": "Compact spacing for data-dense industrial monitoring layout",
+      "componentLanguage": "Glass-morphism cards with subtle borders, status badges, tabbed interfaces, metric cards with gradient accent bars",
+      "surfaceAndDepth": "Cards use border layering with subtle hover glow; glass-morphism with backdrop-blur for overlay panels",
+      "imageryAndIconography": "Monochrome SVG icons with color-coded status indicators; no decorative imagery",
+      "interactionTone": "Minimal motion (intensity 1), focus on data clarity and operator efficiency"
+    },
+    "sharedProjectShellContract": {
+      "navigationShell": "Left sidebar (240px expanded / 64px collapsed) with icon + label nav items, top bar with breadcrumbs and status indicators, bottom status bar with device connectivity and performance metrics",
+      "primaryColorSystem": "Deep slate #0B1120 background, electric blue #3B82F6 primary, cyan #06B6D4 secondary",
+      "typographySystem": "PingFang SC/Microsoft YaHei for UI, JetBrains Mono/Consolas for data values",
+      "radiusScale": "4px sm, 8px md, 12px lg",
+      "surfaceDepthModel": "Glass-morphism cards with 1px border, subtle gradient accent on top, hover glow effect",
+      "ctaStyle": "Blue primary buttons with gradient accent, compact sizing for data-dense layout",
+      "alignmentRules": "CSS Grid for main layout, Flexbox for card internals, consistent 8px spacing rhythm"
+    },
+    "generationTree": {
+      "root": {
+        "nodeId": "gen-project-shell",
+        "kind": "project-shell",
+        "pageIds": ["page-dashboard", "page-monitor", "page-analysis", "page-trend", "page-alarm", "page-device", "page-ae", "page-log", "page-settings"],
+        "output": null,
+        "sharedRegions": ["sidebar", "topbar", "statusbar", "card styles", "table styles", "button styles", "badge styles", "chart containers"],
+        "privateRegions": [],
+        "mutableSlots": ["activeNavItem", "pageTitle", "breadcrumbCurrent"],
+        "status": "generated",
+        "children": [
+          {"nodeId": "page-dashboard", "kind": "page-leaf", "pageIds": ["page-dashboard"], "output": "pages/dashboard.html", "sharedRegions": [], "privateRegions": ["dashboard content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+          {"nodeId": "page-monitor", "kind": "page-leaf", "pageIds": ["page-monitor"], "output": "pages/monitor.html", "sharedRegions": [], "privateRegions": ["monitor content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+          {"nodeId": "page-analysis", "kind": "page-leaf", "pageIds": ["page-analysis"], "output": "pages/analysis.html", "sharedRegions": [], "privateRegions": ["analysis content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+          {"nodeId": "page-trend", "kind": "page-leaf", "pageIds": ["page-trend"], "output": "pages/trend.html", "sharedRegions": [], "privateRegions": ["trend content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+          {"nodeId": "page-alarm", "kind": "page-leaf", "pageIds": ["page-alarm"], "output": "pages/alarm.html", "sharedRegions": [], "privateRegions": ["alarm content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+          {"nodeId": "page-device", "kind": "page-leaf", "pageIds": ["page-device"], "output": "pages/device.html", "sharedRegions": [], "privateRegions": ["device content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+          {"nodeId": "page-ae", "kind": "page-leaf", "pageIds": ["page-ae"], "output": "pages/ae.html", "sharedRegions": [], "privateRegions": ["ae content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+          {"nodeId": "page-log", "kind": "page-leaf", "pageIds": ["page-log"], "output": "pages/log.html", "sharedRegions": [], "privateRegions": ["log content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []},
+          {"nodeId": "page-settings", "kind": "page-leaf", "pageIds": ["page-settings"], "output": "pages/settings.html", "sharedRegions": [], "privateRegions": ["settings content"], "mutableSlots": ["activeNavItem", "pageTitle"], "status": "planned", "children": []}
+        ]
+      }
+    }
+  },
+  "designSource": {
+    "operatingMode": "free-explore",
+    "cssFilePath": "d:\\Demo\\UHF_PD_PLATFORM_Python\\.design\\uhf-ae-pd-redesign\\colors_and_type.css",
+    "brandPrefix": "uhf",
+    "themeMode": "dark",
+    "designDecisionSummary": "Dark industrial monitoring dashboard with glass-morphism cards, data-dense layout, electric blue/cyan accents, monospace data fonts",
+    "styleConstraints": {
+      "radiusMax": 12,
+      "spacingBase": 8,
+      "fontSizeBody": 14,
+      "fontSizeMin": 11,
+      "controlHeightDefault": 32,
+      "controlHeightLarge": 38
+    }
+  },
+  "pages": [
+    {
+      "nodeId": "page-dashboard", "slug": "dashboard", "title": "首页", "htmlSrc": "pages/dashboard.html", "pageIndex": 1,
+      "pageType": "information-dense", "businessScenario": "System overview with KPI metrics and quick access to all modules",
+      "visualNorthStar": "At-a-glance system health with 5 KPI cards, mini charts, and alarm ticker",
+      "compositionPattern": "KPI grid with chart companion panels",
+      "continuityAnchors": ["Sidebar navigation", "Glass-morphism card style", "Monospace data values", "Status badge system"],
+      "chartsRequired": true, "qualityRisks": ["dense first screen", "multiple chart types"]
+    },
+    {
+      "nodeId": "page-monitor", "slug": "monitor", "title": "实时监测", "htmlSrc": "pages/monitor.html", "pageIndex": 2,
+      "pageType": "information-dense", "businessScenario": "Real-time waveform and PRPD visualization for partial discharge monitoring",
+      "visualNorthStar": "Full-width waveform display dominating the viewport with PRPD/FFT panels below",
+      "compositionPattern": "Split-panel with dominant chart",
+      "continuityAnchors": ["Sidebar navigation", "Tabbed UHF/AE views", "Chart container styles"],
+      "chartsRequired": true, "qualityRisks": ["large chart area", "multi-panel layout"]
+    },
+    {
+      "nodeId": "page-analysis", "slug": "analysis", "title": "数据分析", "htmlSrc": "pages/analysis.html", "pageIndex": 3,
+      "pageType": "information-dense", "businessScenario": "PRPD classification with scatter plots and discharge type identification",
+      "visualNorthStar": "Scatter plot visualization with pattern recognition panels",
+      "compositionPattern": "Chart companion with classification panels",
+      "continuityAnchors": ["Sidebar navigation", "Badge system for discharge types"],
+      "chartsRequired": true, "qualityRisks": ["scatter plot density"]
+    },
+    {
+      "nodeId": "page-trend", "slug": "trend", "title": "趋势分析", "htmlSrc": "pages/trend.html", "pageIndex": 4,
+      "pageType": "information-dense", "businessScenario": "Multi-line trend charts showing PD activity over time with predictive analysis",
+      "visualNorthStar": "Time-series multi-line chart with predictive trend overlay",
+      "compositionPattern": "Dominant timeline chart with filter toolbar",
+      "continuityAnchors": ["Sidebar navigation", "Date range picker pattern"],
+      "chartsRequired": true, "qualityRisks": ["multi-line chart readability"]
+    },
+    {
+      "nodeId": "page-alarm", "slug": "alarm", "title": "报警管理", "htmlSrc": "pages/alarm.html", "pageIndex": 5,
+      "pageType": "information-dense", "businessScenario": "Alarm table with severity levels, acknowledgment controls, and filtering",
+      "visualNorthStar": "Actionable alarm list with severity-coded badges and acknowledge controls",
+      "compositionPattern": "Data table with filter toolbar",
+      "continuityAnchors": ["Sidebar navigation", "Severity badge system", "Table styles"],
+      "chartsRequired": false, "qualityRisks": ["table scrolling", "badge color contrast"]
+    },
+    {
+      "nodeId": "page-device", "slug": "device", "title": "设备管理", "htmlSrc": "pages/device.html", "pageIndex": 6,
+      "pageType": "information-dense", "businessScenario": "Device list with status indicators, connection controls, and configuration",
+      "visualNorthStar": "Device grid with online/offline status and quick configuration actions",
+      "compositionPattern": "Card grid with status indicators",
+      "continuityAnchors": ["Sidebar navigation", "Status dot indicators"],
+      "chartsRequired": false, "qualityRisks": ["device count density"]
+    },
+    {
+      "nodeId": "page-ae", "slug": "ae", "title": "AE 特征分析", "htmlSrc": "pages/ae.html", "pageIndex": 7,
+      "pageType": "information-dense", "businessScenario": "Acoustic emission parameter statistics, hit distribution, and 3D localization",
+      "visualNorthStar": "3D localization view with AE parameter panels",
+      "compositionPattern": "Split-panel with dominant visualization",
+      "continuityAnchors": ["Sidebar navigation", "Tabbed UHF/AE views"],
+      "chartsRequired": true, "qualityRisks": ["3D visualization placeholder"]
+    },
+    {
+      "nodeId": "page-log", "slug": "log", "title": "系统日志", "htmlSrc": "pages/log.html", "pageIndex": 8,
+      "pageType": "information-dense", "businessScenario": "System log viewer with severity filtering, search, and export",
+      "visualNorthStar": "Scrollable log table with severity filtering and timestamp display",
+      "compositionPattern": "Data table with filter toolbar",
+      "continuityAnchors": ["Sidebar navigation", "Table styles", "Badge system"],
+      "chartsRequired": false, "qualityRisks": ["log volume display"]
+    },
+    {
+      "nodeId": "page-settings", "slug": "settings", "title": "系统设置", "htmlSrc": "pages/settings.html", "pageIndex": 9,
+      "pageType": "task-driven", "businessScenario": "Configuration panels for thresholds, data sources, notifications, and theme",
+      "visualNorthStar": "Organized settings sections with form controls and toggle switches",
+      "compositionPattern": "Form sections with grouped controls",
+      "continuityAnchors": ["Sidebar navigation", "Form input styles", "Button styles"],
+      "chartsRequired": false, "qualityRisks": ["form density"]
+    }
+  ],
+  "wiringPlan": [
+    {"sourceNodeId": "page-dashboard", "domId": "nav-monitor", "targetPageId": "page-monitor"},
+    {"sourceNodeId": "page-dashboard", "domId": "nav-analysis", "targetPageId": "page-analysis"},
+    {"sourceNodeId": "page-monitor", "domId": "nav-dashboard", "targetPageId": "page-dashboard"},
+    {"sourceNodeId": "page-monitor", "domId": "nav-analysis", "targetPageId": "page-analysis"},
+    {"sourceNodeId": "page-analysis", "domId": "nav-dashboard", "targetPageId": "page-dashboard"},
+    {"sourceNodeId": "page-analysis", "domId": "nav-monitor", "targetPageId": "page-monitor"},
+    {"sourceNodeId": "page-trend", "domId": "nav-dashboard", "targetPageId": "page-dashboard"},
+    {"sourceNodeId": "page-alarm", "domId": "nav-dashboard", "targetPageId": "page-dashboard"},
+    {"sourceNodeId": "page-device", "domId": "nav-dashboard", "targetPageId": "page-dashboard"},
+    {"sourceNodeId": "page-ae", "domId": "nav-dashboard", "targetPageId": "page-dashboard"},
+    {"sourceNodeId": "page-log", "domId": "nav-dashboard", "targetPageId": "page-dashboard"},
+    {"sourceNodeId": "page-settings", "domId": "nav-dashboard", "targetPageId": "page-dashboard"}
+  ],
+  "hiddenInteractionPlan": [
+    {"sourceNodeId": "page-dashboard", "domId": "nav-trend", "targetPageId": "page-trend", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-dashboard", "domId": "nav-alarm", "targetPageId": "page-alarm", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-dashboard", "domId": "nav-device", "targetPageId": "page-device", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-dashboard", "domId": "nav-ae", "targetPageId": "page-ae", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-dashboard", "domId": "nav-log", "targetPageId": "page-log", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-dashboard", "domId": "nav-settings", "targetPageId": "page-settings", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-monitor", "domId": "nav-trend", "targetPageId": "page-trend", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-monitor", "domId": "nav-alarm", "targetPageId": "page-alarm", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-monitor", "domId": "nav-device", "targetPageId": "page-device", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-monitor", "domId": "nav-ae", "targetPageId": "page-ae", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-monitor", "domId": "nav-log", "targetPageId": "page-log", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-monitor", "domId": "nav-settings", "targetPageId": "page-settings", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-analysis", "domId": "nav-trend", "targetPageId": "page-trend", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-analysis", "domId": "nav-alarm", "targetPageId": "page-alarm", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-analysis", "domId": "nav-device", "targetPageId": "page-device", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-analysis", "domId": "nav-ae", "targetPageId": "page-ae", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-analysis", "domId": "nav-log", "targetPageId": "page-log", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-analysis", "domId": "nav-settings", "targetPageId": "page-settings", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-trend", "domId": "nav-monitor", "targetPageId": "page-monitor", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-trend", "domId": "nav-analysis", "targetPageId": "page-analysis", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-trend", "domId": "nav-alarm", "targetPageId": "page-alarm", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-trend", "domId": "nav-device", "targetPageId": "page-device", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-trend", "domId": "nav-ae", "targetPageId": "page-ae", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-trend", "domId": "nav-log", "targetPageId": "page-log", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-trend", "domId": "nav-settings", "targetPageId": "page-settings", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-alarm", "domId": "nav-monitor", "targetPageId": "page-monitor", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-alarm", "domId": "nav-analysis", "targetPageId": "page-analysis", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-alarm", "domId": "nav-trend", "targetPageId": "page-trend", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-alarm", "domId": "nav-device", "targetPageId": "page-device", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-alarm", "domId": "nav-ae", "targetPageId": "page-ae", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-alarm", "domId": "nav-log", "targetPageId": "page-log", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-alarm", "domId": "nav-settings", "targetPageId": "page-settings", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-device", "domId": "nav-monitor", "targetPageId": "page-monitor", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-device", "domId": "nav-analysis", "targetPageId": "page-analysis", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-device", "domId": "nav-trend", "targetPageId": "page-trend", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-device", "domId": "nav-alarm", "targetPageId": "page-alarm", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-device", "domId": "nav-ae", "targetPageId": "page-ae", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-device", "domId": "nav-log", "targetPageId": "page-log", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-device", "domId": "nav-settings", "targetPageId": "page-settings", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-ae", "domId": "nav-monitor", "targetPageId": "page-monitor", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-ae", "domId": "nav-analysis", "targetPageId": "page-analysis", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-ae", "domId": "nav-trend", "targetPageId": "page-trend", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-ae", "domId": "nav-alarm", "targetPageId": "page-alarm", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-ae", "domId": "nav-device", "targetPageId": "page-device", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-ae", "domId": "nav-log", "targetPageId": "page-log", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-ae", "domId": "nav-settings", "targetPageId": "page-settings", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-log", "domId": "nav-monitor", "targetPageId": "page-monitor", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-log", "domId": "nav-analysis", "targetPageId": "page-analysis", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-log", "domId": "nav-trend", "targetPageId": "page-trend", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-log", "domId": "nav-alarm", "targetPageId": "page-alarm", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-log", "domId": "nav-device", "targetPageId": "page-device", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-log", "domId": "nav-ae", "targetPageId": "page-ae", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-log", "domId": "nav-settings", "targetPageId": "page-settings", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-settings", "domId": "nav-monitor", "targetPageId": "page-monitor", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-settings", "domId": "nav-analysis", "targetPageId": "page-analysis", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-settings", "domId": "nav-trend", "targetPageId": "page-trend", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-settings", "domId": "nav-alarm", "targetPageId": "page-alarm", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-settings", "domId": "nav-device", "targetPageId": "page-device", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-settings", "domId": "nav-ae", "targetPageId": "page-ae", "hideEdge": true, "reason": "global nav"},
+    {"sourceNodeId": "page-settings", "domId": "nav-log", "targetPageId": "page-log", "hideEdge": true, "reason": "global nav"}
+  ]
+}

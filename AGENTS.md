@@ -45,8 +45,20 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
 这两条是现场/打包才暴露、代码里看不出来的：
 
 1. **部署目标机不装 Python。** 内核必须以 PyInstaller 冻结产物交付（`sidecar.spec` → `dist/uhf-sidecar/`），由 `electron-builder.json` 的 `extraResources` 铺到 `resources/uhf-sidecar/`。已实测装机版运行中 `python.exe` 进程数为 0。不要建议在目标机 `pip install`。
-2. **构建机的 Python 不干净。** `python` 解析到全局解释器（`AppData\Local\Programs\Python\Python314`），里面装着与本工程无关的 torch / cv2 / transformers / pandas；项目另有 `venv/`（仓库根没有 `.venv`，别按惯例猜）。**注意 `venv/` 里缺 `msgpack`**，所以 dev 模式跑 sidecar 用的是全局 `python`，而 `venv` 只适合跑部分测试。当前冻结产物实测约 185MB；历史上出现过 833MB 的那次，**成因未证实**——移除 `collect_submodules("core")` 后体积降了，但"导入全部 core 子模块会连带加载 torch"这个假设被实测否证过。别把 833MB 归因给 ML 栈当结论用。
-3. 出包时加应用图标会进入签名环节并去 GitHub 拉 `winCodeSign`，而这台机器连 GitHub 时通时不通。项目无代码签名证书，用 `CSC_IDENTITY_AUTO_DISCOVERY=false` 跳过。
+2. **构建机的 Python 不干净。** `python` 解析到全局解释器（`AppData\Local\Programs\Python\Python314`），里面装着与本工程无关的 torch / cv2 / transformers / pandas；项目另有 `venv/`（仓库根没有 `.venv`，别按惯例猜）。**注意 `venv/` 里缺 `msgpack`**，所以 dev 模式跑 sidecar 用的是全局 `python`，而 `venv` 只适合跑部分测试。当前冻结产物实测 194MB（2026-10-10 加入 python-docx+lxml 后从 185MB 涨上来）；历史上出现过 833MB 的那次，**成因未证实**——移除 `collect_submodules("core")` 后体积降了，但"导入全部 core 子模块会连带加载 torch"这个假设被实测否证过。别把 833MB 归因给 ML 栈当结论用。
+3. 出包时加应用图标会进入签名环节并去 GitHub 拉 `winCodeSign`，而这台机器连 GitHub **不通**
+   （实测 `connect ETIMEDOUT 20.205.243.166:443`，且本机 `electron-builder` 缓存里并没有
+   winCodeSign，只有 nsis 与 7zip）。可用组合：
+   `CSC_IDENTITY_AUTO_DISCOVERY=false` **加** `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/`。
+   只关签名不换镜像照样卡在下载上；别把它当成"再试一次就好了"。
+4. **报告导出能导哪些格式，取决于冻结产物里打包了什么，而不是代码里有没有分支。**
+   `report_exporter` 之前没有任何生产入口，PyInstaller 连它本身都收不到，所以 `openpyxl` 虽在
+   `pyproject` 依赖里也未必进得了产物；`python-docx` 原先根本不在依赖里。2026-10-10 已装上并
+   加进 `pyproject`，重跑 `npm run build:kernel` 后用冻结 exe 实测：`report.formats` 自报
+   `json/excel/word` 全部可用，三种报告都能重新打开（Word 含 1 张内嵌图谱）。
+   **核对方式只能是"让产物自己报"**：openpyxl 这类纯 Python 库在 PyInstaller 里只存在于
+   PYZ 归档，`ls _internal` 看不到目录，据此判断会得出"没打包"的错误结论。
+   内核侧用 `report.formats` 自报能力，前端据此启用/禁用按钮，不给必失败的按钮。
 
 ## 跨进程边界（协议）
 
@@ -66,9 +78,10 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
 | M0 边界协议 / M1 sidecar 生产化 / M2 前端骨架 / M3 第一批页面 | ✅ 完成 |
 | M4 流式渲染层（4.1–4.6） | ✅ 完成，全部经截图 + 真点验收 |
 | M5 第二批页面 | ✅ 5.1 AE 模式、5.2 趋势页、5.3 仪表板均完成。5.1 的"连续 1h 无内存增长"已复跑通过（60.05 min / 120 采样点，四角色全有界；侧车那段 +30 MB/h 是 `prpd_processor` 的 `deque(maxlen=100000)` 填满，40.9 分钟到平台，属有界消耗） |
-| M6 第三批页面（AE 与分析） | ✅ 6.1 AE 特征分析、6.2 定位精度热图（真 GDOP，无量纲）、6.3 传感器阵列配置、6.4 数据分析页均完成并截图/真点验收。**实验数据导入已补**（`data.import_file` RPC + 分析页导入区，带放电类型识别与逐周期类型分布，测试 `tests/test_data_rpc.py`）。仍缺：3D 定位视图（内核无 TDOA 通路）、等效放电量（无计数→物理量换算）、最大重复率（口径未定义）、实时事件的类型标签 |
-| M7 性能长稳 | 🟡 7.1 探针待现场复跑；**7.5 启动时间已实测达标**（`tools/measure_startup.py`，当前 HEAD 重建产物：日常重启 0.82s、首次建库 1.01s、全新拷贝首启最差 1.05s，线 3s）；**7.3 多通道线性度达标**（`tools/measure_channel_linearity.py`，N=1/2/4/8 每通道 19.8–19.9 fps、扩展比 1.00、`dropped` 恒 0，8 通道 RSS 561 MB；客户端真解码 payload，只数帧会假性把背压测成 0）；**7.4 崩溃恢复达标**（`tools/verify_sidecar_recovery.py` 实测恢复 3.0s / 线 5s；`tools/verify_alarm_recovery.py` 量"告警不丢"，前提是先补回断掉的告警判定链，见上面第 4 条陷阱）；7.2 24h 长稳未做 |
-| M8 切换收尾 | 🟡 旧 `main.py`/`main_v2.py`/`ui/` 已归档下线（`_archive/ui-offline-20261008/`）、AGENTS.md 已更新；装机包与其余文档收尾未做 |
+| M6 第三批页面（AE 与分析） | ✅ 6.1 AE 特征分析、6.2 定位精度热图（真 GDOP，无量纲）、6.3 传感器阵列配置、6.4 数据分析页均完成并截图/真点验收。**实验数据导入已补**（`data.import_file` RPC + 分析页导入区，带放电类型识别与逐周期类型分布，测试 `tests/test_data_rpc.py`）。**分析报告导出（P2）**：内核侧 `report.export` / `report.formats` 已入库（759984c，测试 `tests/test_report_rpc.py`），前端导出区与主进程 `file:save-binary` **按决定暂不入库**，所以 HEAD 里有 RPC 但没有入口。Word 依赖已解决（`python-docx` 装上并写进 `pyproject`，冻结产物重出后实测三格式都能导，见第 4 条硬约束）；`pyproject.toml` 的这行也尚未提交。仍缺：3D 定位视图（内核无 TDOA 通路）、等效放电量（无计数→物理量换算）、最大重复率（口径未定义）——**三项都卡在领域口径**；"实时事件的类型标签"已于 2026-10-12 补上（见下 P0–P5 行） |
+| M7 性能长稳 | 🟡 7.1 探针待现场复跑；**7.5 启动时间已实测达标**（`tools/measure_startup.py`，当前 HEAD 重建产物：日常重启 0.82s、首次建库 1.01s、全新拷贝首启最差 1.05s，线 3s）；**7.3 多通道线性度达标**（`tools/measure_channel_linearity.py`，N=1/2/4/8 每通道 19.8–19.9 fps、扩展比 1.00、`dropped` 恒 0，8 通道 RSS 561 MB；客户端真解码 payload，只数帧会假性把背压测成 0）；**7.4 崩溃恢复达标**（`tools/verify_sidecar_recovery.py` 实测恢复 3.0s / 线 5s；`tools/verify_alarm_recovery.py` 量"告警不丢"，前提是先补回断掉的告警判定链，见上面第 4 条陷阱）；**7.2 24h 长稳按用户决定跳过**（60 min 长稳已复跑通过，四角色全有界） |
+| M8 切换收尾 | 🟡 2026-10-10 重出过包：`desktop/release/UHF PD 监测系统-Setup-0.0.1.exe` 151.8MB、`win-unpacked` 490MB；装机版实测内核取自 `resources/uhf-sidecar/uhf-sidecar.exe`（应用进程树里 `python.exe` 为 0），报告三种格式在装机版上真点导得出来。**但那个包带着未提交的前端与未提交的依赖声明，从 HEAD 复现不出来。** 2026-10-12 已重出包（见下）。另外旧 `main.py`/`main_v2.py`/`ui/` 已归档下线（`_archive/ui-offline-20261008/`）、AGENTS.md 已更新；**注意那 35 个删除（`ui/` 32 个文件 + `main.py` + `build.spec` + `tests/test_basic.py`）在提交前仍只在工作区**，`git ls-tree HEAD` 里 `ui/` 仍有 32 个文件——即 HEAD 与本文说法不一致，回滚时别以为已经干净了。 |
+| **迁移缺口 P0–P5** | ✅ **2026-10-12 全部交付**：P0 日志 CSV 走 `window.files.saveText` 真落盘；P1 导入筛选（最低幅值/类型）+ 32 桶幅值直方图 + 重置；P2 报告导出 JSON+Excel+Word（内核 `report.export`/`report.formats` + 前端导出区 + 主进程 `file:save-binary`）；P3 运行时数据源 `source.list/start/stop/remove/set_active` + 设备页「运行时来源」面板；P4 AE 历史跨重启持久化（`ae_hits` 表 + `storage.query_ae_hits`）+ 特征散点 + CSV 导出；P4b 内核 CPU/RSS（`core/utils/process_stats.py`，零依赖）+ 仪表板「内核进程」面板；P5a 暗色主题（`[data-theme="dark"]` 覆盖底层令牌 + `prefs.theme` + 设置页开关，DOM/canvas/WebGL/uPlot 四类消费方都覆盖）；P5b 真 PRPD 3D（`prpd-3d.vue`，相位×幅值×对数强度，旧版从未有过）；P5c 实时放电类型标签（`core/services/discharge_type_service.py` + `discharge_type` 可靠帧 + PRPD 面板徽标）。详见 `docs/migration_coverage.md` 的进度段。 |
 
 ## 内核侧的四个语义陷阱（会毁掉读数可信度）
 
@@ -137,7 +150,7 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
 
 - **`origin` 指向另一个项目**（`Equipment-Management.git`）。绝不裸跑 `git push`。`pd-origin` 是 `main` 跟踪的上游，`partial-discharge` 是新增远端。任何 push/fetch 前先 `git remote -v`。
 - 工作区**长期存在上百个用户未提交的在制品**（`core/`、`tests/`、`docs/`、`desktop/` 下数百文件）。绝不 `git add -A` / `git add <宽目录>`；逐个写明确文件名，提交前用 `git status --short` 与 `git diff --cached --name-only` 复核。
-- **`??` 不等于"新文件"**：仓库里有大量**早就存在、从未被 add 过**的源码（曾经的 `processor_manager.py`、`uhf_pipeline.py`、`tests/test_data_bus.py`、`docs/architecture.md` 等）。改在这些文件里的代码，若提交只带"已跟踪的修改"会**静默丢失**。判断用 `git cat-file -e HEAD:<路径>`。
+- **`??` 不等于"新文件"**：仓库里有大量**早就存在、从未被 add 过**的源码（曾经的 `processor_manager.py`、`uhf_pipeline.py`、`tests/test_data_bus.py`、`pytest.ini`、`config/themes/` 等）。改在这些文件里的代码，若提交只带"已跟踪的修改"会**静默丢失**。判断用 `git cat-file -e HEAD:<路径>`。
 - **工作区测试通过 ≠ HEAD 可运行**。部分提交状态下必须 `git archive HEAD | tar -x -C <tmp>` 再逐个 import 验一遍——曾靠这一步抓出"已跟踪代码 import 了未跟踪模块"的断链。
 - 全量暂存会被自动策略直接拦掉（连生成全量清单也拦）。用户即便要求"全部提交"，也要预期只能提交显式点名的那一批，并如实报告剩余项。
 - 仓库有 2 个历史 `git stash`（`WIP on main: 211d38b`、`5169ee2`），不要清。
@@ -157,10 +170,9 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
 | `desktop/src/main/index.ts` | 窗口/生命周期 + 截图验收模式（`PD_CAPTURE`/`PD_INTERACT`） |
 | `desktop/src/renderer/lib/store.ts` | 前端全局状态与 `call()` RPC 封装 |
 | `docs/ELECTRON_REWRITE_PLAN.md` | 迁移决策、里程碑状态、全部实测数据 |
-| `docs/PROJECT_MEMORY.md` | 技术决策的来历、被推翻的假设、前人踩过的判断错误 |
+| `docs/migration_coverage.md` | 旧界面 → 新界面的功能覆盖度对照与迁移缺口记录 |
 | `docs/HANDOVER.md` | 交接文档（仓库现状与风险、工作量、验收纪律） |
 | `docs/AI_HANDOFF_PROMPT.md` | 给新 AI 会话的交接提示词（可直接粘贴） |
-| `docs/PROJECT_CLEANUP_PLAN.md` | 文件清理轮次记录与仓库卫生缺陷清单 |
 
 ## 仍然成立的传统内容
 
@@ -190,10 +202,13 @@ python sidecar.py --pd-type corona --pulse-rate 60000   # 让 PRPD 有足够事�
 
 ## 相关文档
 
+- `README.md` — 面向使用者的项目说明（架构、特性、快速开始、打包）
 - `docs/ELECTRON_REWRITE_PLAN.md` — 迁移计划与实测记录（架构决策的首要来源）
-- `docs/PROJECT_MEMORY.md` — **技术决策的来历、被推翻的假设、前人踩过的判断错误**（规则之外的"为什么"）
+- `docs/migration_coverage.md` — 旧界面功能在新端的覆盖度与缺口处置记录
 - `docs/HANDOVER.md` — 交接文档：仓库现状与风险、里程碑与工作量、验收纪律
 - `docs/AI_HANDOFF_PROMPT.md` — 可直接粘贴给新 AI 会话的交接提示词
-- `docs/architecture.md`、`docs/api.md`、`docs/contributing.md`、`docs/build_guide.md` — 注意这几份由旧架构文档派生，与 `AGENTS.md` 之间存在过期描述，M8 一并校正
-- `README.md`、`TESTING.md`、`Update.md` — 面向用户/测试的说明，同样含旧架构内容
-- `docs/PROJECT_CLEANUP_PLAN.md` — 冗余/过期文件的处置记录
+- `docs/DISCHARGE_TYPE_ANALYSIS.md` — 四种放电类型的物理特征与判据规范
+
+> 2026-10-13：`docs/architecture.md`、`docs/api.md`、`docs/contributing.md`、`docs/build_guide.md`、
+> `docs/PROJECT_MEMORY.md`、`docs/PROJECT_CLEANUP_PLAN.md` 与根目录 `TESTING.md`、`Update.md`
+> 均为旧架构（PySide6 单体）派生、与本文冲突，已删除。现行说明以本文件与 `README.md` 为准。
