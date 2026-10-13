@@ -26,11 +26,11 @@ PRPD/PRPS 图谱、报警、历史趋势。
 
 ### 2. 最容易立刻做错的 8 件事
 
-1. **`origin` 指向另一个项目**（`Equipment-Management.git`）。`pd-origin` 才是 `main` 的上游，
-   `partial-discharge` 是新增远端。**绝不裸跑 `git push`**；任何 push/fetch 前先 `git remote -v`。
-   当前 main 领先 pd-origin/main 36 个提交，是**故意未推送**的。
-2. **绝不 `git add -A` / `git add <宽目录>`**。工作区有上百个用户未提交的在制品
-   （已跟踪修改 96 / 未跟踪 81）。逐个点名文件，提交前用 `git status --short` 和
+1. **先核对 remote**。`origin` 现指向本项目发布仓 `UHF_PD_PLATFORM_V3.git`（2026-10-13 改指，
+   此前指向**另一个项目** `Equipment-Management.git`，裸跑 push 会把提交推过去）；
+   `pd-origin` / `partial-discharge` 是历史遗留远端。任何 push/fetch 前先 `git remote -v`。
+   main 已推送到 `origin`，工作区已全部提交。
+2. **绝不 `git add -A` / `git add <宽目录>`**。逐个点名文件，提交前用 `git status --short` 和
    `git diff --cached --name-only` 复核。
 3. **`??` 不等于新文件**。`AGENTS.md`、`CLAUDE.md`、`docs/HANDOVER.md`、
    `docs/AI_HANDOFF_PROMPT.md`、`tools/mem_baseline_probe.py` 已在 2026-10-08 入库；
@@ -167,9 +167,10 @@ P5a 暗色主题 / P5b 真 PRPD 3D / P5c 实时放电类型标签）。详见 `d
 
 剩下的按优先级：
 
-1. **统一提交**。工作区积压 46 个未推送提交 + 86 个已跟踪修改 + 39 个未跟踪 + 35 个删除。
-   按 §2.2 的纪律**逐个点名**，提交前跑 `git archive HEAD | tar -x -C <tmp>` 的 import 验证。
-   注意 §2.3：有一批关键源码（`pytest.ini`、`lib/gdop.ts` 等）从未入库，只提已跟踪修改会断链。
+1. **已完成**：2026-10-13 统一提交并推送到 `origin`（`UHF_PD_PLATFORM_V3.git`），
+   工作区已清空。分批为 `578cb55`（M8 归档删除）、`00087e5`（仓库整理）、
+   `7e9f18c`（内核能力）、`96b7be5`（前端能力），并跑过
+   `git archive HEAD | tar -x -C <tmp>` 的 import 验证（10/10）与整套 557 passed。
 2. **现场复跑 M7.1 渲染探针**（`npm run probe`）——目标工控机是软件渲染，这是唯一还没在现场验过的性能项。
 3. **领域口径三项**（都卡在需要人给口径，不是工程量）：
    - 幅值单位（全链路无计数→mV 换算，`ChannelConfig.gain` 从未作用于波形）；

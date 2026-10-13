@@ -143,12 +143,22 @@ cd desktop && npm run package:dir                     # 出 win-unpacked 装机�
 - `.pre-commit-config.yaml` 的 flake8 args 原先写四个 `--ignore=`，而 **flake8 的 `--ignore` 重复出现只有最后一个生效**（已修为单个加引号的 `--extend-ignore`；不加引号会被 YAML 流式序列按逗号拆开，后三项变成待检查的文件名）。
 - 全局解释器没装 `flake8`，pre-commit 用自己的环境——本地想先过一遍得另想办法，别以为命令没报错就是干净。
 - 提交会跑 pre-commit（black/isort/flake8 等）。**绝不用 `--no-verify` 绕**；钩子改坏了就修根因。
+- **pre-commit 失败时会把"未暂存改动"整批弄丢，这是本仓库实测过的。** 机制：钩子会先 `git stash`
+  未暂存改动 → 在干净的索引上跑钩子 → 失败则回滚。2026-10-13 一次提交钩子失败后，**21 个未暂存的
+  `desktop/` 文件被回滚成 HEAD 内容，整个改动从工作区消失**。抢救：`~/.cache/pre-commit/patch*`
+  里留有当时的 stash patch，按路径挑回来即可
+  （`git apply --include='desktop/*' <patch>`，先用 `git apply --check` 校验）。
+  **对策：提交前把该提的全部 `git add` 进索引，别在提交时留着未暂存改动。**
 - 变异验证是常规要求：新增断言后把被测行为注掉，确认测试确实失败。
 - 有一条测试曾"单跑绿、全套红"：根因是把 `now` 放在模块级常量——全套跑约 100 秒，等该测试执行时已陈旧几十秒。时间相关的夹具必须现取。
 
 ## Git 安全（本仓库特有，违反过会出事）
 
-- **`origin` 指向另一个项目**（`Equipment-Management.git`）。绝不裸跑 `git push`。`pd-origin` 是 `main` 跟踪的上游，`partial-discharge` 是新增远端。任何 push/fetch 前先 `git remote -v`。
+- **`origin` 现在指向本项目的发布仓**：`https://github.com/xiaowulai-s/UHF_PD_PLATFORM_V3.git`。
+  `pd-origin`（`UHF_PD_System.git`，UI 重写前的老仓）与 `partial-discharge`（`Partial_Discharge.git`）是
+  历史遗留远端，保留未删。**2026-10-13 之前 `origin` 指向另一个项目**（`Equipment-Management.git`），
+  那时裸跑 `git push` 会把提交推到设备管理项目去；URL 现已改正，但任何 push/fetch 前
+  **仍然先 `git remote -v` 核对**，不要照抄本文上线前的结论。
 - 工作区**长期存在上百个用户未提交的在制品**（`core/`、`tests/`、`docs/`、`desktop/` 下数百文件）。绝不 `git add -A` / `git add <宽目录>`；逐个写明确文件名，提交前用 `git status --short` 与 `git diff --cached --name-only` 复核。
 - **`??` 不等于"新文件"**：仓库里有大量**早就存在、从未被 add 过**的源码（曾经的 `processor_manager.py`、`uhf_pipeline.py`、`tests/test_data_bus.py`、`pytest.ini`、`config/themes/` 等）。改在这些文件里的代码，若提交只带"已跟踪的修改"会**静默丢失**。判断用 `git cat-file -e HEAD:<路径>`。
 - **工作区测试通过 ≠ HEAD 可运行**。部分提交状态下必须 `git archive HEAD | tar -x -C <tmp>` 再逐个 import 验一遍——曾靠这一步抓出"已跟踪代码 import 了未跟踪模块"的断链。

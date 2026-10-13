@@ -61,23 +61,26 @@ Electron 33.4.11。测试 33 个文件。
 ## 3. 仓库当前状态 ⚠️ 交接时最要紧的一节
 
 ```
-分支：main @ 759984c，[pd-origin/main: ahead 46] —— 46 个提交未推送
-未提交：已跟踪且修改 86 个 / 已暂存 0 个 / 未跟踪 39 个 / 已删除 35 个
+分支：main @ 96b7be5，[pd-origin/main: ahead 50]
+工作区：2026-10-13 统一提交后**已全部清空**——无未暂存、无未跟踪、无待删。
+       仅剩少数"只差行尾"的文件（LICENSE、.flake8、tests/__init__.py、5 个 tests/*.csv）
+       未纳入提交：内容与 HEAD 一致，属仓库长期 CRLF/LF 混用的噪声。
 ```
 
-（35 个删除里 32 个是 `ui/`，另加 `main.py`、`build.spec`、`tests/test_basic.py`——
-即 M8 归档那批，**至今仍只在工作区**。）
+（原版这里记的"32 个 `ui/` 删除 + 86 改 + 39 未跟踪"已完成入库，见提交
+`578cb55`、`00087e5`、`7e9f18c`、`96b7be5`。）
 
-### 3.1 远端配置有陷阱，务必先读
+### 3.1 远端配置
 
 ```
-origin             → Equipment-Management.git      ← 这是【另一个项目】！
-pd-origin          → UHF_PD_System.git             ← main 的真正上游
-partial-discharge  → Partial_Discharge.git         ← 新增远端
+origin             → UHF_PD_PLATFORM_V3.git   ← 本项目发布仓（2026-10-13 改指）
+pd-origin          → UHF_PD_System.git        ← 上游老仓，UI 重写前
+partial-discharge  → Partial_Discharge.git    ← 历史远端，保留未删
 ```
 
-**绝不裸跑 `git push`**（会推到设备管理项目去）。任何 push/fetch 前先 `git remote -v`。
-当前状态是**故意未推送**的。
+2026-10-13 之前 `origin` 指向**另一个项目**（`Equipment-Management.git`），那时裸跑
+`git push` 会把提交推到设备管理项目去。URL 现已修正，但**push/fetch 前仍然先
+`git remote -v` 核对**。当前 main 已推送到 `origin`。
 
 ### 3.2 `??` 不等于"新文件"——这条会直接导致丢代码
 
