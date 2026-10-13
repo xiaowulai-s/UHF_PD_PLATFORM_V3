@@ -141,6 +141,22 @@ function onReady(instance: uPlot): void {
   paint();
 }
 
+/**
+ * 主题切换时重建 uPlot。
+ *
+ * `PlotCanvas` 刻意不做 options diff，约定由使用方换 `:key` 强制重建（见其文件头注释）。
+ * 这张图的 options 是模板里现算的（`buildOptions()`），所以只需换 key；
+ * 换前把 `plot` 置空，避免重建窗口里往已销毁的实例上写数据。
+ */
+const themeKey = ref(0);
+watch(
+  () => chartTheme(),
+  () => {
+    plot = null;
+    themeKey.value += 1;
+  },
+);
+
 function paint(): void {
   if (!plot) return;
   const list = rows.value;
@@ -322,7 +338,7 @@ const emptyHint = computed(() => {
       </div>
 
       <div class="relative h-[320px] w-full">
-        <PlotCanvas :options="buildOptions()" @ready="onReady" />
+        <PlotCanvas :key="themeKey" :options="buildOptions()" @ready="onReady" />
         <div v-if="!hasData" class="pointer-events-none absolute inset-0 flex items-center justify-center px-10">
           <p class="max-w-md rounded-md bg-app-surface/90 px-4 py-3 text-center text-[12px] text-app-muted">
             {{ emptyHint }}

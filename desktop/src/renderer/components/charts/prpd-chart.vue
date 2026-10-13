@@ -2,10 +2,11 @@
 /**
  * PRPD 图谱面板（M4.3）。
  *
- * 三种视图：散点图用帧里的原始事件点，热力图/密度图画 360×256 计数矩阵。
+ * 四种视图：散点图用帧里的原始事件点；热力图/密度图画 360×256 计数矩阵；
+ * 三维（`prpd-3d.vue`）用同一份矩阵，轴是 相位 × 幅值 × 强度（计数，取对数）。
  * 热力图与密度图的差别**在内核**：两者共用同一份计数矩阵，密度是 compute 时多过一遍
  * gaussian_filter，所以切它们要发 RPC，不能只改前端状态——否则就是一个按了没反应的按钮。
- * 帧自带 meta.mode，用它核对开关是否真的生效。
+ * 帧自带 meta.mode，用它核对开关是否真的生效。散点与三维是纯前端，不发 RPC。
  *
  * 旧版 ui/widgets/prpd_widget.py 的两处已确认问题没有照抄：
  *  - set_colormap 调用点为 0，所以这里只实现默认 jet；
@@ -14,18 +15,36 @@
  */
 
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
-import { call } from "@/renderer/lib/store";
+import { call, dischargeTypeFor } from "@/renderer/lib/store";
 import { chartTheme } from "@/renderer/lib/chart-theme";
 import { useFrameDraw } from "@/renderer/lib/use-frame-draw";
 import { decodeCells, type Frame, type PrpdMeta } from "@/shared/protocol";
+import { paintPrpdCells } from "@/renderer/lib/colormap";
+import Prpd3D from "@/renderer/components/charts/prpd-3d.vue";
 
-type View = "scatter" | "heatmap" | "density";
+type View = "scatter" | "heatmap" | "density" | "3d";
 
 const view = ref<View>("heatmap");
 const info = shallowRef("—");
 const kernelMode = shallowRef("");
 const truncated = shallowRef(0);
 const host = ref<HTMLCanvasElement | null>(null);
+
+/**
+ * 放电类型标签按 (device, channel) 取，跟着本面板正在画的那一帧走。
+ *
+ * 类型判定由内核在 PRPD 结果上跑分类器得出（`discharge_type` 可靠帧），
+ * 节奏与 PRPD 帧同步（单通道约 0.33Hz），所以这里不需要轮询。
+ */
+const device = shallowRef("");
+const channel = ref(-1);
+const typeInfo = computed(() => dischargeTypeFor(device.value, channel.value));
+const typeClass = computed(() => {
+  const t = typeInfo.value;
+  if (!t || t.type === "unknown") return "bg-app-surface-variant text-app-muted";
+  if (t.type === "noise") return "bg-app-warning/15 text-app-warning";
+  return "bg-app-primary/15 text-app-primary";
+});
 
 let ctx: CanvasRenderingContext2D | null = null;
 let observer: ResizeObserver | null = null;
@@ -38,27 +57,16 @@ let maxAmp = 100;
 let phaseMax = 360;
 let events: PrpdMeta["events"] = [];
 
-/** jet 颜色表：与旧版 pyqtgraph 用的 matplotlib jet 同一条分段线性定义 */
-const JET = (() => {
-  const lut = new Uint8ClampedArray(256 * 4);
-  const f = (t: number, offset: number) => Math.min(1, Math.max(0, 1.5 - Math.abs(4 * t - offset)));
-  for (let i = 0; i < 256; i += 1) {
-    const t = i / 255;
-    lut[i * 4] = Math.round(f(t, 3.5) * 255);
-    lut[i * 4 + 1] = Math.round(f(t, 2) * 255);
-    lut[i * 4 + 2] = Math.round(f(t, 0.5) * 255);
-    lut[i * 4 + 3] = 255;
-  }
-  return lut;
-})();
-
 const MARGIN = { left: 52, right: 12, top: 10, bottom: 34 };
 
-const showHeatmap = computed(() => view.value !== "scatter");
+/** 只有散点与三维不走计数矩阵：散点用帧里的原始事件，三维用矩阵但由 WebGL 画 */
+const showHeatmap = computed(() => view.value !== "scatter" && view.value !== "3d");
 
 async function switchView(next: View): Promise<void> {
   view.value = next;
-  if (next === "scatter") return;
+  // 散点是纯前端（用帧里的 events），三维也是纯前端（同一份矩阵交给 WebGL）——
+  // 两者都不该发 config.set_prpd_mode，否则会白白把内核的算法切走。
+  if (next === "scatter" || next === "3d") return;
   // 热力/密度必须让内核换算法；失败要说出来，否则界面看起来"切成功了"但矩阵没变
   try {
     const r = await call<{ mode: string }>("config.set_prpd_mode", { mode: next });
@@ -70,28 +78,8 @@ async function switchView(next: View): Promise<void> {
 
 function paintCells(): void {
   if (!cells || !cellData || !cellCanvas) return;
-  const [phaseBins, ampBins] = shape;
-  const px = cellData.data;
-  for (let y = 0; y < ampBins; y += 1) {
-    // 画布 y=0 在顶部，而幅值轴向上增大，所以要上下翻转
-    const ampIdx = ampBins - 1 - y;
-    for (let x = 0; x < phaseBins; x += 1) {
-      const v = cells[x * ampBins + ampIdx] ?? 0;
-      const dst = (y * phaseBins + x) * 4;
-      if (v === 0) {
-        // 零计数画成透明。jet(0) 是饱和蓝，而 92160 格里通常 99% 以上为零，
-        // 全涂蓝会让"无事件"和"低计数"同色、真实聚集区反而读不出来。
-        // 刻意偏离旧版 pyqtgraph ImageItem(autoLevels) 的观感。
-        px[dst + 3] = 0;
-        continue;
-      }
-      const src = v * 4;
-      px[dst] = JET[src] ?? 0;
-      px[dst + 1] = JET[src + 1] ?? 0;
-      px[dst + 2] = JET[src + 2] ?? 0;
-      px[dst + 3] = 255;
-    }
-  }
+  // 铺格子的朝向约定与零值透明都在 paintPrpdCells 里，与仪表板快照共用一份实现
+  paintPrpdCells(cellData, cells, shape);
   const cctx = cellCanvas.getContext("2d");
   cctx?.putImageData(cellData, 0, 0);
 }
@@ -166,6 +154,8 @@ function draw(): void {
 
 async function onFrame(frame: Frame): Promise<void> {
   const meta = frame.m as unknown as PrpdMeta;
+  device.value = frame.d;
+  channel.value = frame.c;
   const decoded = await decodeCells(frame);
   const [rows = 360, cols = 256] = decoded.shape;
   // 纵轴必须用矩阵自己的分箱轴上限，不是"观测到的最大幅值"：后者通常只有前者的
@@ -203,7 +193,7 @@ useFrameDraw("prpd", onFrame);
 
 function readCell(ev: MouseEvent): void {
   const canvas = host.value;
-  if (!canvas || !cells || view.value === "scatter") return;
+  if (!canvas || !cells || view.value === "scatter" || view.value === "3d") return;
   const rect = canvas.getBoundingClientRect();
   const [phaseBins, ampBins] = shape;
   const plotW = rect.width - MARGIN.left - MARGIN.right;
@@ -222,6 +212,7 @@ const VIEWS: { key: View; label: string }[] = [
   { key: "scatter", label: "散点图" },
   { key: "heatmap", label: "热力图" },
   { key: "density", label: "密度图" },
+  { key: "3d", label: "三维" },
 ];
 
 /** 画布尺寸只改 backing store 并重绘；DPR 下不重设 width/height 会让图像被拉伸模糊 */
@@ -265,9 +256,22 @@ onBeforeUnmount(() => observer?.disconnect());
         </button>
         <span class="tabular text-app-muted">{{ info }}</span>
       </div>
+      <span
+        v-if="typeInfo"
+        class="shrink-0 rounded px-1.5 py-0.5"
+        :class="typeClass"
+        :title="typeInfo.description"
+        data-role="discharge-type"
+      >
+        放电类型 {{ typeInfo.name }} · {{ (typeInfo.confidence * 100).toFixed(0) }}%
+      </span>
     </div>
     <div class="relative min-h-0 flex-1">
-      <canvas ref="host" class="absolute inset-0 h-full w-full" @click="readCell" />
+      <!-- 用 v-show 而不是 v-if：切回 2D 时不重建 canvas（重建后 onMounted 不会再跑，
+           ResizeObserver 与离屏图都得重新初始化）。隐藏期间尺寸为 0，ResizeObserver
+           会在重新可见时再触发一次，resize() 里对 0 有兜底。 -->
+      <canvas v-show="view !== '3d'" ref="host" class="absolute inset-0 h-full w-full" @click="readCell" />
+      <Prpd3D v-if="view === '3d'" />
     </div>
   </div>
 </template>

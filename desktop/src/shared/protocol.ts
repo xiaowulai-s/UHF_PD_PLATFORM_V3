@@ -24,6 +24,7 @@ export const TOPICS = {
   device_status: "reliable",
   acquisition: "reliable",
   source: "reliable",
+  discharge_type: "reliable",
 } as const satisfies Record<string, Qos>;
 
 export type Topic = keyof typeof TOPICS;
@@ -180,6 +181,43 @@ export interface AeHit {
   signal_quality: number;
 }
 
+/**
+ * 实时放电类型判定结果（内核 DischargeTypeService 在 PRPD 结果上跑分类器得出）。
+ *
+ * 与分析页导入后的 `classification` 是同一个分类器的产物，区别只在输入：
+ * 这里喂的是实时 PRPD 窗口累积的事件，那边喂的是导入文件的全部数据点。
+ *
+ * 注意：内核侧目前对 UHF 与 AE 的 PRPD 一视同仁（`prpd_result_ready` 不带
+ * sensor_type），而参考剖面是按 UHF 校准的，所以 AE 通道的标签口径未验证。
+ */
+export interface DischargeTypeInfo {
+  type: string;
+  name: string;
+  name_en: string;
+  confidence: number;
+  severity: string;
+  pos_ratio: number;
+  description: string;
+  /** 本次判定用了多少个 PRPD 事件点 */
+  samples: number;
+}
+
+/**
+ * 内核进程自身的资源占用（`core/utils/process_stats.py`）。
+ *
+ * `cpu_percent` 以**单核为 100%**，多核可超过 100；`cpu_count` 一并给出以便换算整机占比。
+ * `interval_s` 是这次百分比所依据的采样间隔——缺了它，stats 帧间隔一变读数就无法解释。
+ */
+export interface ProcessStats {
+  pid: number;
+  cpu_percent: number;
+  cpu_seconds: number;
+  rss_bytes: number | null;
+  rss_mb: number | null;
+  cpu_count: number;
+  interval_s: number;
+}
+
 export interface StatsSnapshot {
   frames_received?: number;
   waveforms_processed?: number;
@@ -195,6 +233,7 @@ export interface StatsSnapshot {
   sources?: Record<string, { id?: string; name?: string; type?: string; status?: string; generated?: number; fps?: number }>;
   storage?: Record<string, number>;
   transport?: TransportDiagnostics;
+  process?: ProcessStats;
 }
 
 const ELEMENT_SIZE: Record<DTypeCode, number> = { f4: 4, f8: 8, i4: 4, i2: 2, i1: 1, u1: 1 };

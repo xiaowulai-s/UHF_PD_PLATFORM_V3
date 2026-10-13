@@ -30,6 +30,9 @@ const expanded = ref<number | null>(null);
 const scrollEl = ref<HTMLElement>();
 const scrollTop = ref(0);
 const viewHeight = ref(600);
+const exporting = ref(false);
+const exportError = ref("");
+const exportNotice = ref("");
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
@@ -74,27 +77,41 @@ onMounted(() => {
 });
 onBeforeUnmount(() => ro?.disconnect());
 
-function exportCsv(): void {
-  const header = "timestamp,level,logger,module,line,message\n";
-  const body = filtered.value
-    .map((r) =>
-      [
-        new Date(r.ts * 1000).toISOString(),
-        r.level,
-        r.logger,
-        r.module,
-        r.line,
-        `"${r.message.replace(/"/g, '""')}"`,
-      ].join(","),
-    )
-    .join("\n");
-  // BOM 让 Excel 正确按 UTF-8 打开，否则中文列会乱码
-  const url = URL.createObjectURL(new Blob(["" + header + body], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `pd-log-${Date.now()}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+function csvCell(value: unknown): string {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+async function exportCsv(): Promise<void> {
+  exportError.value = "";
+  exportNotice.value = "";
+  exporting.value = true;
+  try {
+    const header = ["timestamp", "level", "logger", "module", "line", "message"];
+    const rows = filtered.value.map((r) => [
+      new Date(r.ts * 1000).toISOString(),
+      r.level,
+      r.logger,
+      r.module,
+      r.line,
+      r.message,
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+    const bridge = window.files;
+    if (!bridge) {
+      exportError.value = "当前环境没有文件保存通道（只有 Electron 里有）";
+      return;
+    }
+    // file:// 页面上的 blob:<file> <a download> 在 Electron 中会静默不落盘。
+    // 走 preload 暴露的窄保存桥；保存位置只能由主进程原生对话框选择。
+    const result = await bridge.saveText(`pd-log-${Date.now()}.csv`, `\uFEFF${csv}`);
+    if (result.ok) exportNotice.value = `已导出 ${filtered.value.length} 条日志到 ${result.path ?? ""}`;
+    else if (!result.canceled) exportError.value = `导出失败：${result.error ?? "未知原因"}`;
+  } catch (err) {
+    exportError.value = `导出失败：${(err as Error).message}`;
+  } finally {
+    exporting.value = false;
+  }
 }
 
 function detailOf(row: LogLine): string {
@@ -119,13 +136,15 @@ function detailOf(row: LogLine): string {
       <input v-model="query" placeholder="搜索日志…" class="w-56 rounded-md border border-app-border bg-app-bg px-2 py-1 text-[12px]" />
       <span class="text-[11px] text-app-muted">显示 {{ filtered.length }} / {{ logs.length }} 条</span>
       <button
-        :disabled="!filtered.length"
+        :disabled="!filtered.length || exporting"
         class="ml-auto flex items-center gap-1.5 rounded-md border border-app-border px-2.5 py-1 text-[12px] disabled:opacity-40"
         @click="exportCsv"
       >
-        <Download :size="13" /> 导出日志
+        <Download :size="13" /> {{ exporting ? "导出中…" : "导出日志" }}
       </button>
     </div>
+    <p v-if="exportError" class="shrink-0 rounded-md bg-app-error/10 px-3 py-2 text-[12px] text-app-error">{{ exportError }}</p>
+    <p v-if="exportNotice" class="shrink-0 rounded-md bg-app-surface-variant/60 px-3 py-2 text-[12px] text-app-muted">{{ exportNotice }}</p>
 
     <div
       ref="scrollEl"

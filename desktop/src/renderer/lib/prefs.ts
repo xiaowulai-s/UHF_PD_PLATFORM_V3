@@ -20,6 +20,25 @@ export interface Prefs {
   dateFormat: string;
   density: "realtime" | "comfortable";
   notifyFrequency: "realtime" | "5m" | "15m" | "hourly" | "daily";
+  /**
+   * 主题。
+   *
+   * 落地方式是 `<html data-theme="dark">`：`styles/tokens.css` 里
+   * `[data-theme="dark"]` 覆盖同一批底层令牌，所以组件不需要知道主题存在。
+   * `chart-theme.ts` 的 MutationObserver 也监听这个属性，canvas 与 WebGL 的取色
+   * 缓存靠它失效——**但 WebGL 的材质不是自动的**，`prps-chart` / `prpd-3d` 各自
+   * 订阅了 `chartTheme()` 重建材质，否则切主题后参照框会停在旧颜色上。
+   */
+  theme: "light" | "dark";
+  /**
+   * AE 传感器阵列（位置，米）。
+   *
+   * 放在这里而不是后端：全仓库没有传感器阵列的 RPC，旧版
+   * `sensor_array_config_dialog.py:364` 也只返回一个内存 dict（重启即丢），
+   * 而它只影响前端的定位精度图，不参与任何判定——与其它 prefs 同性质。
+   * 消费方必须先用 `sanitizeSensors()` 收敛：localStorage 里的值不可信。
+   */
+  aeSensors: { id: string; x: number; y: number }[];
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -29,6 +48,8 @@ export const DEFAULT_PREFS: Prefs = {
   dateFormat: "YYYY-MM-DD",
   density: "realtime",
   notifyFrequency: "5m",
+  theme: "light",
+  aeSensors: [],
 };
 
 function load(): Prefs {
@@ -49,6 +70,36 @@ function load(): Prefs {
 }
 
 export const prefs = reactive<Prefs>(load());
+
+/**
+ * 窗口底色。
+ *
+ * 主进程读不到 CSS 变量，所以只能由渲染进程把当前主题的底色推过去（`window:background`）。
+ * 这两个值必须与 `styles/tokens.css` 的 `--bg-base-default` 保持一致——改令牌时要一起改，
+ * 否则窗口缩放时新暴露的区域会闪出另一种颜色。
+ */
+const WINDOW_BACKGROUND: Record<Prefs["theme"], string> = { light: "#FFFFFF", dark: "#0E0E10" };
+
+/**
+ * 把主题落到 `<html data-theme>`，并把窗口底色同步给主进程。
+ *
+ * 只在值真的变了时才写属性：`chart-theme.ts` 的 MutationObserver 监听 data-theme，
+ * 每次赋值都会让所有图表重建取色缓存；启动时若写一个和现状相同的值，就会白刷一次。
+ */
+export function applyTheme(theme: string): void {
+  const next: Prefs["theme"] = theme === "dark" ? "dark" : "light";
+  if (document.documentElement.dataset.theme !== next) {
+    document.documentElement.dataset.theme = next;
+  }
+  // 纯浏览器预览时没有这个桥，静默跳过
+  void window.appTheme?.setWindowBackground(WINDOW_BACKGROUND[next]);
+}
+
+applyTheme(prefs.theme);
+watch(
+  () => prefs.theme,
+  (next) => applyTheme(next),
+);
 
 let wired = false;
 export function persistPrefs(): void {

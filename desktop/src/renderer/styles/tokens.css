@@ -308,3 +308,79 @@
   --pd-status-warning: var(--status-warning-default);
   --pd-status-alert: var(--status-alert-default);
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * 暗色主题
+ *
+ * 覆盖的是**底层令牌**，不是 --color-app-* 别名：全仓组件只用 --color-app-*
+ * 与 --color-*，而那两套都是底层令牌的别名（见 style.css 的 @theme inline），
+ * 所以覆盖一处、全应用跟着变，组件不需要知道主题存在。
+ *
+ * 取值来自 config/themes/dark_monitoring.json（深色监控运维风格）的
+ * background / border / text / status 四组。**品牌色刻意不动**：
+ * 那份稿子的 accent 是琥珀 #F2C94C，而它的 on_accent 是深色 —— 换过去就得把
+ * 全仓每个 `bg-app-primary text-white` 按钮的 `text-white` 一起改掉，否则
+ * 白字压在琥珀上是 1.6:1 的对比度（不可读）。换品牌色属于另一次改版，
+ * 不属于"加暗色主题"。
+ *
+ * 必须放在两处 :root 之后：`:root` 与 `[data-theme="dark"]` 的优先级同为
+ * (0,1,0)，靠"后来者胜"生效。
+ * ═══════════════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  /* ===== bg ===== */
+  --bg-base-default: #0E0E10;   /* 页面底 */
+  --bg-base-secondary: #18181B; /* 卡片面（深色下比页面更亮，是 elevation 的常规做法） */
+  --bg-base-tertiary: #27272A;  /* 更亮一档的面 */
+  --bg-overlay-l1: rgba(255, 255, 255, 0.05);
+  --bg-overlay-l2: rgba(255, 255, 255, 0.08);
+  --bg-overlay-l3: rgba(255, 255, 255, 0.12);
+  --bg-overlay-l4: rgba(255, 255, 255, 0.16);
+  --bg-white: #18181B;
+  --bg-menu: #18181B;
+  --bg-tooltip: #3F3F46;
+
+  /* ===== text ===== */
+  --text-default: #FAFAFA;
+  --text-default-hover: #FFFFFF;
+  --text-default-active: #FFFFFF;
+  --text-secondary: #A1A1AA;
+  --text-secondary-hover: #FAFAFA;
+  --text-secondary-active: #FAFAFA;
+  --text-tertiary: #71717A;
+  --text-disabled: #52525B;
+  --text-onbrand: #FFFFFF;
+  --text-onaccent: #FFFFFF;
+
+  /* ===== icon ===== */
+  --icon-default: #FAFAFA;
+  --icon-default-hover: #FFFFFF;
+  --icon-secondary: #A1A1AA;
+  --icon-tertiary: #71717A;
+  --icon-disabled: #52525B;
+
+  /* ===== border ===== */
+  --border-neutral-l1: #27272A;
+  --border-neutral-l2: #3F3F46;
+  --border-neutral-l3: #52525B;
+  --border-contrast: #FFFFFF;
+
+  /* ===== status ===== */
+  --status-success-default: #4CAF50;
+  --status-success-hover: #66BB6A;
+  --status-success-surface-l1: rgba(76, 175, 80, 0.19);
+  --status-warning-default: #F2C94C;
+  --status-warning-hover: #F5D56C;
+  --status-warning-surface-l1: rgba(242, 201, 76, 0.19);
+  --status-error-default: #FF5252;
+  --status-error-hover: #FF6E6E;
+  --status-error-surface-l1: rgba(255, 82, 82, 0.19);
+  --status-alert-default: #F2C94C;
+  --status-alert-hover: #F5D56C;
+  --status-alert-surface-l1: rgba(242, 201, 76, 0.19);
+  /* --color-info 是字面量而不是 --status-* 的别名，得单独覆盖 */
+  --color-info: #29B6F6;
+
+  /* ===== 阴影在深色下要更重，否则卡片边界完全看不出来 ===== */
+  --pd-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --pd-card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}

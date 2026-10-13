@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { existsSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { SidecarSupervisor } from "./sidecar.js";
@@ -508,6 +508,112 @@ sidecar.on("state", (state) => window?.webContents.send("sidecar:state", state))
 
 // 渲染进程直连 ws://127.0.0.1，主进程不做数据中转，避免 20FPS 帧多一次进程间拷贝
 ipcMain.handle("app:sidecar-state", () => ({ state: sidecar.current, endpoint: sidecar.endpoints }));
+
+/**
+ * 设置窗口底色，供渲染进程在切主题时调用。
+ *
+ * 为什么由渲染进程发起：主题存在渲染进程的 localStorage 里，主进程读不到；
+ * 而 `backgroundColor` 是主进程侧属性，渲染进程改不了。窗口缩放时新暴露的区域
+ * 在页面重绘前显示的就是这个底色——不同步就会在深色主题下闪一条白边。
+ *
+ * 只接受 `#rrggbb`：这是从渲染进程过来的值，不能当成可信输入直接塞给 Electron。
+ */
+ipcMain.handle("window:background", (_event, color: unknown) => {
+  if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color)) {
+    return { ok: false, error: "颜色必须是 #rrggbb" };
+  }
+  window?.setBackgroundColor(color);
+  return { ok: true, color };
+});
+
+/**
+ * 保存一段文本到用户选定的路径。
+ *
+ * 存在的理由：渲染页面是 `loadFile` 加载的（origin 为 `file://`），
+ * `blob:file://…` 的 `<a download>` 在这个 origin 下不会落盘——无异常、无控制台报错、
+ * 也没有文件。打包版同样走 loadFile，所以必须由主进程来写。
+ *
+ * 路径**只能**来自原生对话框：渲染进程不能传路径，否则这个桥就等于任意文件写入。
+ * 截图验收模式下没有人在对话框前，所以返回 canceled 让调用方如实显示"未保存"，
+ * 而不是假装成功。
+ */
+ipcMain.handle("file:save-text", async (_event, payload: { name?: string; text?: string } | undefined) => {
+  const name = payload?.name || "export.txt";
+  const text = payload?.text ?? "";
+
+  // 截图验收模式下没人能点原生对话框，所以给一个**只在该模式下生效**的落盘路径。
+  // 刻意不无条件读环境变量：那等于给生产路径开一个"环境变量决定写哪"的任意写入口子。
+  const verifyPath = CAPTURE_TO ? process.env.PD_SAVE_PATH : undefined;
+  if (verifyPath) {
+    try {
+      writeFileSync(verifyPath, text, "utf-8");
+      return { ok: true, path: verifyPath };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  const options = {
+    defaultPath: name,
+    filters: [
+      { name: "CSV", extensions: ["csv"] },
+      { name: "全部文件", extensions: ["*"] },
+    ],
+  };
+  const { canceled, filePath } = window
+    ? await dialog.showSaveDialog(window, options)
+    : await dialog.showSaveDialog(options);
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try {
+    writeFileSync(filePath, text, "utf-8");
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+});
+
+/**
+ * 保存二进制报告（xlsx/docx）到用户选定的路径。与 save-text 同一套约束：
+ * 路径只能来自原生对话框，渲染进程只交字节。字节由内核 report.export 生成，
+ * 主进程不经内容转换地写出去——报告内容对不对是内核职责，写哪里是这里的职责。
+ */
+ipcMain.handle(
+  "file:save-binary",
+  async (_event, payload: { name?: string; bytes?: Uint8Array } | undefined) => {
+    const name = payload?.name || "report.bin";
+    const bytes = payload?.bytes;
+    if (!(bytes instanceof Uint8Array)) return { ok: false, error: "bytes 必须是 Uint8Array" };
+    if (bytes.byteLength === 0) return { ok: false, error: "报告字节为空，未写入" };
+
+    // 截图验收模式：对话框没人能点，走环境变量指定的路径（只在 CAPTURE 模式下生效，
+    // 与 save-text 同一个口径，不给生产留"环境变量决定写哪"的后门）
+    if (CAPTURE_TO && process.env.PD_SAVE_PATH) {
+      const to = process.env.PD_SAVE_PATH;
+      try {
+        writeFileSync(to, Buffer.from(bytes));
+        return { ok: true, path: to };
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
+    }
+
+    const ext = (name.match(/\.([A-Za-z0-9]+)$/) || [])[1]?.toLowerCase();
+    const options = {
+      defaultPath: name,
+      filters: ext ? [{ name: ext.toUpperCase(), extensions: [ext] }, { name: "全部文件", extensions: ["*"] }] : undefined,
+    };
+    const { canceled, filePath } = window
+      ? await dialog.showSaveDialog(window, options)
+      : await dialog.showSaveDialog(options);
+    if (canceled || !filePath) return { ok: false, canceled: true };
+    try {
+      writeFileSync(filePath, Buffer.from(bytes));
+      return { ok: true, path: filePath };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  },
+);
 
 app.whenReady().then(() => {
   // 先建窗口再起内核：内核起不来时用户看得到"内核已停止"，而不是双击图标没反应

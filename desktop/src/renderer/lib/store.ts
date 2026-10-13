@@ -7,7 +7,8 @@
 
 import { reactive, ref, shallowRef } from "vue";
 import { SidecarClient, type ConnState, type Endpoint } from "./sidecar-client";
-import type { AeHit, Frame, LogLine, StatsSnapshot, Topic } from "@/shared/protocol";
+import { recordAeHit } from "./ae-stats";
+import type { AeHit, DischargeTypeInfo, Frame, LogLine, StatsSnapshot, Topic } from "@/shared/protocol";
 
 const STREAM_TOPICS: Topic[] = ["waveform", "fft", "prpd", "prps", "ae_envelope", "ae_hit", "stats", "log"];
 
@@ -41,6 +42,19 @@ export const stats = shallowRef<StatsSnapshot | null>(null);
  */
 export const aeHits = shallowRef<AeHit[]>([]);
 
+/**
+ * 各通道最近一次的放电类型判定，键为 `${device}:${channel}`。
+ *
+ * 和 alarms 一样是"不能覆盖"的按通道状态：一个通道的新判定只覆盖它自己。
+ * 用映射而不是单个 latest，否则多通道时后到的判定会把别的通道的标签一起冲掉。
+ */
+export const dischargeTypes = shallowRef<Record<string, DischargeTypeInfo>>({});
+
+export function dischargeTypeFor(device: string, channel: number): DischargeTypeInfo | null {
+  if (!device) return null;
+  return dischargeTypes.value[`${device}:${channel}`] ?? null;
+}
+
 const MAX_LOG_LINES = 10_000;
 const MAX_ALARMS = 500;
 const MAX_AE_HITS = 200;
@@ -60,7 +74,7 @@ client.stream.onFrame((frame) => {
   frameCount[frame.t] = (frameCount[frame.t] ?? 0) + 1;
   if (frame.t === "stats") stats.value = (frame.m as { stats: StatsSnapshot }).stats;
   if (frame.t === "log") appendLogs((frame.m as { lines: LogLine[] }).lines);
-  if (frame.t === "ae_hit") appendAeHits((frame.m as { hit: AeHit }).hit);
+  if (frame.t === "ae_hit") appendAeHits((frame.m as { hit: AeHit }).hit, frame.d, frame.c);
 });
 
 client.ctrl.onFrame((frame) => {
@@ -68,6 +82,12 @@ client.ctrl.onFrame((frame) => {
     const next = [(frame.m as { alarm: Record<string, unknown> }).alarm, ...alarms.value];
     if (next.length > MAX_ALARMS) next.length = MAX_ALARMS;
     alarms.value = next;
+  }
+  if (frame.t === "discharge_type") {
+    const info = (frame.m as { type?: DischargeTypeInfo }).type;
+    if (info) {
+      dischargeTypes.value = { ...dischargeTypes.value, [`${frame.d}:${frame.c}`]: info };
+    }
   }
 });
 
@@ -91,9 +111,15 @@ function appendLogs(lines: LogLine[]): void {
  * 用"换整个数组引用"而不是 push：aeHits 是 shallowRef，push 不触发更新；
  * 而 AE 在 --pulse-rate 调高后能到 10+ 条/秒，每条都复制 200 元素的数组，
  * 代价远小于给每个对象建深度代理。
+ *
+ * 同时喂给累计聚合器（lib/ae-stats）。**不能只靠这个列表做统计**：它被
+ * MAX_AE_HITS 截断，命中率一高就饱和，"总 Hit 数"会停在假上限上。
+ * device/channel 必须一起传：聚合器要按通道分开算，而 AeHit 本身不带这两个字段
+ * （它们在 Frame 上）。
  */
-function appendAeHits(hit: AeHit): void {
+function appendAeHits(hit: AeHit, device: string, channel: number): void {
   if (!hit || typeof hit.amplitude !== "number") return;
+  recordAeHit(hit, device, channel);
   const next = [hit, ...aeHits.value];
   if (next.length > MAX_AE_HITS) next.length = MAX_AE_HITS;
   aeHits.value = next;

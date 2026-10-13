@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { ChevronDown, ChevronRight, Plus, RefreshCw, Trash2 } from "lucide-vue-next";
+import { ChevronDown, ChevronRight, Play, Plus, RefreshCw, Square, Trash2 } from "lucide-vue-next";
 import { call, stats, waitCtrlOpen } from "@/renderer/lib/store";
 import { formatStamp } from "@/renderer/lib/prefs";
 
@@ -37,6 +37,33 @@ const COUPLING = ["UHF", "HFCT", "TEV", "AE"];
 const DEVICE_TYPES = ["fpga_acq", "simulator", "gateway"];
 const STATUS_LABEL: Record<number, string> = { 0: "离线", 1: "在线", 2: "告警", 3: "错误" };
 
+/**
+ * 运行时来源（`source.*`）与上面的设备配置是两套对象：
+ * 前者是 DataSourceManager 内存里正在跑的来源，后者是 SQLite 里的持久化配置。
+ * 移除来源不会删设备配置，删设备配置也不会停来源。
+ */
+interface SourceRow {
+  id: string;
+  name?: string;
+  type?: string;
+  sensor?: string;
+  status?: string;
+  pd_type?: string;
+  fps?: number;
+  generated?: number;
+  host?: string;
+  port?: number;
+  channels?: number;
+  packets?: number;
+  errors?: number;
+  reconnects?: number;
+}
+interface SourceListResult {
+  sources: Record<string, SourceRow>;
+  count: number;
+  active_source: string | null;
+}
+
 const devices = ref<DeviceRow[]>([]);
 const loading = ref(true);
 const error = ref("");
@@ -45,7 +72,11 @@ const query = ref("");
 const expanded = ref<Set<string>>(new Set());
 const editing = ref<string | null>(null);
 const pendingDelete = ref<string | null>(null);
+const pendingSourceRemove = ref<string | null>(null);
 const busy = ref("");
+
+/** 运行时来源清单来自 source.list；运行态另由 stats 帧覆盖（见 runtimeRows） */
+const runtime = ref<SourceListResult>({ sources: {}, count: 0, active_source: null });
 
 const draft = reactive({
   id: "",
@@ -75,6 +106,73 @@ const liveSourceState = computed(() => {
   }
   return out;
 });
+
+const SOURCE_STATE_LABEL: Record<string, string> = {
+  running: "采集中",
+  stopped: "已停止",
+  error: "错误",
+  reconnecting: "重连中",
+};
+
+/**
+ * 运行态以 stats 帧（每 2s）为准，source.list 只在挂载与每次动作后拉。
+ *
+ * 两处刻意不各写一份真相：列表结构（名称/类型/参数）来自 source.list，
+ * status 一律取 stats——因为数据源自身的断线重连不经过 RPC，
+ * 只有 stats 会反映出来。
+ */
+const runtimeRows = computed(() => {
+  const live = stats.value?.sources ?? {};
+  return Object.entries(runtime.value.sources).map(([sid, row]) => ({
+    ...row,
+    id: sid,
+    status: (live[sid] as { status?: string } | undefined)?.status ?? row.status ?? "unknown",
+  }));
+});
+
+function sourceStateClass(status: string): string {
+  if (status === "running") return "bg-app-success/15 text-app-success";
+  if (status === "error") return "bg-app-error/15 text-app-error";
+  if (status === "reconnecting") return "bg-app-warning/15 text-app-warning";
+  return "bg-app-surface-variant text-app-muted";
+}
+
+function sourceDetail(src: SourceRow): string {
+  if (src.type === "simulator") {
+    return [src.pd_type, src.fps ? `${src.fps} FPS` : "", src.generated ? `${src.generated} 帧` : ""].filter(Boolean).join(" · ") || "—";
+  }
+  return [
+    src.host ?? "",
+    src.port ? `:${src.port}` : "",
+    src.channels ? `${src.channels} 通道` : "",
+    src.reconnects ? `重连 ${src.reconnects}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ") || "—";
+}
+
+async function refreshRuntime(): Promise<void> {
+  try {
+    runtime.value = await call<SourceListResult>("source.list");
+  } catch (err) {
+    error.value = `运行时来源读取失败：${(err as Error).message}`;
+  }
+}
+
+async function sourceAction(method: string, sourceId: string, label: string): Promise<void> {
+  busy.value = `src:${sourceId}`;
+  error.value = "";
+  try {
+    await call(method, { source_id: sourceId });
+    notice.value = `来源 ${sourceId} ${label}`;
+    pendingSourceRemove.value = null;
+    await refreshRuntime();
+  } catch (err) {
+    error.value = `来源 ${sourceId} ${label}失败：${(err as Error).message}`;
+  } finally {
+    busy.value = "";
+  }
+}
 
 function resetDraft(next?: Partial<typeof draft>): void {
   Object.assign(draft, {
@@ -230,7 +328,11 @@ function mhz(sampleRate: number): string {
   return sampleRate >= 1e6 ? `${(sampleRate / 1e6).toFixed(0)} MHz` : String(sampleRate);
 }
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  // load() 里已经 await 过 waitCtrlOpen，这里可以直接发 RPC
+  await refreshRuntime();
+});
 </script>
 
 <template>
@@ -258,6 +360,94 @@ onMounted(load);
 
     <p v-if="error" class="shrink-0 rounded-md bg-app-error/10 px-3 py-2 text-[12px] text-app-error">{{ error }}</p>
     <p v-if="notice" class="shrink-0 rounded-md bg-app-success/10 px-3 py-2 text-[12px] text-app-success">{{ notice }}</p>
+
+    <section class="shrink-0 rounded-lg border border-app-border bg-app-surface">
+      <div class="flex flex-wrap items-center gap-2 border-b border-app-border px-4 py-2">
+        <span class="text-[13px] font-medium">运行时来源</span>
+        <span class="text-[11px] text-app-muted">内核里正在跑的数据源，可不停机启停；与下方设备配置是两套对象，移除来源不会删除设备配置</span>
+        <button
+          class="ml-auto flex items-center gap-1.5 rounded-md border border-app-border px-2 py-1 text-[11px]"
+          @click="refreshRuntime"
+        >
+          <RefreshCw :size="12" /> 刷新
+        </button>
+      </div>
+      <p v-if="!runtimeRows.length" class="px-4 py-4 text-[12px] text-app-muted">
+        内核里还没有运行时来源。可用启动参数指定（如 --sim-type uhf），或经 acquisition.start_simulator 添加。
+      </p>
+      <table v-else class="w-full text-[12px]">
+        <thead class="bg-app-surface text-app-muted">
+          <tr class="border-b border-app-border">
+            <th class="px-4 py-2 text-left font-normal">来源</th>
+            <th class="px-3 py-2 text-left font-normal">类型</th>
+            <th class="px-3 py-2 text-left font-normal">参数</th>
+            <th class="px-3 py-2 text-left font-normal">状态</th>
+            <th class="px-3 py-2 text-right font-normal">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="src in runtimeRows" :key="src.id" class="border-b border-app-border/50">
+            <td class="px-4 py-2">
+              <div class="flex items-center gap-1.5">
+                <span>{{ src.name || src.id }}</span>
+                <span
+                  v-if="src.id === runtime.active_source"
+                  class="rounded bg-app-primary/15 px-1.5 py-0.5 text-[10px] text-app-primary"
+                >
+                  当前
+                </span>
+              </div>
+              <div class="font-mono text-[10px] text-app-muted">{{ src.id }}</div>
+            </td>
+            <td class="px-3 py-2">
+              {{ src.type ?? "—" }}<span class="text-app-muted"> · {{ src.sensor ?? "—" }}</span>
+            </td>
+            <td class="px-3 py-2 text-[11px] text-app-muted">{{ sourceDetail(src) }}</td>
+            <td class="px-3 py-2">
+              <span class="rounded px-1.5 py-0.5 text-[11px]" :class="sourceStateClass(src.status)">
+                {{ SOURCE_STATE_LABEL[src.status] ?? src.status }}
+              </span>
+            </td>
+            <td class="px-3 py-2 text-right">
+              <div class="flex justify-end gap-1.5">
+                <button
+                  :disabled="busy === `src:${src.id}` || src.status !== 'stopped'"
+                  class="flex items-center gap-1 rounded-md border border-app-border px-2 py-1 text-[11px] disabled:opacity-40"
+                  @click="sourceAction('source.start', src.id, '已启动')"
+                >
+                  <Play :size="11" /> 启动
+                </button>
+                <button
+                  :disabled="busy === `src:${src.id}` || src.status !== 'running'"
+                  class="flex items-center gap-1 rounded-md border border-app-border px-2 py-1 text-[11px] disabled:opacity-40"
+                  @click="sourceAction('source.stop', src.id, '已停止')"
+                >
+                  <Square :size="11" /> 停止
+                </button>
+                <button
+                  v-if="pendingSourceRemove !== src.id"
+                  class="flex items-center gap-1 rounded-md border border-app-border px-2 py-1 text-[11px] text-app-muted"
+                  @click="pendingSourceRemove = src.id"
+                >
+                  <Trash2 :size="11" /> 移除
+                </button>
+                <template v-else>
+                  <span class="self-center text-[11px] text-app-error">确认移除？</span>
+                  <button
+                    :disabled="busy === `src:${src.id}`"
+                    class="rounded-md bg-app-error px-2 py-1 text-[11px] text-white disabled:opacity-50"
+                    @click="sourceAction('source.remove', src.id, '已移除')"
+                  >
+                    {{ busy === `src:${src.id}` ? "…" : "移除" }}
+                  </button>
+                  <button class="rounded-md border border-app-border px-2 py-1 text-[11px]" @click="pendingSourceRemove = null">取消</button>
+                </template>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
 
     <section v-if="editing !== null" class="shrink-0 rounded-lg border border-app-border bg-app-surface">
       <div class="border-b border-app-border px-4 py-2 text-[13px] font-medium">

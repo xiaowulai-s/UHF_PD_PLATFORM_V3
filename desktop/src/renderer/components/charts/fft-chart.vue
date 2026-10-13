@@ -14,7 +14,7 @@
  * 而用 hook 画可以整条数据链都用复用的 Float64Array，还顺带拿到基波/谐波的配色区分。
  */
 
-import { ref, shallowRef } from "vue";
+import { ref, shallowRef, watch } from "vue";
 import type uPlot from "uplot";
 import PlotCanvas from "@/renderer/components/plot-canvas.vue";
 import { chartTheme } from "@/renderer/lib/chart-theme";
@@ -138,6 +138,17 @@ function paintOverlay(self: uPlot): void {
 
 const options = ref<uPlot.Options>(buildOptions());
 
+/** 主题切换时重建 uPlot（同 waveform-chart：换 key + 重算 options，换前先置空 plot） */
+const themeKey = ref(0);
+watch(
+  () => chartTheme(),
+  () => {
+    plot = null;
+    options.value = buildOptions();
+    themeKey.value += 1;
+  },
+);
+
 function onReady(instance: uPlot): void {
   plot = instance;
 }
@@ -222,7 +233,7 @@ function toggleLog(): void {
     </div>
     <div class="flex min-h-0 flex-1 gap-2">
       <div class="min-w-0 flex-1">
-        <PlotCanvas :options="options" @ready="onReady" />
+        <PlotCanvas :key="themeKey" :options="options" @ready="onReady" />
       </div>
       <div class="w-52 shrink-0 overflow-auto rounded border border-app-border">
         <table class="w-full text-[11px]">

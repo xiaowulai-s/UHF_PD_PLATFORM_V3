@@ -196,6 +196,17 @@ onMounted(() => {
           <input v-model="prefs.systemName" class="rounded-md border border-app-border bg-app-bg px-2 py-1.5 text-[13px]" placeholder="请输入系统名称" />
         </label>
         <label class="flex flex-col gap-1 text-[12px]">
+          <span class="text-app-muted">主题</span>
+          <select
+            v-model="prefs.theme"
+            class="rounded-md border border-app-border bg-app-bg px-2 py-1.5 text-[13px]"
+            title="切换后立即生效并持久化；图表（含 canvas 与 WebGL）会跟着换色"
+          >
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
+          </select>
+        </label>
+        <label class="flex flex-col gap-1 text-[12px]">
           <span class="text-app-muted">界面语言</span>
           <select v-model="prefs.language" class="rounded-md border border-app-border bg-app-bg px-2 py-1.5 text-[13px]">
             <option value="zh-CN">简体中文</option>

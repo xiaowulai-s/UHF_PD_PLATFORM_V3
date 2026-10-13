@@ -80,6 +80,9 @@ abstract class Channel {
     };
     ws.onmessage = (ev) => this.onMessage(new Uint8Array(ev.data as ArrayBuffer));
     ws.onclose = () => {
+      // 必须置空：`updateEndpoint()` 用 `if (this.ws)` 区分"有活动 socket"与"没有"，
+      // 不置空的话已关闭的 socket 会被当成活动的，热切换走进 restart() 那条死路。
+      if (this.ws === ws) this.ws = null;
       this.setState("closed");
       for (const fn of this.closeHandlers) fn();
       this.scheduleReconnect();
@@ -110,8 +113,19 @@ abstract class Channel {
   }
 
   private restart(): void {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.ws?.close();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    const ws = this.ws;
+    this.ws = null;
+    // 对**已经关闭**的 socket 再调 close() 是空操作，onclose 也不会再触发一次。
+    // 于是"清掉重连定时器 + 关一个已关的 socket"= 什么都没做，连接永久停在 closed，
+    // 界面再也不恢复。端点热切换时正好会踩到：主进程推新凭证的那一刻，旧 socket
+    // 可能已经因为内核退出而关掉了。实测 M7.4：旧 socket 还开着时 4.0~4.3s 恢复，
+    // 已经关掉时 30s 都不恢复。
+    if (ws && ws.readyState !== WebSocket.CLOSED) ws.close();
+    else if (!this.disposed) this.open();
   }
 
   onFrame(fn: Handler<Frame>): () => void {

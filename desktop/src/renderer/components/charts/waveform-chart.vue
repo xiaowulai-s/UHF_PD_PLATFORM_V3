@@ -12,7 +12,7 @@
  * 不是复刻。
  */
 
-import { ref, shallowRef } from "vue";
+import { ref, shallowRef, watch } from "vue";
 import type uPlot from "uplot";
 import PlotCanvas from "@/renderer/components/plot-canvas.vue";
 import { chartTheme } from "@/renderer/lib/chart-theme";
@@ -77,6 +77,23 @@ function buildOptions(): uPlot.Options {
 }
 
 const options = ref<uPlot.Options>(buildOptions());
+
+/**
+ * 主题切换时重建 uPlot。
+ *
+ * `PlotCanvas` 刻意不做 options diff，约定由使用方换 `:key` 强制重建（见其文件头注释），
+ * 所以这里必须把两件事一起做：换 key（触发重建）+ 重算 options（重建时才拿得到新配色）。
+ * 换 key 前先把 `plot` 置空，避免重建窗口里往已销毁的实例上写数据。
+ */
+const themeKey = ref(0);
+watch(
+  () => chartTheme(),
+  () => {
+    plot = null;
+    options.value = buildOptions();
+    themeKey.value += 1;
+  },
+);
 
 function onReady(instance: uPlot): void {
   plot = instance;
@@ -198,7 +215,7 @@ function resetZoom(): void {
       </div>
     </div>
     <div class="min-h-0 flex-1">
-      <PlotCanvas :options="options" @ready="onReady" />
+      <PlotCanvas :key="themeKey" :options="options" @ready="onReady" />
     </div>
   </div>
 </template>

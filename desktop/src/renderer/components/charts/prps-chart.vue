@@ -10,7 +10,7 @@
  * 就要多算一份打包体积与一条解析路径，而这里只需要"拖拽转 + 滚轮缩"。
  */
 
-import { onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import * as THREE from "three";
 import { chartTheme } from "@/renderer/lib/chart-theme";
 import { useFrameDraw } from "@/renderer/lib/use-frame-draw";
@@ -27,6 +27,7 @@ let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene | null = null;
 let camera: THREE.PerspectiveCamera | null = null;
 let points: THREE.Points | null = null;
+let boxLines: THREE.LineSegments | null = null;
 let posArr: Float32Array | null = null;
 let colArr: Float32Array | null = null;
 let raf = 0;
@@ -92,7 +93,8 @@ function buildScene(): void {
     transparent: t.borderAlpha < 1,
     opacity: t.borderAlpha,
   });
-  scene.add(new THREE.LineSegments(box, boxMaterial));
+  boxLines = new THREE.LineSegments(box, boxMaterial);
+  scene.add(boxLines);
 
   posArr = new Float32Array(MAX_POINTS * 3);
   colArr = new Float32Array(MAX_POINTS * 3);
@@ -106,6 +108,28 @@ function buildScene(): void {
   );
   scene.add(points);
 }
+
+/**
+ * 主题切换时重建参照框材质。
+ *
+ * `chart-theme.ts` 的取色缓存失效是自动的（MutationObserver 监听 <html> 属性），
+ * 但 **WebGL 材质不会自己重取**：`buildScene()` 只在挂载时读一次颜色，
+ * 不重设就会把参照框停在旧主题的颜色上——浅色背景上的白框几乎看不出来，
+ * 而这正是当初 `borderSolid/borderAlpha` 要解决的问题。
+ */
+function applyTheme(): void {
+  const material = boxLines?.material as THREE.LineBasicMaterial | undefined;
+  if (material) {
+    const t = chartTheme();
+    material.color = new THREE.Color(t.borderSolid);
+    material.transparent = t.borderAlpha < 1;
+    material.opacity = t.borderAlpha;
+    material.needsUpdate = true;
+  }
+  dirty = true;
+}
+
+watch(() => chartTheme(), applyTheme);
 
 function applyCamera(): void {
   if (!camera) return;
@@ -221,6 +245,8 @@ onBeforeUnmount(() => {
   window.clearInterval(fpsTimer);
   resizeObserver?.disconnect();
   points?.geometry.dispose();
+  boxLines?.geometry.dispose();
+  (boxLines?.material as THREE.Material | undefined)?.dispose();
   renderer?.dispose();
   renderer?.domElement.remove();
 });

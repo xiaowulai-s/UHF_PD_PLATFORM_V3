@@ -69,7 +69,11 @@ export function launchFrom(env: LaunchEnv): SidecarLaunch {
     // 上到底跑什么"的最省事验证路径。冻结 exe 不能再塞 sidecar.py：PyInstaller 会把
     // argv[1:] 原样交给脚本，argparse 于是收到一个多余的位置参数并以 exit 2 退出，
     // 表现是"内核起不来"而日志只有 argparse 的 usage。
-    if (/\.exe$/i.test(env.override)) {
+    //
+    // 判据必须是"是不是冻结产物本身"（uhf-sidecar.exe），**不能**用 /\.exe$/ 判：
+    // 那会把 python.exe 也当成冻结 exe，sidecar.py 被吞掉，解释器 override 这条路
+    // 整条废掉（实测：exit 2 + usage，且每次重启都同样失败）。
+    if (/uhf-sidecar\.exe$/i.test(env.override)) {
       return { exe: env.override, args: [...extra], cwd: dirname(env.override), kind: "bundled" };
     }
     return { exe: env.override, args: ["sidecar.py", ...extra], cwd: env.repoRoot, kind: "source" };
