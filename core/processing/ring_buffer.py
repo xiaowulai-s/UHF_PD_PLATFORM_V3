@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from collections import deque
 from threading import RLock
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 class RingBuffer:
@@ -56,7 +56,7 @@ class RingBuffer:
             return list(self._buffer)
 
     def get_last(self, n: int) -> List[Any]:
-        """获取最后 n 个数据点（TODO: 大缓冲区下可用 islice 优化避免全量复制）"""
+        """获取最后 n 个数据点"""
         with self._lock:
             if n >= len(self._buffer):
                 return list(self._buffer)

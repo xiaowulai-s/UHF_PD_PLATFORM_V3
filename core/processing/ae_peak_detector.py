@@ -15,8 +15,8 @@ AE 声发射 Hit 检测器
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 
@@ -145,9 +145,7 @@ class AEPeakDetector:
                 continue
 
             # 计算 AE 参数
-            hit_info = self._compute_hit_params(
-                envelope, start, end, peak_idx_global, peak_amp, sample_rate, threshold
-            )
+            hit_info = self._compute_hit_params(envelope, start, end, peak_idx_global, peak_amp, sample_rate, threshold)
             hits.append(hit_info)
 
             # 跳过后面的静寂期

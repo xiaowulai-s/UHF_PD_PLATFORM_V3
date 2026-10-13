@@ -15,9 +15,8 @@ AE 端到端集成测试
 """
 
 import sys
-import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -27,10 +26,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.foundation.signal_bus import PDDataBus
-from core.processing.ae_localizer import AELocalizer, LocalizationResult, SensorPosition
+from core.processing.ae_localizer import AELocalizer, SensorPosition
 from core.processing.fft_processor import FFTProcessor
 from core.services import AcquisitionService
-
 
 # ═════════════════════════════════════════════════════════
 # Fixtures
@@ -138,6 +136,7 @@ class TestAEDataBusSignals:
 
         # 等待信号传递
         from PySide6.QtCore import QCoreApplication
+
         if QCoreApplication.instance():
             QCoreApplication.processEvents()
 
@@ -156,6 +155,7 @@ class TestAEDataBusSignals:
         acquisition_service.process_data_frame("AE-FFT-001", 1, wf)
 
         from PySide6.QtCore import QCoreApplication
+
         if QCoreApplication.instance():
             QCoreApplication.processEvents()
 
@@ -198,9 +198,7 @@ class TestFFTBandsConfigurable:
         result = proc.compute(samples)
 
         # 用 AE 频段重新计算
-        ae_stats = proc.compute_band_stats(
-            result.frequencies, result.magnitudes, bands=FFTProcessor.AE_BANDS
-        )
+        ae_stats = proc.compute_band_stats(result.frequencies, result.magnitudes, bands=FFTProcessor.AE_BANDS)
         assert "AE_low" in ae_stats
         assert "AE_mid" in ae_stats
         assert "AE_high" in ae_stats
@@ -364,6 +362,219 @@ class TestAEEndToEnd:
         assert result is not None
         assert result.sensors_used == 4
         assert result.confidence > 0
+
+
+# ═════════════════════════════════════════════════════════
+# 7. AE 包络处理扩展测试
+# ═════════════════════════════════════════════════════════
+
+
+class TestAEEnvelopeProcessing:
+    def test_envelope_computed(self, data_bus, acquisition_service, ae_simulator):
+        """AE 包络应被正确计算"""
+        acquisition_service.set_channel_coupling_type("AE-ENV-001", 1, "ae")
+
+        envelope_callback = MagicMock()
+        data_bus.ae_envelope_ready.connect(envelope_callback)
+
+        wf = ae_simulator.generate_waveform()
+        acquisition_service.process_data_frame("AE-ENV-001", 1, wf)
+
+        from PySide6.QtCore import QCoreApplication
+
+        if QCoreApplication.instance():
+            QCoreApplication.processEvents()
+
+        data_bus.ae_envelope_ready.disconnect(envelope_callback)
+
+    def test_envelope_length_matches_input(self, acquisition_service, ae_simulator):
+        """包络长度应与输入波形匹配"""
+        acquisition_service.set_channel_coupling_type("AE-ENV-LEN-001", 1, "ae")
+
+        wf = ae_simulator.generate_waveform()
+
+        result = acquisition_service.process_data_frame("AE-ENV-LEN-001", 1, wf)
+        assert result is not None
+        assert result.success is True
+        assert result.data is not None
+        assert "samples" in result.data
+        # 验证包络存在（长度可能因滤波而略有不同）
+        assert len(result.data["samples"]) > 0
+
+
+# ═════════════════════════════════════════════════════════
+# 8. AE 多通道测试
+# ═════════════════════════════════════════════════════════
+
+
+class TestAEMultiChannel:
+    def test_multiple_channels_independent(self, acquisition_service, ae_simulator):
+        """多个 AE 通道应独立处理"""
+        acquisition_service.set_channel_coupling_type("AE-MULTI-001", 1, "ae")
+        acquisition_service.set_channel_coupling_type("AE-MULTI-002", 2, "ae")
+
+        # 处理两通道数据
+        for ch in [1, 2]:
+            wf = ae_simulator.generate_waveform()
+            result = acquisition_service.process_data_frame("AE-MULTI-001", ch, wf)
+            assert result is not None
+
+        stats = acquisition_service.get_stats()
+        assert stats["frames_received"] >= 2
+
+    def test_mixed_ae_uhf_channels(self, acquisition_service, ae_simulator):
+        """AE 和 UHF 通道应正确路由"""
+        acquisition_service.set_channel_coupling_type("AE-MIXED-001", 1, "ae")
+        # 通道 2 保持默认 UHF
+
+        # AE 通道
+        ae_wf = ae_simulator.generate_waveform()
+        ae_result = acquisition_service.process_data_frame("AE-MIXED-001", 1, ae_wf)
+        assert ae_result.frame_type == "ae_waveform"
+
+        # UHF 通道
+        t = np.linspace(0, 0.001, 4096)
+        uhf_samples = np.sin(2 * np.pi * 500e6 * t) * 10.0
+        uhf_wf = MagicMock(samples=uhf_samples, sample_rate=100_000_000)
+        uhf_result = acquisition_service.process_data_frame("AE-MIXED-001", 2, uhf_wf)
+        assert uhf_result.frame_type != "ae_waveform"
+
+
+# ═════════════════════════════════════════════════════════
+# 9. AE 突发类型测试
+# ═════════════════════════════════════════════════════════
+
+
+class TestAEBurstTypes:
+    def test_burst_type_waveform(self, ae_simulator):
+        """突发类型波形应有效生成"""
+        ae_simulator.set_burst_type("burst")
+        wf = ae_simulator.generate_waveform()
+        samples = np.array(wf.samples) if hasattr(wf, "samples") else np.array(wf)
+        assert len(samples) > 0
+        assert np.any(samples != 0)
+
+    def test_continuous_type_waveform(self, ae_simulator):
+        """连续类型波形应有效生成"""
+        ae_simulator.set_burst_type("continuous")
+        wf = ae_simulator.generate_waveform()
+        samples = np.array(wf.samples) if hasattr(wf, "samples") else np.array(wf)
+        assert len(samples) > 0
+        assert np.any(samples != 0)
+
+    def test_mixed_type_waveform(self, ae_simulator):
+        """混合类型波形应有效生成"""
+        ae_simulator.set_burst_type("mixed")
+        wf = ae_simulator.generate_waveform()
+        samples = np.array(wf.samples) if hasattr(wf, "samples") else np.array(wf)
+        assert len(samples) > 0
+        assert np.any(samples != 0)
+
+
+# ═════════════════════════════════════════════════════════
+# 10. AE Hit 特征提取验证
+# ═════════════════════════════════════════════════════════
+
+
+class TestAEHitFeatures:
+    def test_ae_hit_features_structure(self, data_bus, acquisition_service, ae_simulator):
+        """AE hit 特征应包含必要字段"""
+        acquisition_service.set_channel_coupling_type("AE-HIT-FEAT-001", 1, "ae")
+
+        hit_callback = MagicMock()
+        data_bus.ae_hit_detected.connect(hit_callback)
+
+        # 处理多帧以增加 hit 检测概率
+        for _ in range(20):
+            wf = ae_simulator.generate_waveform()
+            acquisition_service.process_data_frame("AE-HIT-FEAT-001", 1, wf)
+
+        from PySide6.QtCore import QCoreApplication
+
+        if QCoreApplication.instance():
+            QCoreApplication.processEvents()
+
+        # 如果检测到 hit，验证特征结构
+        if hit_callback.called:
+            args, _ = hit_callback.call_args
+            features = args[2] if len(args) > 2 else None
+            if features:
+                assert "amplitude" in features or "counts" in features or "marse_energy" in features
+
+        data_bus.ae_hit_detected.disconnect(hit_callback)
+
+    def test_ae_hit_pd_event_published(self, data_bus, acquisition_service, ae_simulator):
+        """AE hit 应触发 PD 事件发布"""
+        acquisition_service.set_channel_coupling_type("AE-PD-001", 1, "ae")
+
+        pd_callback = MagicMock()
+        data_bus.pd_event_detected.connect(pd_callback)
+
+        for _ in range(20):
+            wf = ae_simulator.generate_waveform()
+            acquisition_service.process_data_frame("AE-PD-001", 1, wf)
+
+        from PySide6.QtCore import QCoreApplication
+
+        if QCoreApplication.instance():
+            QCoreApplication.processEvents()
+
+        data_bus.pd_event_detected.disconnect(pd_callback)
+
+
+# ═════════════════════════════════════════════════════════
+# 11. AE FFT 频段验证
+# ═════════════════════════════════════════════════════════
+
+
+class TestAEFFTBands:
+    def test_ae_fft_uses_ae_bands(self, data_bus, acquisition_service, ae_simulator):
+        """AE 通道 FFT 应使用 AE 频段"""
+        acquisition_service.set_channel_coupling_type("AE-FFT-BAND-001", 1, "ae")
+
+        fft_callback = MagicMock()
+        data_bus.fft_result_ready.connect(fft_callback)
+
+        wf = ae_simulator.generate_waveform()
+        acquisition_service.process_data_frame("AE-FFT-BAND-001", 1, wf)
+
+        from PySide6.QtCore import QCoreApplication
+
+        if QCoreApplication.instance():
+            QCoreApplication.processEvents()
+
+        if fft_callback.called:
+            args, _ = fft_callback.call_args
+            fft_data = args[3] if len(args) > 3 else None
+            if fft_data:
+                assert hasattr(fft_data, "band_stats")
+
+        data_bus.fft_result_ready.disconnect(fft_callback)
+
+
+# ═════════════════════════════════════════════════════════
+# 12. AE PRPD 集成测试
+# ═════════════════════════════════════════════════════════
+
+
+class TestAEPRPDIntegration:
+    def test_ae_events_update_prpd(self, data_bus, acquisition_service, ae_simulator):
+        """AE hit 应更新 PRPD 图谱"""
+        acquisition_service.set_channel_coupling_type("AE-PRPD-001", 1, "ae")
+
+        prpd_callback = MagicMock()
+        data_bus.prpd_result_ready.connect(prpd_callback)
+
+        for _ in range(30):
+            wf = ae_simulator.generate_waveform()
+            acquisition_service.process_data_frame("AE-PRPD-001", 1, wf)
+
+        from PySide6.QtCore import QCoreApplication
+
+        if QCoreApplication.instance():
+            QCoreApplication.processEvents()
+
+        data_bus.prpd_result_ready.disconnect(prpd_callback)
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from core.data.monitor_models import PDAlarmModel, PDEventModel, PDTrendDataModel
+from core.data.monitor_models import AeHitModel, PDAlarmModel, PDEventModel, PDTrendDataModel
 
 try:
     from sqlalchemy.exc import DatabaseError
@@ -61,6 +61,9 @@ class PDStorageService:
         # 事件缓存队列
         self._event_queue: deque = deque(maxlen=10000)
         self._trend_queue: deque = deque(maxlen=5000)
+        # AE 命中单独一条队列：它写入频率比 pd_events 高（命中能到 40+/秒），
+        # 混在同一个 deque 里会让两种记录互相挤占容量，也会让批量大小失去意义。
+        self._ae_queue: deque = deque(maxlen=10000)
 
         # 重试计数
         self._retry_counts: Dict[str, int] = {}
@@ -86,6 +89,7 @@ class PDStorageService:
         self._stats = {
             "events_stored": 0,
             "trends_stored": 0,
+            "ae_hits_stored": 0,
             "flushes": 0,
             "errors": 0,
             "start_time": 0.0,
@@ -174,6 +178,45 @@ class PDStorageService:
         # 触发批量写入
         if len(self._event_queue) >= self._batch_size:
             self._flush_events()
+
+    def store_ae_hit(self, device_id: str, channel_id: int, hit: dict) -> None:
+        """缓存一次 AE 命中。
+
+        Args:
+            device_id: 设备 ID
+            channel_id: 通道 ID
+            hit: 命中特征字典（`ae_parameter_extractor` 的产物，需含 amplitude）
+
+        字段按 `AeHitModel` 的列白名单取，多传的键直接丢弃——上游 hit 里混着
+        内部调试字段时，`AeHitModel(**data)` 会因未知列直接抛 TypeError。
+        """
+        if not isinstance(hit, dict) or hit.get("amplitude") is None:
+            logger.warning("无效的 AE 命中数据: %s", type(hit))
+            return
+
+        self._ae_queue.append(
+            {
+                "device_id": device_id,
+                "channel_id": channel_id,
+                "timestamp": datetime.now(timezone.utc),
+                "amplitude": hit.get("amplitude"),
+                "rise_time_us": hit.get("rise_time_us"),
+                "duration_us": hit.get("duration_us"),
+                "counts": hit.get("counts"),
+                "marse_energy": hit.get("marse_energy"),
+                "avg_frequency_khz": hit.get("avg_frequency_khz"),
+                "rms": hit.get("rms"),
+                "asl_db": hit.get("asl_db"),
+                "signal_strength": hit.get("signal_strength"),
+                "energy": hit.get("energy"),
+                "phase_deg": hit.get("phase_deg"),
+                "polarity": hit.get("polarity"),
+                "signal_quality": hit.get("signal_quality", 0),
+            }
+        )
+
+        if len(self._ae_queue) >= self._batch_size:
+            self._flush_ae_hits()
 
     def store_trend_data(
         self,
@@ -287,9 +330,48 @@ class PDStorageService:
             logger.error("趋势数据批量写入失败 - 未知错误 (%d 条): %s", len(batch), e, exc_info=True)
             self._stats["errors"] += 1
 
+    def _flush_ae_hits(self) -> None:
+        """批量写入 AE 命中。
+
+        刻意不带 `_flush_events` 那套指数退避重试：命中写入频率高（40+/秒），
+        退避重试会在 DB 持续不可用时把队列反复回填、放大内存占用，而 AE 命中的
+        价值是统计与复盘，丢一批不改变结论。失败只计错误并转死信队列。
+        """
+        if not self._ae_queue or not self._db_manager:
+            return
+
+        batch = []
+        with self._lock:
+            while self._ae_queue and len(batch) < self._batch_size:
+                batch.append(self._ae_queue.popleft())
+
+        if not batch:
+            return
+
+        try:
+            with self._db_manager.session() as session:
+                for data in batch:
+                    session.add(AeHitModel(**data))
+            self._stats["ae_hits_stored"] += len(batch)
+            self._stats["flushes"] += 1
+        except (OSError, PermissionError) as e:
+            logger.error("AE 命中批量写入失败 - IO错误 (%d 条): %s", len(batch), e, exc_info=True)
+            self._stats["errors"] += 1
+            for item in batch:
+                self._dead_letter.append(item)
+        except (ValueError, TypeError, KeyError) as e:
+            logger.error("AE 命中批量写入失败 - 数据格式错误 (%d 条): %s", len(batch), e, exc_info=True)
+            self._stats["errors"] += 1
+        except Exception as e:
+            logger.error("AE 命中批量写入失败 - 未知错误 (%d 条): %s", len(batch), e, exc_info=True)
+            self._stats["errors"] += 1
+            for item in batch:
+                self._dead_letter.append(item)
+
     def _flush_all(self) -> None:
         """写入所有缓存数据"""
         self._flush_events()
+        self._flush_ae_hits()
         self._flush_trends()
 
     def _flush_loop(self) -> None:
@@ -578,6 +660,51 @@ class PDStorageService:
             logger.error("查询报警记录失败: %s", e, exc_info=True)
             return []
 
+    def query_ae_hits(
+        self,
+        device_id: str,
+        start_time: datetime,
+        end_time: Optional[datetime] = None,
+        channel_id: Optional[int] = None,
+        limit: int = 1000,
+    ) -> List[dict]:
+        """查询 AE 命中历史（跨重启可追溯的那一份）。
+
+        与前端内存里的"本次会话累计"是两码事：那个列表连接内核才有，重启即空；
+        这里读的是 `ae_hits` 表，因此返回的每条都带 timestamp，可以复盘。
+
+        Args:
+            device_id: 设备 ID（必要过滤条件）
+            start_time: 开始时间
+            end_time: 结束时间（默认当前时间）
+            channel_id: 通道 ID（可选）
+            limit: 最大返回条数
+        """
+        if not self._db_manager:
+            return []
+
+        if end_time is None:
+            end_time = datetime.now(timezone.utc)
+
+        try:
+            with self._db_manager.session() as session:
+                query = session.query(AeHitModel).filter(
+                    AeHitModel.device_id == device_id,
+                    AeHitModel.timestamp >= start_time,
+                    AeHitModel.timestamp <= end_time,
+                )
+                if channel_id is not None:
+                    query = query.filter(AeHitModel.channel_id == channel_id)
+                query = query.order_by(AeHitModel.timestamp.desc()).limit(limit)
+                results = [h.to_dict() for h in query.all()]
+            return results
+        except (OSError, DatabaseError) as e:
+            logger.error("查询 AE 命中失败 - 数据库错误: %s", e, exc_info=True)
+            return []
+        except Exception as e:
+            logger.error("查询 AE 命中失败: %s", e, exc_info=True)
+            return []
+
     # ── 数据维护 ─────────────────────────────────────
 
     def cleanup_old_data(self) -> int:
@@ -599,6 +726,7 @@ class PDStorageService:
                     (PDEventModel, "事件"),
                     (PDTrendDataModel, "趋势"),
                     (PDAlarmModel, "报警"),
+                    (AeHitModel, "AE命中"),
                 ]:
                     deleted = session.query(model).filter(model.timestamp < cutoff).delete()
                     total += deleted
@@ -616,4 +744,5 @@ class PDStorageService:
         stats = dict(self._stats)
         stats["event_queue_size"] = len(self._event_queue)
         stats["trend_queue_size"] = len(self._trend_queue)
+        stats["ae_queue_size"] = len(self._ae_queue)
         return stats

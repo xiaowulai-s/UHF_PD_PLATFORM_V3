@@ -25,9 +25,9 @@ class BaseDriver(QObject):
     """
 
     # ── 通用信号 ─────────────────────────────────────
-    connected = Signal()           # 连接成功
-    disconnected = Signal()        # 连接断开
-    connection_error = Signal(str) # 连接错误
+    connected = Signal()  # 连接成功
+    disconnected = Signal()  # 连接断开
+    connection_error = Signal(str)  # 连接错误
     data_received = Signal(bytes)  # 数据接收
 
     def __init__(self, parent: Optional[QObject] = None):

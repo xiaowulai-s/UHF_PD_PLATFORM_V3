@@ -12,7 +12,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import threading
+from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
@@ -56,6 +57,7 @@ class PeakDetector:
         self._min_distance = min_distance
         self._window_size = window_size
         self._noise_level: float = 1.0
+        self._lock = threading.Lock()
 
     # ── 核心检测 ─────────────────────────────────────
 
@@ -79,7 +81,8 @@ class PeakDetector:
 
         waveform = self._remove_baseline(waveform)
         noise_level = self._estimate_noise(waveform)
-        self._noise_level = noise_level
+        with self._lock:
+            self._noise_level = noise_level
 
         # 确定阈值
         effective_threshold = threshold if threshold is not None else self._threshold
@@ -178,7 +181,8 @@ class PeakDetector:
         # 自适应阈值: max(固定阈值, 噪声水平*3)
         noise = self._estimate_noise(data)
         effective_threshold = max(self._threshold, noise * 3.0)
-        self._noise_level = noise
+        with self._lock:
+            self._noise_level = noise
 
         peaks = []
         half_win = self._window_size // 2
@@ -286,7 +290,8 @@ class PeakDetector:
     @property
     def noise_level(self) -> float:
         """当前估计的噪声水平"""
-        return self._noise_level
+        with self._lock:
+            return self._noise_level
 
     def __repr__(self) -> str:
         return f"PeakDetector(threshold={self._threshold}, adaptive={self._adaptive})"

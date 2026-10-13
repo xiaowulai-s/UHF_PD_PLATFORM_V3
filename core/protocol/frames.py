@@ -59,6 +59,9 @@ TOPICS: dict[str, Qos] = {
     "device_status": Qos.RELIABLE,
     "acquisition": Qos.RELIABLE,
     "source": Qos.RELIABLE,
+    # 放电类型标签：频率低（跟随 PRPD 发布节奏，单通道约 0.33Hz）但语义是状态变更，
+    # 丢一帧会让前端长时间停在旧类型上，所以走无损。
+    "discharge_type": Qos.RELIABLE,
 }
 
 

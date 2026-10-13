@@ -117,6 +117,69 @@ class DataSourceManager(QObject):
                 self.source_status_changed.emit(source.id, "stopped")
             self._active_source_id = None
 
+    def start_source(self, source_id: str) -> bool:
+        """启动单个数据源。
+
+        与 start_all 的差别只有一处：start_all 只碰 STOPPED 的源，这里对
+        ERROR/RECONNECTING 也一律拒绝——那两种状态由数据源自身（硬件重连线程）
+        管理，外部强启会打断它的重连节奏，且旧 UI 也从没这么用过。
+
+        已 RUNNING 视为成功（幂等），这样前端"启动"按钮重复点不会报错。
+        """
+        with self._lock:
+            source = self._sources.get(source_id)
+            if source is None:
+                return False
+            if source.status == DataSourceStatus.RUNNING:
+                return True
+            if source.status != DataSourceStatus.STOPPED:
+                logger.debug("数据源 %s 当前状态 %s，不响应外部启动", source_id, source.status.value)
+                return False
+            try:
+                started = bool(source.start())
+            except (RuntimeError, ConnectionError, OSError) as e:
+                logger.warning("数据源 %s 启动失败: %s", source_id, e)
+                self.source_error.emit(source_id, str(e))
+                return False
+            if started:
+                self.source_status_changed.emit(source_id, "running")
+                if self._active_source_id is None:
+                    self._active_source_id = source_id
+                    self.active_source_changed.emit(source_id)
+            return started
+
+    def stop_source(self, source_id: str) -> bool:
+        """停止单个数据源。
+
+        停掉当前激活源时会把激活位让给另一个仍在运行的源；没有可接替的就把
+        激活位置空（与 stop_all 一致，但不广播 active_source_changed("")——
+        空 id 对前端没有意义，stats 帧里的 active_source=null 已经说明了）。
+        """
+        with self._lock:
+            source = self._sources.get(source_id)
+            if source is None:
+                return False
+            was_active = self._active_source_id == source_id
+        # 锁外 stop()，避免长时间持锁（与 remove_source 同）
+        source.stop()
+        with self._lock:
+            self.source_status_changed.emit(source_id, "stopped")
+            if was_active:
+                successor = next(
+                    (
+                        sid
+                        for sid, other in self._sources.items()
+                        if sid != source_id and other.status == DataSourceStatus.RUNNING
+                    ),
+                    None,
+                )
+                self._active_source_id = successor
+                if successor:
+                    self.active_source_changed.emit(successor)
+                    self._data_bus.publish_active_source_changed(successor)
+            logger.info("数据源已停止: %s", source_id)
+            return True
+
     # ── 数据源管理 ───────────────────────────────────
 
     def add_hardware_source(self, config) -> str:

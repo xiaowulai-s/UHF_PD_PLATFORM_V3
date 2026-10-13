@@ -274,8 +274,14 @@ class TestSimulatorPulseAmplitude:
         原先振荡项用 sin，i=0 处正好过零，脉冲峰值只有标称的 0.30~0.68
         （随 pulse_width 变），于是"注入 100、检出 35"的差额会被误读成标定系数。
 
-        必须钉成**单个脉冲、零噪声**：幅值和相位都取自 random.uniform，若只钉幅值
+        必须钉成**单个脉冲、零噪声**：幅值和相位都取自随机数，若只钉幅值
         则 20 个脉冲全落在同一位置叠加，峰值上千，sin 一样能过——第一版就这么假绿过。
+
+        幅值入口在 2026-10-12 从 `random.uniform` 换成了
+        `PDSimulator._sample_amplitude`（对数正态，为了做出参考剖面要求的 cv），
+        相位窗也从单窗换成"按权重挑窗"，所以这里改为钉这两个新入口：
+        `choices` 固定返回第一个窗（四种类型的首窗 `amp_scale` 都是 1.0，
+        否则幅值会被乘上 1.27/3.1，峰值就不是标称值了）。
         """
         import random as py_random
 
@@ -284,6 +290,8 @@ class TestSimulatorPulseAmplitude:
         from core.utils.simulator import PDSimulator
 
         sim = PDSimulator(sample_rate=100_000_000, waveform_points=4096, noise_level=0.0)
+        monkeypatch.setattr(PDSimulator, "_sample_amplitude", staticmethod(lambda _cfg: 100.0))
+        monkeypatch.setattr(py_random, "choices", lambda population, weights=None, k=1: [population[0]])
         monkeypatch.setattr(py_random, "uniform", lambda *_a, **_k: 100.0)
         monkeypatch.setattr(np.random, "poisson", lambda *_a, **_k: 1)
         monkeypatch.setattr(py_random, "gauss", lambda *_a, **_k: 0.0)

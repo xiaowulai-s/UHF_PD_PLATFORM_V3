@@ -100,6 +100,13 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
     alarm_eval = AlarmEvaluator(bus, alarm)
     alarm_eval.start()
 
+    # 放电类型标签：分类器的唯一生产调用点原本是 data.import_file（分析页导入），
+    # 实时链路上没人跑它，所以"实时事件类型标签"一直空着
+    from core.services.discharge_type_service import DischargeTypeService
+
+    type_service = DischargeTypeService(bus)
+    type_service.start()
+
     from core.foundation.data_source_manager import DataSourceManager
 
     sources = DataSourceManager(
@@ -108,7 +115,7 @@ def _build_services(args: argparse.Namespace, logger: logging.Logger):
         db_manager=db_manager,
         alarm_service=alarm,
     )
-    return bus, acquisition, sources, storage, db_manager, alarm, persistence, alarm_eval
+    return bus, acquisition, sources, storage, db_manager, alarm, persistence, alarm_eval, type_service
 
 
 def _anchor(path: str | None, *default_parts: str) -> str:
@@ -142,7 +149,9 @@ def main() -> int:
     from core.protocol import SidecarServer
     from core.protocol.storage_rpc import register_storage_rpc
 
-    bus, acquisition, sources, storage, db_manager, alarm, persistence, alarm_eval = _build_services(args, logger)
+    bus, acquisition, sources, storage, db_manager, alarm, persistence, alarm_eval, type_service = _build_services(
+        args, logger
+    )
     server = SidecarServer(bus)
     port, token = server.start(host=args.host, port=args.port)
 
@@ -169,6 +178,13 @@ def main() -> int:
 
     writes = register_write_rpc(server, db_manager=db_manager, acquisition=acquisition, alarm=alarm)
     logger.info("写入 RPC 共 %d 个", len(writes))
+
+    # 运行时数据源启停/移除（旧 device_page.py 的 start/stop/remove_source_requested
+    # 接到 source_manager，ui/ 归档后这条线断了；设备页只有持久化配置 CRUD）
+    from core.protocol.source_rpc import register_source_rpc
+
+    source_methods = register_source_rpc(server, sources=sources)
+    logger.info("运行时来源 RPC 已注册: %s", ", ".join(source_methods) or "<无>")
 
     # 实验数据导入（旧 ui/ 的 data_import_widget 归档后，这是把它接回前端的唯一通路）
     from core.protocol.data_rpc import register_data_rpc
@@ -245,6 +261,13 @@ def main() -> int:
         # 注意 over_threshold 不等于新增告警条数——同级别重复事件被去抖，库里只有一条。
         ev = alarm_eval.stats
         logger.info("幅值告警判定: 送判 %d 条事件 / 越限放行 %d 次", ev["evaluated"], ev["over_threshold"])
+        ts = type_service.stats
+        # classified=0 且 skipped=0 说明 PRPD 结果压根没到（链断了）；
+        # classified>0 而 published==classified 才是"真的在判并真的发出去了"。
+        logger.info(
+            "放电类型判定: 已判 %d 帧 / 已发布 %d 帧 / 跳过 %d 帧", ts["classified"], ts["published"], ts["skipped"]
+        )
+        type_service.stop()
         # 先断订阅再停刷写线程，否则停机过程中入队的事件会被丢在队列里没人写
         if persistence:
             persistence.stop()

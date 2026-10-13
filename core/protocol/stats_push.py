@@ -15,6 +15,8 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QTimer
 
+from core.utils.process_stats import ProcessStatsSampler
+
 from .payloads import build_stats
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,7 @@ def collect_stats(
     sources: Any = None,
     storage: Any = None,
     transport: Any = None,
+    process: Any = None,
 ) -> dict[str, Any]:
     """聚合一份跨服务的指标快照。任何可选依赖为 None 时整块省略该字段。"""
     out: dict[str, Any] = dict(acquisition.get_stats()) if acquisition else {}
@@ -57,6 +60,9 @@ def collect_stats(
     if transport is not None:
         out["transport"] = transport
 
+    if process is not None:
+        out["process"] = process
+
     return out
 
 
@@ -80,6 +86,9 @@ class StatsPusher(QObject):
         self._alarm = alarm
         self._sources = sources
         self._storage = storage
+        # 采样器必须跨帧复用：CPU 占用率靠两次采样的差值算，每次现建一个的话
+        # 差值退化成"自建实例以来"，读数会一直偏低
+        self._proc_sampler = ProcessStatsSampler()
         self._timer = QTimer(self)
         self._timer.setInterval(interval_ms)
         self._timer.timeout.connect(self.push_once)
@@ -99,6 +108,7 @@ class StatsPusher(QObject):
                 sources=self._sources,
                 storage=self._storage,
                 transport=self._server.diagnostics(),
+                process=self._proc_sampler.sample(),
             )
         except (AttributeError, TypeError, RuntimeError) as exc:
             logger.warning("stats 聚合失败: %s", exc, exc_info=True)

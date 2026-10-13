@@ -95,25 +95,17 @@ class HardwareManager(QObject):
         # 配置通道耦合类型
         for ch in range(config.channel_count):
             ch_cfg = config.get_channel_config(ch)
-            self._acquisition.set_channel_coupling_type(
-                config.device_id, ch, ch_cfg.coupling_type
-            )
+            self._acquisition.set_channel_coupling_type(config.device_id, ch, ch_cfg.coupling_type)
 
         # 连接驱动 → 协议解析 → 采集服务
         driver.set_on_data_callback(
-            lambda data, dev_id=config.device_id, proto=protocol: (
-                self._on_data_received(dev_id, proto, data)
-            )
+            lambda data, dev_id=config.device_id, proto=protocol: (self._on_data_received(dev_id, proto, data))
         )
 
         # 驱动信号连接
         driver.connected.connect(lambda: self._on_device_connected(config.device_id))
-        driver.disconnected.connect(
-            lambda: self._on_device_disconnected(config.device_id)
-        )
-        driver.error_occurred.connect(
-            lambda msg, dev_id=config.device_id: self._on_device_error(dev_id, msg)
-        )
+        driver.disconnected.connect(lambda: self._on_device_disconnected(config.device_id))
+        driver.error_occurred.connect(lambda msg, dev_id=config.device_id: self._on_device_error(dev_id, msg))
 
         self._devices[config.device_id] = {
             "driver": driver,
@@ -168,9 +160,7 @@ class HardwareManager(QObject):
 
     # ── 数据路由 ─────────────────────────────────────
 
-    def _on_data_received(
-        self, device_id: str, protocol: FpgaProtocol, data: bytes
-    ) -> None:
+    def _on_data_received(self, device_id: str, protocol: FpgaProtocol, data: bytes) -> None:
         """
         UDP 数据回调 → 协议解析 → 采集服务
 

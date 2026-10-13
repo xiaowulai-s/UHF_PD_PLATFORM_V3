@@ -12,7 +12,7 @@ PRPS 以 512×360 矩阵表示连续工频周期的局放分布：
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np

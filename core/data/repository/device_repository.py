@@ -69,11 +69,7 @@ class PDDeviceRepository:
         from sqlalchemy.orm import joinedload
 
         with self._db.session() as session:
-            devices = (
-                session.query(PDDeviceModel)
-                .options(joinedload(PDDeviceModel.channels))
-                .all()
-            )
+            devices = session.query(PDDeviceModel).options(joinedload(PDDeviceModel.channels)).all()
             # 在 session 内遍历以触发 lazy load
             result = []
             for d in devices:

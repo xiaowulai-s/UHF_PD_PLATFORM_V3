@@ -3,10 +3,10 @@
 Pytest 配置和共享 Fixtures
 """
 
-import os
 import sys
-import pytest
 from pathlib import Path
+
+import pytest
 
 # 确保项目根目录在sys.path中
 PROJECT_ROOT = Path(__file__).parent.parent

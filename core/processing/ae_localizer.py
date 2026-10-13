@@ -135,9 +135,6 @@ class AELocalizer:
         dt = times[1:] - t0
         d = dt * self._sound_speed
 
-        # 参考传感器到各传感器的距离
-        R = np.sqrt(np.sum((positions[1:] - p0) ** 2, axis=1))
-
         # 构建矩阵 A 和 b: A * [x, y, r0]^T = b
         # 其中 r0 是声源到参考传感器的距离
         A = np.zeros((n - 1, 3))
@@ -153,11 +150,19 @@ class AELocalizer:
         try:
             # 最小二乘解
             x, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
+            # 秩不足检测: rank < 2 意味着传感器高度共线 (只有1个独立方向约束)
+            if rank < 2:
+                logger.warning("TDOA 矩阵秩严重不足 (rank=%d), 传感器可能高度共线", rank)
+                return None
+            # 残差过大检测: 解的发散保护
+            if len(residuals) > 0 and residuals[0] > 1e6:
+                logger.warning("TDOA 残差过大 (%f), 定位发散", float(residuals[0]))
+                return None
         except np.linalg.LinAlgError:
             logger.warning("TDOA 矩阵求解失败")
             return None
 
-        source_x, source_y, r0_est = float(x[0]), float(x[1]), float(x[2])
+        source_x, source_y = float(x[0]), float(x[1])
 
         # 解决符号歧义: TDOA 系统产生两个解, 选距离传感器质心更近的那个
         centroid = np.mean(positions, axis=0)
@@ -165,9 +170,7 @@ class AELocalizer:
         # 镜像解
         mirror_x = p0[0] - (source_x - p0[0])
         mirror_y = p0[1] - (source_y - p0[1])
-        dist_to_centroid_mirror = np.sqrt(
-            (mirror_x - centroid[0]) ** 2 + (mirror_y - centroid[1]) ** 2
-        )
+        dist_to_centroid_mirror = np.sqrt((mirror_x - centroid[0]) ** 2 + (mirror_y - centroid[1]) ** 2)
         if dist_to_centroid_mirror < dist_to_centroid:
             source_x, source_y = mirror_x, mirror_y
 
@@ -251,3 +254,34 @@ class AELocalizer:
             confidence=avg_confidence,
             sensors_used=max(r.sensors_used for r in valid),
         )
+
+    def simulate_arrival_times(
+        self,
+        source_x: float,
+        source_y: float,
+        noise_std: float = 1e-7,
+    ) -> Dict[int, float]:
+        """
+        模拟声源到达各传感器的时间（用于演示/测试）
+
+        Args:
+            source_x: 声源 X 坐标 (m)
+            source_y: 声源 Y 坐标 (m)
+            noise_std: 时间噪声标准差 (秒)
+
+        Returns:
+            {sensor_id: 到达时间 (秒)}
+        """
+        arrival_times: Dict[int, float] = {}
+        for s in self._sensor_list:
+            dist = float(np.sqrt((source_x - s.x) ** 2 + (source_y - s.y) ** 2))
+            t_arrival = dist / self._sound_speed
+            if noise_std > 0:
+                t_arrival += float(np.random.normal(0, noise_std))
+            arrival_times[s.sensor_id] = t_arrival
+        return arrival_times
+
+    @property
+    def sound_speed(self) -> float:
+        """当前声速 (m/s)"""
+        return self._sound_speed

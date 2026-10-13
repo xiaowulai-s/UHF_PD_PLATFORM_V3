@@ -164,6 +164,67 @@ class PDEventModel(Base):
         }
 
 
+class AeHitModel(Base):
+    """AE 命中记录。
+
+    为什么单独建表而不是复用 `pd_events`：AE 命中确实也会以 `sensor_type="ae"` 写一条
+    `pd_events`，但 `pd_events` 的列是围绕 UHF 事件设计的，AE 特有的
+    `rms / asl_db / signal_strength / avg_frequency_khz` 在那张表里没有位置，落库即丢。
+    而"AE 特征分析"要看的正是这几个量。两处并存是有意的：`pd_events` 供跨模态的
+    趋势/告警口径，本表供 AE 特征复盘；设备候选仍取 `storage.device_ids`（两者同源）。
+
+    列与 `desktop/src/shared/protocol.ts` 的 `AeHit` 一一对应，少一列就多一个
+    "前端拿不到、只能自己猜"的字段。
+    """
+
+    __tablename__ = "ae_hits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String(64), nullable=False, index=True)
+    channel_id = Column(Integer, nullable=True)
+    timestamp = Column(DateTime, default=utc_now, index=True)
+    amplitude = Column(Float, nullable=False)  # 采集原始口径：真机为计数、模拟器为 mV（未标定）
+    rise_time_us = Column(Float, nullable=True)
+    duration_us = Column(Float, nullable=True)
+    counts = Column(Integer, nullable=True)
+    marse_energy = Column(Float, nullable=True)
+    avg_frequency_khz = Column(Float, nullable=True)
+    rms = Column(Float, nullable=True)
+    asl_db = Column(Float, nullable=True)
+    signal_strength = Column(Float, nullable=True)
+    energy = Column(Float, nullable=True)
+    phase_deg = Column(Float, nullable=True)
+    polarity = Column(Integer, nullable=True)
+    signal_quality = Column(Integer, default=0)
+
+    __table_args__ = (
+        Index("idx_ae_hit_device_time", "device_id", "timestamp"),
+        Index("idx_ae_hit_device_channel_time", "device_id", "channel_id", "timestamp"),
+        Index("idx_ae_hit_amp", "amplitude"),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "device_id": self.device_id,
+            "channel_id": self.channel_id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "amplitude": self.amplitude,
+            "rise_time_us": self.rise_time_us,
+            "duration_us": self.duration_us,
+            "counts": self.counts,
+            "marse_energy": self.marse_energy,
+            "avg_frequency_khz": self.avg_frequency_khz,
+            "rms": self.rms,
+            "asl_db": self.asl_db,
+            "signal_strength": self.signal_strength,
+            "energy": self.energy,
+            "phase_deg": self.phase_deg,
+            "polarity": self.polarity,
+            "signal_quality": self.signal_quality,
+        }
+
+
 class PDTrendDataModel(Base):
     """局放趋势统计数据"""
 

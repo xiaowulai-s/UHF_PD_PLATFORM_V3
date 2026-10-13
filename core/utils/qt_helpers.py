@@ -5,7 +5,7 @@ Qt Helper Functions - Safe signal operations and object validity checks
 """
 
 import logging
-from typing import Callable, Optional
+from typing import Callable
 
 logger = logging.getLogger(__name__)
 

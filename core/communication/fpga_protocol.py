@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-# TODO: 文件过大(594行)，建议拆分解析/封装/数据类型
 FPGA 通信协议解析器
 
 解析 FPGA 采集主机通过 TCP/UDP 发送的数据帧。
@@ -27,10 +26,19 @@ from __future__ import annotations
 import logging
 import struct
 import time
-from dataclasses import dataclass, field
-from datetime import datetime
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
+
+from core.communication.protocol_data_structures import (
+    AEParametersData,
+    AEWaveformData,
+    DataFrame,
+    DeviceStatusData,
+    FFTData,
+    PRPDData,
+    PRPSData,
+    WaveformData,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +60,7 @@ DATA_TYPE_AE_WAVEFORM = 0x07
 DATA_TYPE_AE_PARAMETERS = 0x08
 
 
-class DataType(IntEnum):  # TODO: 充分利用枚举，当前主要使用 DATA_TYPE_* 常量
+class DataType(IntEnum):
     """数据类型枚举"""
 
     WAVEFORM = DATA_TYPE_WAVEFORM
@@ -79,111 +87,8 @@ DATA_TYPE_NAMES = {
 # 最小帧长度: 帧头(2) + 长度(2) + 设备ID(2) + 通道ID(2) + 时间戳(8) + 类型(1) + CRC(2) = 19
 MIN_FRAME_LENGTH = 19
 
-
-# ═══════════════════════════════════════════════════════
-# 数据类
-# ═══════════════════════════════════════════════════════
-
-
-@dataclass
-class DataFrame:
-    """解析后的数据帧"""
-
-    frame_type: DataType
-    device_id: int
-    channel_id: int
-    timestamp: float  # Unix timestamp
-    data: Any  # 解析后的数据
-    raw_length: int = 0
-
-    @property
-    def type_name(self) -> str:
-        return DATA_TYPE_NAMES.get(self.frame_type, f"未知(0x{self.frame_type:02X})")
-
-    @property
-    def time_str(self) -> str:
-        return datetime.fromtimestamp(self.timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")[:23]
-
-
-@dataclass
-class WaveformData:
-    """波形数据"""
-
-    samples: List[float]  # 采样点幅值 (mV)
-    sample_rate: int  # 采样率 (Hz)
-    trigger_position: int = 0  # 触发点位置
-
-
-@dataclass
-class FFTData:
-    """FFT 频谱数据"""
-
-    frequencies: List[float]  # 频率 (Hz)
-    magnitudes: List[float]  # 幅值
-    peak_frequencies: List[float] = field(default_factory=list)  # 峰值频率
-    peak_magnitudes: List[float] = field(default_factory=list)  # 峰值幅值
-    sample_rate: int = 0
-
-
-@dataclass
-class PRPDData:
-    """PRPD 图谱数据"""
-
-    matrix: List[List[float]]  # 二维矩阵
-    phase_bins: int = 360
-    amplitude_bins: int = 256
-
-
-@dataclass
-class PRPSData:
-    """PRPS 图谱数据"""
-
-    matrix: List[List[float]]  # 二维矩阵
-    rows: int = 512
-    cols: int = 360
-
-
-@dataclass
-class DeviceStatusData:
-    """设备状态数据"""
-
-    status: int  # 0=离线, 1=在线, 2=告警, 3=错误
-    temperature: float = 0.0  # 温度 (°C)
-    humidity: float = 0.0  # 湿度 (%)
-    voltage: float = 0.0  # 电压 (V)
-    current: float = 0.0  # 电流 (A)
-    adc_status: int = 0  # ADC 状态
-    optical_status: int = 0  # 光模块状态
-    sync_status: int = 0  # 同步状态
-    memory_usage: float = 0.0  # 内存使用率 (%)
-    cpu_usage: float = 0.0  # CPU 使用率 (%)
-    uptime: int = 0  # 运行时间 (s)
-    error_code: int = 0  # 错误码
-    error_message: str = ""  # 错误信息
-
-
-@dataclass
-class AEWaveformData:
-    """AE 波形数据"""
-
-    samples: List[float]  # 采样点幅值 (mV)
-    sample_rate: int  # 采样率 (Hz)
-    trigger_position: int = 0  # 触发点位置
-
-
-@dataclass
-class AEParametersData:
-    """AE 参数数据（预计算的 AE 特征）"""
-
-    peak_amplitude: float = 0.0  # 峰值幅值 (mV)
-    rise_time_us: float = 0.0  # 上升时间 (us)
-    duration_us: float = 0.0  # 持续时间 (us)
-    counts: int = 0  # 振铃计数
-    marse_energy: float = 0.0  # MARSE 能量
-    rms: float = 0.0  # RMS 值 (mV)
-    arrival_time: float = 0.0  # 到达时间 (s)
-    phase_deg: float = 0.0  # 工频相位 (0-360)
-    avg_frequency_khz: float = 0.0  # 平均频率 (kHz)
+# 最大载荷长度: 1MB — 防止恶意/损坏帧导致内存耗尽
+MAX_PAYLOAD_LENGTH = 1_048_576
 
 
 # ═══════════════════════════════════════════════════════
@@ -254,6 +159,14 @@ class FpgaProtocol:
 
         # 读取长度字段 (偏移 2, 大端 2 字节)
         payload_length = struct.unpack_from(">H", buf, 2)[0]
+
+        # 长度安全检查: 拒绝超大 payload
+        if payload_length > MAX_PAYLOAD_LENGTH:
+            logger.warning("帧 payload 超限: %d bytes (上限 %d), 丢弃此帧", payload_length, MAX_PAYLOAD_LENGTH)
+            self._stats["parse_errors"] += 1
+            del buf[:2]
+            return None
+
         total_length = MIN_FRAME_LENGTH + payload_length
 
         if len(buf) < total_length:
@@ -263,10 +176,15 @@ class FpgaProtocol:
             frame = self._parse_frame(buf[:total_length])
             del buf[:total_length]
             return frame
-        except Exception as e:
-            logger.warning("帧解析失败: %s", e)
+        except (struct.error, ValueError) as e:
+            logger.debug("帧解析失败 - 数据格式错误: %s", e)
             self._stats["parse_errors"] += 1
             del buf[:2]  # 跳过帧头后重试
+            return None
+        except Exception as e:
+            logger.warning("帧解析失败 - 未知错误: %s", e, exc_info=True)
+            self._stats["parse_errors"] += 1
+            del buf[:2]
             return None
 
     def _find_header(self, buf: bytearray) -> int:

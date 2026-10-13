@@ -197,6 +197,22 @@ def build_acquisition(state: str, device: str, error: str = "") -> Frame:
     )
 
 
+def build_discharge_type(device: str, channel: int, info: Any) -> Frame:
+    """放电类型判定结果。
+
+    走可靠通道：类型跳变是"事件"而不是遥测，被有损通道合并掉就等于丢了一次
+    状态变更，前端会长时间停在旧标签上。字段挂在 `meta["type"]` 下，与 alarm/ae_hit
+    的 `meta[<名>]` 形状一致，前端不必为它写一套特例。
+    """
+    return Frame(
+        topic="discharge_type",
+        kind="event",
+        device=device,
+        channel=channel,
+        meta={"type": _plain(info)},
+    )
+
+
 def build_source(state: str, source_id: str) -> Frame:
     return Frame(topic="source", kind="event", meta={"state": state, "source_id": source_id})
 

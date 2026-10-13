@@ -43,13 +43,97 @@ class PDSimulator:
         noise_level: 噪声水平 (mV)
     """
 
-    # 局放脉冲类型
+    #: 局放脉冲类型。
+    #:
+    #: **相位分布是双侧的**，不是单个窄窗。原先每种类型只给一个 `phase_range`
+    #: （corona 270~330、surface 30~90、internal 0~60），于是四种类型在
+    #: `DischargeClassifier` 眼里长得一模一样：top2≈0.99、cv≈0.3，实测四种 `--pd-type`
+    #: **全部**被判成"沿面放电"。参考剖面描述的是"内部气隙：正负半周都集中、S1>S4"、
+    #: "电晕：负半周能量占绝对优势"、"沿面：S1≈S4"、"悬浮：相位宽、cv 极高"——
+    #: 单一窄窗一个都对不上。
+    #:
+    #: 窗口按 **60° 扇区**切（S1=0~60° … S6=300~360°），权重是该扇区的计数占比，
+    #: 取值按参考剖面的 quad13 / spread / neg_tail / s1_s4_ratio 反推：
+    #:   internal  S1 .45 / S4 .30 → quad13 .75、S1/S4=1.5、symmetry .67
+    #:   surface   S1 .44 / S4 .44 → quad13 .88、S1/S4=1.0
+    #:   corona    六扇区近均分     → quad13 .32、spread .68、neg_tail .33
+    #:   floating  S1 .19 / S4 .19 → quad13 .38、spread .62
+    #: `amp_scale` 是窗口内的幅值倍率，用来把 **pos_energy**（幅值加权的正半周占比）
+    #: 压到参考值：电晕 3.1（负半周能量占绝对优势）、内部 1.27、其余 1.0。
+    #:
+    #: 幅值用**对数正态**而不是均匀分布：参考剖面的 cv 目标是 0.50~2.50，而均匀分布的
+    #: cv 上限只有 1/√3≈0.58，internal(0.80)/corona(1.50)/floating(2.50) 都够不到。
+    #: `amplitude_sigma` 由 cv = sqrt(exp(σ²)-1) 反解；`amplitude_cap` 压住对数正态的
+    #: 右尾，避免把 PRPD 幅值轴撑大——那根轴**只增不减**，撑大了就再也回不来。
     PD_TYPES = {
-        "corona": {"amplitude_range": (5, 30), "phase_range": (270, 330), "description": "电晕放电"},
-        "surface": {"amplitude_range": (20, 60), "phase_range": (30, 90), "description": "沿面放电"},
-        "internal": {"amplitude_range": (30, 80), "phase_range": (0, 60), "description": "内部放电"},
-        "floating": {"amplitude_range": (40, 100), "phase_range": (0, 360), "description": "悬浮放电"},
+        "corona": {
+            "description": "电晕放电",
+            "phase_windows": (
+                (0, 60, 0.160, 1.0),
+                (60, 120, 0.175, 1.0),
+                (120, 180, 0.175, 1.0),
+                (180, 240, 0.160, 3.1),
+                (240, 300, 0.165, 3.1),
+                (300, 360, 0.165, 3.1),
+            ),
+            "amplitude_median": 9.0,
+            "amplitude_sigma": 1.09,
+            "amplitude_cap": 120.0,
+        },
+        "surface": {
+            "description": "沿面放电",
+            "phase_windows": (
+                (0, 60, 0.44, 1.0),
+                (60, 120, 0.03, 1.0),
+                (120, 180, 0.03, 1.0),
+                (180, 240, 0.44, 1.0),
+                (240, 300, 0.03, 1.0),
+                (300, 360, 0.03, 1.0),
+            ),
+            "amplitude_median": 25.0,
+            "amplitude_sigma": 0.47,
+            "amplitude_cap": 120.0,
+        },
+        "internal": {
+            "description": "内部放电",
+            "phase_windows": (
+                (0, 60, 0.45, 1.0),
+                (60, 120, 0.055, 1.0),
+                (120, 180, 0.055, 1.0),
+                (180, 240, 0.30, 1.27),
+                (240, 300, 0.07, 1.27),
+                (300, 360, 0.07, 1.27),
+            ),
+            "amplitude_median": 30.0,
+            "amplitude_sigma": 0.70,
+            "amplitude_cap": 120.0,
+        },
+        "floating": {
+            "description": "悬浮放电",
+            "phase_windows": (
+                (0, 60, 0.19, 1.0),
+                (60, 120, 0.155, 1.0),
+                (120, 180, 0.155, 1.0),
+                (180, 240, 0.19, 1.0),
+                (240, 300, 0.155, 1.0),
+                (300, 360, 0.155, 1.0),
+            ),
+            "amplitude_median": 20.0,
+            # cv 目标 2.5 会让对数正态的右尾过长，而 cap 一压，cv 反而掉下来。
+            # 扫过 6 组 (median, σ, cap)：σ=1.25 + cap=400 是唯一既逃出分类器的
+            # 噪声闸（要求 max_amp ≥ 噪声阈值×5 ≈ 195）、cv 又最高的组合（实测 cv≈1.5）。
+            # cap 400 会让 PRPD 幅值轴扩到约 480——这与剖面"幅值大且分散"一致，
+            # 且那根轴本来只增不减，重启才回落。
+            "amplitude_sigma": 1.25,
+            "amplitude_cap": 400.0,
+        },
     }
+
+    @staticmethod
+    def _sample_amplitude(config: dict) -> float:
+        """按类型抽一个脉冲幅值。对数正态，cv 由 `amplitude_sigma` 决定。"""
+        amp = random.lognormvariate(math.log(config["amplitude_median"]), config["amplitude_sigma"])
+        return min(amp, config["amplitude_cap"])
 
     def __init__(
         self,
@@ -129,21 +213,23 @@ class PDSimulator:
 
         # 局放脉冲
         pd_config = self.PD_TYPES[self._pd_type]
-        amp_range = pd_config["amplitude_range"]
-        phase_range = pd_config["phase_range"]
+        windows = pd_config["phase_windows"]
+        window_weights = [w[2] for w in windows]
 
         # 每帧脉冲数 (泊松分布)
         n_pulses = np.random.poisson(self._pulse_rate * n / self._sample_rate)
         n_pulses = min(n_pulses, 20)
 
         for _ in range(n_pulses):
-            # 相位 -> 时间位置
-            phase_deg = random.uniform(phase_range[0], phase_range[1])
+            # 先按扇区权重挑窗口，再在窗口内均匀取相位：直接对全相位均匀取样
+            # 得不到"两侧都有计数、但某一侧更密"的分布（见 PD_TYPES 的说明）。
+            start, end, _weight, amp_scale = random.choices(windows, weights=window_weights, k=1)[0]
+            phase_deg = random.uniform(start, end)
             phase_rad = math.radians(phase_deg)
             pos = int((phase_rad / (2 * math.pi)) * n + random.gauss(0, n * 0.01)) % n
 
             # 幅值
-            amplitude = random.uniform(amp_range[0], amp_range[1]) * self._amplitude_scale
+            amplitude = self._sample_amplitude(pd_config) * amp_scale * self._amplitude_scale
 
             # 脉冲宽度
             pulse_width = int(random.uniform(5, 20))

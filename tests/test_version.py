@@ -6,7 +6,7 @@ Unit Tests for Version Information
 
 import pytest
 
-from core.version import __version__, VERSION_INFO, get_version, get_version_info
+from core.version import VERSION_INFO, __version__, get_version, get_version_info
 
 
 class TestVersionInfo:

@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 
+from core.communication.protocol_data_structures import WaveformData
 from core.foundation.signal_bus import PDDataBus
 from core.processing.processor_manager import ProcessorManager
 from core.processing.publish_throttle import PublishThrottle
@@ -157,7 +158,22 @@ class UHFPipelineHandler:
         except (ValueError, TypeError, RuntimeError, MemoryError, IndexError) as e:
             logger.warning("[%s] PRPS 异常: %s", device_id, e, exc_info=True)
 
-        # 发布波形
-        self._data_bus.publish_waveform(device_id, channel_id, samples, "uhf")
+        # 发布波形。
+        #
+        # 必须把 samples 与 sample_rate 一起包成 WaveformData，不能发裸 ndarray：
+        # `payloads.build_waveform` 用 `getattr(obj, "sample_rate", 0)` 取时间基，
+        # 裸数组恒取到 0，而前端 waveform-chart 又把 0 兜底成 100 MHz。对 UHF 恰好
+        # 蒙对，对任何非 100MHz 的采集（以及 AE 的 2MHz）就是一条静默的错刻度——
+        # 图照样画得出来，只是横轴差几十倍。AE 通路已在 M5.1 按同一理由修过。
+        #
+        # 换负载类型不破坏回滚路径：旧 UI 的 `signal_router._on_waveform_for_ui`
+        # 写的是 `waveform.samples if hasattr(waveform, "samples") else waveform`，
+        # 两种形状都吃；`_on_waveform_for_storage` 只读统计计数、不碰负载。
+        self._data_bus.publish_waveform(
+            device_id,
+            channel_id,
+            WaveformData(samples=samples, sample_rate=int(sr)),
+            "uhf",
+        )
 
         return {"samples": samples, "sample_rate": sr, "n_peaks": len(pd_events)}

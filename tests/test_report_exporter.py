@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """ReportExporter 测试"""
 
+import base64
 import json
 import os
 
@@ -40,6 +41,20 @@ def sample_analysis_result():
             },
         },
     }
+
+
+#: 70 字节的合法 1x1 RGBA PNG。原先各处只写 8 字节 PNG magic，
+#: python-docx 缺席时侥幸不报错，装上之后 add_picture 真去解图就炸 UnexpectedEndOfFileError。
+PNG_1PX = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+
+
+def _hide_docx(monkeypatch):
+    """让 `from docx import ...` 抛 ImportError，且不依赖本机到底装没装。"""
+    import sys
+
+    monkeypatch.setitem(sys.modules, "docx", None)
 
 
 class TestReportExporter:
@@ -84,32 +99,39 @@ class TestReportExporter:
         """
         pytest.importorskip("docx")
         chart = tmp_path / "prpd.png"
-        chart.write_bytes(b"\x89PNG\r\n\x1a\n")  # 够 docx 走 add_picture 的路径判断
+        chart.write_bytes(PNG_1PX)
         path = str(tmp_path / "report_with_chart.docx")
         result_path = ReportExporter.export_word(sample_analysis_result, path, chart_path=str(chart))
 
         assert os.path.exists(result_path)
+        import docx
 
-    def test_chart_branch_resolves_os_even_without_docx(self, sample_analysis_result, tmp_path):
-        """没装 python-docx 时也必须能跑到图表存在性那一行。
+        doc = docx.Document(result_path)
+        assert "2. PRPD 图谱" in "\n".join(par.text for par in doc.paragraphs)
+        assert len(doc.inline_shapes) == 1, "带图分支要真的把图嵌进去，而不是只多写一段标题"
+
+    def test_chart_branch_resolves_os_even_without_docx(self, sample_analysis_result, tmp_path, monkeypatch):
+        """docx 不可用时也必须能跑到图表存在性那一行。
 
         这是防 `import os` 缺失的正主：原先模块里根本没有 `import os`，而所有带
         docx 的用例都被 `importorskip` 静默跳过，那行 NameError 因此永不可见。
-        本用例不加 importorskip——它断言抛的是 ImportError 而不是 NameError。
+        本用例不加 importorskip，而是显式把 docx 从 sys.modules 里藏掉后断言抛的是
+        ImportError 而不是 NameError——不依赖本机到底装没装 python-docx。
         """
         chart = tmp_path / "prpd.png"
-        chart.write_bytes(b"\x89PNG\r\n\x1a\n")
+        chart.write_bytes(PNG_1PX)
         path = str(tmp_path / "report.docx")
+        _hide_docx(monkeypatch)
 
         with pytest.raises(ImportError, match="python-docx"):
             ReportExporter.export_word(sample_analysis_result, path, chart_path=str(chart))
 
     def test_chart_existence_checked_before_importing_docx(self, sample_analysis_result, tmp_path, monkeypatch):
-        """存在性检查必须排在导 docx 之前，否则上一条用例在本机形同虚设。
+        """存在性检查必须排在导 docx 之前，否则上一条用例在装了 python-docx 的机器上形同虚设。
 
-        只有"先检查、后导库"这个顺序，才让带 chart_path 的分支在没装 python-docx
-        的机器上真的被执行。用 spy 直接验顺序：把检查挪回导库之后的话，这里收不到
-        调用，用例会红——单靠上一条断言 ImportError 是分不出这个差别的（实测过）。
+        只有"先检查、后导库"这个顺序，才让带 chart_path 的分支在 docx 不可用时也真的
+        被执行。用 spy 直接验顺序：把检查挪回导库之后的话，这里收不到调用，用例会红——
+        单靠上一条断言 ImportError 是分不出这个差别的（实测过）。
         """
         seen = []
         real_exists = os.path.exists
@@ -121,8 +143,9 @@ class TestReportExporter:
         monkeypatch.setattr(os.path, "exists", spy)
 
         chart = tmp_path / "prpd.png"
-        chart.write_bytes(b"\x89PNG\r\n\x1a\n")
+        chart.write_bytes(PNG_1PX)
         path = str(tmp_path / "report.docx")
+        _hide_docx(monkeypatch)
 
         with pytest.raises(ImportError, match="python-docx"):
             ReportExporter.export_word(sample_analysis_result, path, chart_path=str(chart))
@@ -132,9 +155,10 @@ class TestReportExporter:
             "相关缺陷（如缺 import os）就永远不会被测到"
         )
 
-    def test_missing_chart_path_is_tolerated(self, sample_analysis_result, tmp_path):
+    def test_missing_chart_path_is_tolerated(self, sample_analysis_result, tmp_path, monkeypatch):
         """图表文件不存在时应跳过插图而不是抛 NameError/崩掉。"""
         path = str(tmp_path / "report.docx")
+        _hide_docx(monkeypatch)
 
         with pytest.raises(ImportError, match="python-docx"):
             ReportExporter.export_word(sample_analysis_result, path, chart_path=str(tmp_path / "nope.png"))

@@ -73,6 +73,7 @@ class StorageRpc:
                 ("storage.query_trends", self.query_trends),
                 ("storage.query_trend_series", self.query_trend_series),
                 ("storage.query_alarms", self.query_alarms),
+                ("storage.query_ae_hits", self.query_ae_hits),
                 ("storage.device_ids", lambda _p: self._storage.query_history_device_ids()),
                 ("storage.stats", lambda _p: self._storage.get_statistics()),
             ]
@@ -168,6 +169,27 @@ class StorageRpc:
             device_id=str(device_id) if device_id else None,
             level=str(level) if level else None,
             limit=_clamp_limit(params.get("limit"), 100),
+        )
+
+    def query_ae_hits(self, params: dict) -> list[dict]:
+        """AE 命中历史（跨重启可追溯的那一份）。
+
+        与前端内存里的"本次会话累计"是两码事：那个列表连接内核才有、重启即空，
+        这里读的是 `ae_hits` 表。前端必须把两者显式区分开，不能让用户以为
+        页面上那个累计数就是设备投运以来的总数。
+        """
+        device_id = params.get("device_id")
+        if not device_id:
+            raise ValueError("缺少 device_id")
+        start = _parse_time(params.get("start_time")) or (datetime.now(timezone.utc) - timedelta(hours=1))
+        end = _parse_time(params.get("end_time"))
+        channel_id = params.get("channel_id")
+        return self._storage.query_ae_hits(
+            device_id=str(device_id),
+            start_time=start,
+            end_time=end,
+            channel_id=int(channel_id) if channel_id is not None else None,
+            limit=_clamp_limit(params.get("limit"), 1000),
         )
 
 

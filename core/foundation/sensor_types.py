@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+
 """
 传感器类型定义
 
@@ -6,10 +8,9 @@
 用于数据采集分发、处理管线选择、UI 路由等场景。
 """
 
-from __future__ import annotations
 
 from enum import Enum
-from typing import Dict, FrozenSet, Set
+from typing import Dict, FrozenSet
 
 
 class SensorType(Enum):
@@ -81,28 +82,28 @@ SENSOR_DEFAULTS: Dict[SensorType, dict] = {
         "sample_rate_hz": 100_000_000,
         "frequency_min_hz": 300_000_000,
         "frequency_max_hz": 3_000_000_000,
-        "alarm_thresholds": {"critical": 80.0, "warning": 50.0, "info": 30.0},
+        "alarm_thresholds": {"critical": 80.0, "high": 60.0, "medium": 40.0, "low": 20.0},
         "pipeline": ["peak_detect", "fft", "prpd", "prps"],
     },
     SensorType.AE: {
         "sample_rate_hz": 2_000_000,
         "frequency_min_hz": 20_000,
         "frequency_max_hz": 200_000,
-        "alarm_thresholds": {"critical": 100.0, "warning": 60.0, "info": 30.0},
+        "alarm_thresholds": {"critical": 100.0, "high": 70.0, "medium": 45.0, "low": 25.0},
         "pipeline": ["hit_detect", "param_extract", "envelope"],
     },
     SensorType.HFCT: {
         "sample_rate_hz": 100_000_000,
         "frequency_min_hz": 1_000_000,
         "frequency_max_hz": 50_000_000,
-        "alarm_thresholds": {"critical": 80.0, "warning": 50.0, "info": 30.0},
+        "alarm_thresholds": {"critical": 80.0, "high": 60.0, "medium": 40.0, "low": 20.0},
         "pipeline": ["peak_detect", "fft", "prpd", "prps"],
     },
     SensorType.TEV: {
         "sample_rate_hz": 50_000_000,
         "frequency_min_hz": 1_000_000,
         "frequency_max_hz": 80_000_000,
-        "alarm_thresholds": {"critical": 80.0, "warning": 50.0, "info": 30.0},
+        "alarm_thresholds": {"critical": 80.0, "high": 60.0, "medium": 40.0, "low": 20.0},
         "pipeline": ["peak_detect", "fft"],
     },
 }

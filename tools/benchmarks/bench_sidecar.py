@@ -31,7 +31,10 @@ try:
 except ImportError:  # pragma: no cover
     from websockets import connect as ws_connect  # type: ignore[no-redef]
 
-_DTYPES = {"f4": "float32", "f8": "float64", "i4": "int32"}
+# 与 core/protocol/frames.py 的 dtype 表对齐。**u1 必须在内**：M4.4 之后 prpd/prps
+# 的热图矩阵统一走 uint8 线性量化（`meta.qmax` 反量化），漏掉它会让每个热图帧都被记成
+# "未知 dtype" 解码失败，读数看起来像管线坏了——那是探针过时，不是产品问题。
+_DTYPES = {"f4": "float32", "f8": "float64", "i4": "int32", "i2": "int16", "i1": "int8", "u1": "uint8"}
 
 
 @dataclass
@@ -110,13 +113,18 @@ class Collector:
             self.errors.append(f"未知 dtype: {code}")
             return
         try:
+            import zlib
+
             import numpy as np
 
-            arr = np.frombuffer(payload, dtype=np.dtype(_DTYPES[code]))
+            # 热图主题是 zlib 压过的（`meta.codec == "zlib"`）。不先解压就拿压缩字节
+            # 去 frombuffer，形状/字节数校验必然失败——同样会伪装成"解码失败"。
+            raw = zlib.decompress(payload) if meta.get("codec") == "zlib" else payload
+            arr = np.frombuffer(raw, dtype=np.dtype(_DTYPES[code]))
             shape = tuple(meta.get("shape") or [])
             if shape:
                 arr = arr.reshape(shape)
-            if arr.size * arr.itemsize != len(payload):
+            if arr.size * arr.itemsize != len(raw):
                 stat.decode_errors += 1
                 self.errors.append("形状与字节数不一致")
             stat.shapes.add(arr.shape)
@@ -151,6 +159,9 @@ def main() -> int:
     parser.add_argument("--duration", type=float, default=8.0)
     parser.add_argument("--sim-type", choices=["uhf", "ae"], default="uhf")
     parser.add_argument("--pd-type", default="internal")
+    # M7.3 双/四通道线性度：仿真侧一次只能加一路（CLI 没有多通道开关），
+    # 但 DataSourceManager.add_simulator_source 可以加多路，所以用这个选项驱动。
+    parser.add_argument("--sources", type=int, default=1, help="模拟器数据源数量（M7.3 线性度用 1/2/4）")
     args = parser.parse_args()
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -172,10 +183,14 @@ def main() -> int:
     client.start()
 
     sources = DataSourceManager(acquisition_service=acquisition, data_bus=bus)
-    sources.add_simulator_source(args.sim_type, args.pd_type, args.fps)
+    for _ in range(max(1, args.sources)):
+        sources.add_simulator_source(args.sim_type, args.pd_type, args.fps)
     sources.start_all()
 
-    print(f"sidecar:{port}  收流 {args.duration:g}s @ {args.fps} FPS ...", flush=True)
+    print(
+        f"sidecar:{port}  收流 {args.duration:g}s @ {args.fps} FPS × {max(1, args.sources)} 源 ...",
+        flush=True,
+    )
     t0 = time.monotonic()
     deadline = t0 + args.duration
     while time.monotonic() < deadline:
@@ -234,7 +249,11 @@ def _report(client: Collector, stats: dict, diag: dict, elapsed: float) -> int:
     print("payload decode: " + ("all shapes verified" if decode_errors == 0 else f"{decode_errors} failures"))
     if reliable_gaps:
         print(f"RELIABLE topic frame loss detected: {reliable_gaps} gaps")
-    return 0 if decode_errors == 0 and reliable_gaps == 0 else 1
+    # M7.3 的验收线是"无背压丢弃"：背压整批丢弃会让读数静默变少，所以并入判定
+    dropped = int(diag.get("dropped_frames", 0))
+    if dropped:
+        print(f"BACKPRESSURE drops detected: {dropped} frames")
+    return 0 if decode_errors == 0 and reliable_gaps == 0 and dropped == 0 else 1
 
 
 if __name__ == "__main__":

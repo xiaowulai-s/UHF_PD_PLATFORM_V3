@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+
 """
 PRPD 实验数据分析工具
 
@@ -18,10 +20,9 @@ import argparse
 import json
 import os
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
@@ -29,13 +30,13 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.processing import FFTProcessor, PRPDProcessor, PRPSProcessor, PeakDetector
+from core.processing import FFTProcessor, PeakDetector, PRPDProcessor
 from core.processing.prpd_processor import PRPDMode
-
 
 # ═══════════════════════════════════════════════════════
 # 数据导入器
 # ═══════════════════════════════════════════════════════
+
 
 class PRPDDataImporter:
     """PRPD 数据导入器 — 支持多种实验数据格式"""
@@ -65,6 +66,7 @@ class PRPDDataImporter:
     def _detect_csv_format(path: Path) -> str:
         """检测 CSV 文件格式"""
         import csv
+
         try:
             with open(path, "r", encoding="utf-8") as f:
                 reader = csv.reader(f)
@@ -116,9 +118,12 @@ class PRPDDataImporter:
         """检测 Excel 文件格式"""
         try:
             import openpyxl
+
             wb = openpyxl.load_workbook(path, read_only=True)
             ws = wb.active
-            header = [str(c.value).strip().lower() if c.value else "" for c in next(ws.iter_rows(min_row=1, max_row=1))[0]]
+            header = [
+                str(c.value).strip().lower() if c.value else "" for c in next(ws.iter_rows(min_row=1, max_row=1))[0]
+            ]
             header_text = " ".join(header)
 
             if any(kw in header_text for kw in ["phase", "phi", "φ", "相位"]):
@@ -242,6 +247,7 @@ class PRPDDataImporter:
                     except ValueError:
                         try:
                             from datetime import datetime
+
                             ts = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S").timestamp()
                             timestamps.append(ts)
                             values.append(float(row[1]))
@@ -255,6 +261,7 @@ class PRPDDataImporter:
     def _load_excel(path: str, fmt: str) -> Any:
         """加载 Excel 文件"""
         import openpyxl
+
         wb = openpyxl.load_workbook(path, read_only=True)
         ws = wb.active
 
@@ -287,7 +294,7 @@ class PRPDDataImporter:
     def _load_txt(path: str, fmt: str) -> Any:
         """加载 TXT 文件"""
         with open(path, "r", encoding="utf-8") as f:
-            lines = [l.strip() for l in f if l.strip() and not l.strip().startswith(("#", "%", "//"))]
+            lines = [ln.strip() for ln in f if ln.strip() and not ln.strip().startswith(("#", "%", "//"))]
 
         if fmt == "phase_amplitude":
             phases, amplitudes = [], []
@@ -324,6 +331,7 @@ class PRPDDataImporter:
 # ═══════════════════════════════════════════════════════
 # 分析引擎
 # ═══════════════════════════════════════════════════════
+
 
 class PRPDAnalyzer:
     """PRPD 数据分析引擎"""
@@ -465,8 +473,8 @@ class PRPDAnalyzer:
         phase_concentration = float(np.max(phase_profile) / (np.sum(phase_profile) + 1e-10))
 
         # 正负半周能量比 (假设 0-180° 为正半周)
-        pos_energy = float(np.sum(matrix[:matrix.shape[0]//2, :]))
-        neg_energy = float(np.sum(matrix[matrix.shape[0]//2:, :]))
+        pos_energy = float(np.sum(matrix[: matrix.shape[0] // 2, :]))
+        neg_energy = float(np.sum(matrix[matrix.shape[0] // 2 :, :]))
         total = pos_energy + neg_energy
         pos_ratio = pos_energy / total if total > 0 else 0.5
 
@@ -549,14 +557,14 @@ class PRPDAnalyzer:
 
         if "prpd_stats" in r:
             s = r["prpd_stats"]
-            print(f"\n  PRPD 特征:")
+            print("\n  PRPD 特征:")
             print(f"    - 相位集中度: {s.get('phase_concentration', 0):.3f}")
             print(f"    - 正极性比例: {s.get('positive_ratio', 0):.3f}")
             print(f"    - 平均幅值:   {s.get('avg_amplitude', 'N/A')} mV")
 
         if "fft_stats" in r:
             f = r["fft_stats"]
-            print(f"\n  FFT 特征:")
+            print("\n  FFT 特征:")
             print(f"    - SNR:        {f.get('snr_db', 0):.1f} dB")
             print(f"    - 噪声底噪:   {f.get('noise_floor', 0):.4f}")
             print(f"    - 峰值数:     {f.get('peak_count', 0)}")
@@ -591,8 +599,8 @@ class PRPDAnalyzer:
 
         try:
             import matplotlib
+
             matplotlib.use("Agg")
-            import matplotlib.pyplot as plt
         except ImportError:
             print("[警告] matplotlib 未安装，跳过图表输出")
             return files
@@ -610,6 +618,7 @@ class PRPDAnalyzer:
 # ═══════════════════════════════════════════════════════
 # 命令行入口
 # ═══════════════════════════════════════════════════════
+
 
 def main():
     parser = argparse.ArgumentParser(description="PRPD 实验数据分析工具")
@@ -653,6 +662,7 @@ def main():
     except Exception as e:
         print(f"[错误] 分析过程异常: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

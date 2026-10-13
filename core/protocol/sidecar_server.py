@@ -253,6 +253,7 @@ class SidecarServer(QObject):
         reg(bus.fft_result_ready, self._on_fft)
         reg(bus.prpd_result_ready, self._on_prpd)
         reg(bus.prps_result_ready, self._on_prps)
+        reg(bus.pd_type_classified, self._on_pd_type)
         reg(bus.ae_envelope_ready, self._on_ae_envelope)
         reg(bus.ae_hit_detected, self._on_ae_hit)
         reg(bus.pd_alarm_triggered, self._on_alarm)
@@ -286,6 +287,10 @@ class SidecarServer(QObject):
     @Slot(str, int, object)
     def _on_prps(self, device: str, channel: int, result: Any) -> None:
         self._emit(P.build_prps(device, channel, result))
+
+    @Slot(str, int, dict)
+    def _on_pd_type(self, device: str, channel: int, info: Any) -> None:
+        self._emit(P.build_discharge_type(device, channel, info))
 
     @Slot(str, int, object)
     def _on_ae_envelope(self, device: str, channel: int, data: Any) -> None:

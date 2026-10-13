@@ -36,7 +36,7 @@ def test_event_from_bus_reaches_storage_queue(bus, storage):
     assert queued["device_id"] == "dev1"
     assert queued["channel_id"] == 2
     assert queued["amplitude"] == pytest.approx(42.5)
-    assert sub.stats == {"accepted": 1}
+    assert sub.stats == {"accepted": 1, "ae_accepted": 0}
 
 
 def test_stop_unsubscribes_so_events_are_no_longer_queued(bus, storage):
@@ -47,7 +47,7 @@ def test_stop_unsubscribes_so_events_are_no_longer_queued(bus, storage):
     bus.publish_pd_event("dev1", 0, {"amplitude": 10.0})
 
     assert len(storage._event_queue) == 0
-    assert sub.stats == {"accepted": 0}
+    assert sub.stats == {"accepted": 0, "ae_accepted": 0}
 
 
 def test_double_start_registers_only_once(bus, storage):

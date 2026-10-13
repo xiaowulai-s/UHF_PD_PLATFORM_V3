@@ -57,7 +57,13 @@
             "critical": 80.0
         },
         "debounce_count": 3,
-        "check_interval_ms": 1000
+        "check_interval_ms": 1000,
+        "ae": {
+            "signal_loss_frames": 20,
+            "noise_threshold_mv": 10.0,
+            "noise_clear_mv": 5.0,
+            "noise_frame_count": 10
+        }
     },
     "network": {
         "tcp_port": 502,
@@ -86,6 +92,33 @@
     },
     "storage": {
         "retention_days": 365,
-        "max_pd_events": 10000000
+        "max_pd_events": 1000000
+    },
+    "data_sources": {
+        "startup_policy": {
+            "mode": "manual",
+            "discovery_port": 7001,
+            "discovery_timeout_s": 3
+        },
+        "saved_devices": [
+            {
+                "device_id": "UHF-DEV-001",
+                "name": "超高频采集-01",
+                "host": "192.168.1.101",
+                "udp_port": 6000,
+                "channel_count": 4,
+                "coupling_type": "uhf",
+                "sample_rate_hz": 100000000
+            },
+            {
+                "device_id": "AE-DEV-001",
+                "name": "超声波采集-01",
+                "host": "192.168.1.102",
+                "udp_port": 7000,
+                "channel_count": 4,
+                "coupling_type": "ae",
+                "sample_rate_hz": 2000000
+            }
+        ]
     }
 }

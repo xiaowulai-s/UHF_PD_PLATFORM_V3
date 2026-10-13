@@ -50,6 +50,9 @@ class PDDataBusSignals(QObject):
     # PRPS 结果
     prps_result_ready = Signal(str, int, object)  # device_id, channel_id, prps_result
 
+    # 放电类型判定结果（由 DischargeTypeService 在 PRPD 结果上跑分类器得出）
+    pd_type_classified = Signal(str, int, dict)  # device_id, channel_id, type_info
+
     # 报警
     pd_alarm_triggered = Signal(str, dict)  # device_id, alarm_dict
     pd_alarm_cleared = Signal(str, str, str)  # device_id, alarm_type, description
@@ -119,6 +122,10 @@ class PDDataBus:
     @property
     def prps_result_ready(self) -> Signal:
         return self._signals.prps_result_ready
+
+    @property
+    def pd_type_classified(self) -> Signal:
+        return self._signals.pd_type_classified
 
     @property
     def pd_alarm_triggered(self) -> Signal:
@@ -191,6 +198,10 @@ class PDDataBus:
     def publish_prps_result(self, device_id: str, channel_id: int, prps_result: Any) -> None:
         """发布 PRPS 结果"""
         self._signals.prps_result_ready.emit(device_id, channel_id, prps_result)
+
+    def publish_pd_type(self, device_id: str, channel_id: int, type_info: dict) -> None:
+        """发布放电类型判定结果"""
+        self._signals.pd_type_classified.emit(device_id, channel_id, type_info)
 
     def publish_alarm(self, device_id: str, alarm_dict: dict) -> None:
         """发布报警"""
