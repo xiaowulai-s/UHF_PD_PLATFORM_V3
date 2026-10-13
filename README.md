@@ -205,6 +205,7 @@ npm run package:dir       # 出 win-unpacked 装机版
 | [`docs/DISCHARGE_TYPE_ANALYSIS.md`](docs/DISCHARGE_TYPE_ANALYSIS.md) | 四种放电类型的物理特征与判据规范 |
 | [`docs/design/data-source-integration.md`](docs/design/data-source-integration.md) | 数据源集成设计 |
 | [`docs/HANDOVER.md`](docs/HANDOVER.md) | 交接说明：现状、坑、下一步 |
+| [`docs/AUDIT_AND_ROADMAP.md`](docs/AUDIT_AND_ROADMAP.md) | **项目体检报告**：功能完整性检查清单 + 业务流程检查 + 契约差集 + 缺口归类 + 下一步路线图 |
 
 ---
 
