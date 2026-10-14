@@ -901,7 +901,12 @@ def test_alarm_service_threshold_percent_to_absolute():
     svc.set_global_max_amplitude(250.0)
     after = svc.get_thresholds()
     assert after["custom_absolute_mv"]["critical"] == pytest.approx(200.0)
-    assert after["custom_absolute_mv"]["low"] == pytest.approx(75.0)
+    # low 是 20% 而不是 30%：`get_thresholds` 的回退值曾单独写死成 50/30，与
+    # `check_amplitude` 实际用的 `ALARM_LEVELS`（40/20）不一致，界面回显比判定高
+    # 10 个百分点。这个用例当时断言 75.0（=250×30%），等于把 bug 钉住了——
+    # 全套 557 passed 也发现不了。现在两边共用 `default_percent_thresholds()`，
+    # 见 tests/test_alarm_threshold_consistency.py。
+    assert after["custom_absolute_mv"]["low"] == pytest.approx(50.0)
     # 返回的必须是拷贝，前端拿到手不能反过来改内核状态
     after["custom_percent"]["critical"] = 1.0
     assert svc.get_thresholds()["custom_absolute_mv"]["critical"] == pytest.approx(200.0)

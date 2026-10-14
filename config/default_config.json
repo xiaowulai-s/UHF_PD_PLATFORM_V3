@@ -52,10 +52,6 @@
         }
     },
     "alarm": {
-        "amplitude_thresholds": {
-            "warning": 50.0,
-            "critical": 80.0
-        },
         "debounce_count": 3,
         "check_interval_ms": 1000,
         "ae": {

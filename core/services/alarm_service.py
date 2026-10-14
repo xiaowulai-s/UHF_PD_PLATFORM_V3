@@ -46,6 +46,21 @@ ALARM_LEVELS = {
     "low": {"name": "低级", "threshold_pct": 20.0, "color": "#2563EB", "db_level": 1},
 }
 
+
+def default_percent_thresholds() -> Dict[str, float]:
+    """默认的四级百分比阈值。
+
+    **`check_amplitude`（真正做判定的）与 `get_thresholds`（给界面回显的）必须共用这一个
+    来源。** 曾因两处各写一份回退值（判定取本函数的 40/20，回显写死 50/30），默认状态下
+    设置页告诉现场"中级 = 50 mV"而报警实际在 40 mV 触发，差 10 个百分点，现场按界面
+    调参会调错。`tests/test_alarm_threshold_consistency.py` 钉住这个不变量。
+
+    `config/default_config.json` 里的 `alarm.amplitude_thresholds`（warning 50 /
+    critical 80）**没有任何代码读取**，是死配置；不要再往里加第三套值。
+    """
+    return {k: v["threshold_pct"] for k, v in ALARM_LEVELS.items()}
+
+
 ALARM_TYPE_NAMES = {
     "pd_over_limit": "局放超限",
     "device_offline": "设备离线",
@@ -138,7 +153,7 @@ class PDAlarmService:
         pct = (amplitude / max_amp) * 100 if max_amp > 0 else 0
 
         # 自定义阈值优先，否则使用模块级百分比阈值
-        level_thresholds = self._custom_thresholds or {k: v["threshold_pct"] for k, v in ALARM_LEVELS.items()}
+        level_thresholds = self._custom_thresholds or default_percent_thresholds()
 
         level = None
         if pct >= level_thresholds.get("critical", ALARM_LEVELS["critical"]["threshold_pct"]):
@@ -426,9 +441,12 @@ class PDAlarmService:
 
         _custom_thresholds 存的是相对 max_amplitude 的百分比，这里同时换算回绝对
         mV，避免前端自己猜单位。
+
+        默认百分比必须走 `default_percent_thresholds()`，与 `check_amplitude` 同一来源——
+        否则界面回显会和实际判定脱节（曾差 10 个百分点）。
         """
         max_amp = self._global_max_amplitude
-        percent = self._custom_thresholds or {"critical": 80.0, "high": 60.0, "medium": 50.0, "low": 30.0}
+        percent = self._custom_thresholds or default_percent_thresholds()
         absolute = {k: round(max_amp * v / 100.0, 3) for k, v in percent.items()}
         return {
             "max_amplitude": max_amp,
