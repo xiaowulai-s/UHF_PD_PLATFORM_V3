@@ -45,3 +45,20 @@ body {
   font-family: var(--font-family-mono);
   font-variant-numeric: tabular-nums;
 }
+
+/*
+ * 复选框：Chrome 默认是 13x13，低于 WCAG 2.5.8 (AA) 的 24x24 命中区要求。
+ * 这里统一视觉尺寸为 16x16；命中区扩到 24x24 靠外面包一层 label（见 alarm-view /
+ * device-view 的行内复选框——那是最高频的交互点）。报警确认是关键操作，误点代价高。
+ */
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex: none;
+}
+
+input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}

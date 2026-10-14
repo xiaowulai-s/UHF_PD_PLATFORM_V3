@@ -141,11 +141,72 @@ level_thresholds = self._custom_thresholds or {k: v["threshold_pct"] for k, v in
 2. **"canvas 后备存储与 CSS 尺寸不匹配"**（初版报 7 个）——
    实测 `buffer / CSS = 1.5`，恰等于 `devicePixelRatio`。这正是**正确的 HiDPI 实现**，
    不是缺陷；反而是加分项（说明没有按 1:1 画导致发虚）。
-3. **"兄弟节点间距不一致"（初版报 50 处）**——
+3. **"间距不一致"（初版报 50 处）**——
    原判据比较 flex/grid 的**所有**直接子，把 `<label>` 与 `<input>`、`px-2` 输入框与 `px-3` 按钮
    混在一起比。收紧为"同 tag + 同 class"后只剩 §4-③ 的 2 处。
 
 另外初版还漏查了**左缘**越界（只查了右缘），自检时用注入 `left:-400px` 的元素发现并补齐。
+
+---
+
+## 7. 修复记录（2026-10-14）
+
+三项全部已修并复测通过。
+
+### ① 阈值不一致 —— 已修 ✅
+
+**改法**：新增 `core/services/alarm_service.py::default_percent_thresholds()` 作为唯一来源，
+`check_amplitude()` 与 `get_thresholds()` 共用；删掉 `config/default_config.json` 里
+那套**无人读取**的 `alarm.amplitude_thresholds`（warning 50 / critical 80）。
+
+**复测**（真机、内核在线）：
+```
+设置页四级阈值回显：critical=80.0  high=60.0  medium=40.0  low=20.0
+报警页详情行       ：局放超限 - 幅值 23.2mV (23%), 等级: 低级 pd_over_limit · 23.2 / 阈值 20.0 mV
+```
+
+**回归测试**：新增 `tests/test_alarm_threshold_consistency.py`（10 个用例）。
+关键点是**边界值必须取自界面回显**而不是自己用常量算——否则测的只是"常量与常量自洽"，
+抓不到"回显与判定脱节"。已做变异验证：把修复退回原状，`medium`/`low` 两档精确报红
+（high/critical 数值本就相同，不报是正确行为）。
+
+**顺带修了一个藏得更深的问题**：既有测试
+`tests/test_sidecar_protocol.py::test_alarm_service_threshold_percent_to_absolute`
+原本断言 `low == 75.0`（250 × 30%）——它把 bug 钉住了。这就是为什么全套 557 passed
+发现不了这个缺陷。已改为 50.0 并在注释里写明来历。
+
+### ② 复选框命中区 —— 已修 ✅
+
+**改法**：
+- `desktop/src/renderer/style.css` 加全局 `input[type="checkbox"] { width:16px; height:16px; cursor:pointer }`
+  （6 处全覆盖）
+- 报警页 219 个行内复选框 + 表头全选，外面包 `<label class="flex h-6 w-6 cursor-pointer items-center justify-center">`
+  把命中区扩到 24×24（WCAG 2.5.8 AA）
+
+**复测**（报警页 294 个复选框）：
+```
+input: 16x16    labelHit: 24x24    wrapped: true
+```
+`fft-chart` / `trend-view` / `device-view` 那三处本就在 `<label>` 里（命中区含文字），全局 16×16 已覆盖。
+
+### ③ 同式卡片内边距 —— 已修 ✅
+
+**改法**：系统设置页「固件与更新」卡原本把 `p-4` 放在 `<section>` 上且**没有标题栏分隔线**，
+与该页其余 4 张卡的模式（section 无内边距 + 各自子元素 `p-4` + 标题带 `border-b`）不一致。
+已改为既有模式；数据分析页的散点卡同样把 `p-3` 下沉到子包装。
+
+**复测**：`settings 同角色间距不一致：无（已一致）`。
+
+**但要说清一处误判**：分析页仍有 2 个 section 的自身 padding 是 `8px/12px`（筛选工具条与
+"本页未实现项"说明框）。它们是**无标题栏的单块面板**，padding 放 section 上是恰当模式，
+与带标题栏的卡片本就该不同。实测两者首行文字左缩进均为 **13px**（12px 内边距 + 1px 边框），
+与全页所有卡片一致——**视觉上没有不齐**。所以这一项判为"已达一致"，不再改。
+
+### 质量门禁
+
+- 内核全套：**567 passed**（原 557 + 新增 10）
+- 前端 `npm run typecheck`：通过
+- 变异验证：阈值修复退回后测试精确报红，已执行
 
 ---
 

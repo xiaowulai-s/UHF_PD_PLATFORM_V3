@@ -875,13 +875,15 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="rounded-lg border border-app-border bg-app-surface p-3">
-      <p class="pb-2 text-[11px] text-app-muted">
-        散点取<span class="text-app-fg">实时</span> <code>prpd</code> 帧（那里带相位与极性）。
-        下方明细表是库内历史事件，它的 <code>phase</code>/<code>polarity</code> 目前是 NULL，
-        所以历史 PRPD 散点暂时无点可画。
-      </p>
-      <PrpdScatter :events="liveEvents" :source-hint="prpdSourceHint" :height="300" />
+    <section class="rounded-lg border border-app-border bg-app-surface">
+      <div class="px-3 py-2">
+        <p class="pb-2 text-[11px] text-app-muted">
+          散点取<span class="text-app-fg">实时</span> <code>prpd</code> 帧（那里带相位与极性）。
+          下方明细表是库内历史事件，它的 <code>phase</code>/<code>polarity</code> 目前是 NULL，
+          所以历史 PRPD 散点暂时无点可画。
+        </p>
+        <PrpdScatter :events="liveEvents" :source-hint="prpdSourceHint" :height="300" />
+      </div>
     </section>
 
     <section class="rounded-lg border border-app-border bg-app-surface">

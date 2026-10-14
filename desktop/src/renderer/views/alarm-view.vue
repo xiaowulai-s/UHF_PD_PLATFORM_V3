@@ -203,13 +203,15 @@ onMounted(loadHistory);
         <thead class="sticky top-0 bg-app-surface text-app-muted">
           <tr class="border-b border-app-border">
             <th class="w-8 px-2 py-2">
-              <input
-                type="checkbox"
-                class="accent-[var(--color-primary)]"
-                :disabled="!ackable.length"
-                :checked="allAckableSelected"
-                @change="toggleAll"
-              />
+              <label class="flex h-6 w-6 cursor-pointer items-center justify-center">
+                <input
+                  type="checkbox"
+                  class="accent-[var(--color-primary)]"
+                  :disabled="!ackable.length"
+                  :checked="allAckableSelected"
+                  @change="toggleAll"
+                />
+              </label>
             </th>
             <th class="px-3 py-2 text-left font-normal">时间</th>
             <th class="px-3 py-2 text-left font-normal">严重程度</th>
@@ -225,14 +227,18 @@ onMounted(loadHistory);
             class="border-b border-app-border/50 hover:bg-app-surface-variant/50"
           >
             <td class="px-2 py-2">
-              <input
-                type="checkbox"
-                class="accent-[var(--color-primary)]"
-                :disabled="row.id === null || row.acknowledged"
-                :checked="row.id !== null && selected.has(row.id)"
+              <label
+                class="flex h-6 w-6 cursor-pointer items-center justify-center"
                 :title="row.id === null ? '该告警未能落库，无法确认' : ''"
-                @change="toggle(row.id)"
-              />
+              >
+                <input
+                  type="checkbox"
+                  class="accent-[var(--color-primary)]"
+                  :disabled="row.id === null || row.acknowledged"
+                  :checked="row.id !== null && selected.has(row.id)"
+                  @change="toggle(row.id)"
+                />
+              </label>
             </td>
             <td class="tabular px-3 py-2">{{ timeOf(row) }}</td>
             <td class="px-3 py-2" :class="LEVEL_STYLE[row.level] ?? ''">{{ row.level }}</td>

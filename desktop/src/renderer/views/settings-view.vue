@@ -377,16 +377,19 @@ onMounted(() => {
       </p>
     </section>
 
-    <section class="rounded-lg border border-app-border bg-app-surface p-4">
-      <div class="grid grid-cols-3 gap-4 text-[12px]">
-        <div class="flex flex-col gap-1"><span class="text-app-muted">固件版本</span><span class="font-mono">{{ firmware }}</span></div>
-        <div class="flex flex-col gap-1"><span class="text-app-muted">更新状态</span><span>未接入更新服务</span></div>
-        <div class="flex flex-col gap-1">
-          <span class="text-app-muted">检查更新</span>
-          <button disabled class="cursor-not-allowed self-start rounded-md border border-app-border px-3 py-1.5 text-[12px] text-app-muted">内核暂无对应接口</button>
+    <section class="rounded-lg border border-app-border bg-app-surface">
+      <div class="border-b border-app-border px-4 py-2.5 text-[13px] font-medium">固件与更新</div>
+      <div class="p-4">
+        <div class="grid grid-cols-3 gap-4 text-[12px]">
+          <div class="flex flex-col gap-1"><span class="text-app-muted">固件版本</span><span class="font-mono">{{ firmware }}</span></div>
+          <div class="flex flex-col gap-1"><span class="text-app-muted">更新状态</span><span>未接入更新服务</span></div>
+          <div class="flex flex-col gap-1">
+            <span class="text-app-muted">检查更新</span>
+            <button disabled class="cursor-not-allowed self-start rounded-md border border-app-border px-3 py-1.5 text-[12px] text-app-muted">内核暂无对应接口</button>
+          </div>
         </div>
+        <div class="mt-3 text-[11px] text-app-muted">当前时间 {{ formatStamp(Date.now()) }} · 时区 {{ prefs.timezone }}</div>
       </div>
-      <div class="mt-3 text-[11px] text-app-muted">当前时间 {{ formatStamp(Date.now()) }} · 时区 {{ prefs.timezone }}</div>
     </section>
   </div>
 </template>
