@@ -156,6 +156,10 @@ class AcquisitionService:
     def set_ae_alarm_thresholds(self, **kwargs) -> None:
         self._alarm_checker.set_thresholds(**kwargs)
 
+    def get_ae_alarm_thresholds(self) -> dict:
+        """AE 报警阈值的当前生效值（夹紧后），供设置页回显。"""
+        return self._alarm_checker.get_thresholds()
+
     # ── 生命周期 ──────────────────────────────────────
 
     def start(self) -> bool:

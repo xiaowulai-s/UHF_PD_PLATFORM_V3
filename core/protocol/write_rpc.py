@@ -79,6 +79,7 @@ class WriteRpc:
         if self._acq is not None:
             out.append(("config.set_channel_coupling", self.set_channel_coupling))
             out.append(("config.set_ae_thresholds", self.set_ae_thresholds))
+            out.append(("config.get_ae_thresholds", lambda _p: self._acq.get_ae_alarm_thresholds()))
             out.append(("config.set_prpd_mode", self.set_prpd_mode))
             out.append(("config.get_prpd_mode", lambda _p: {"mode": self._acq.get_prpd_mode()}))
         if self._alarm is not None:

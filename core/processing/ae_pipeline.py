@@ -63,6 +63,21 @@ class AEAlarmChecker:
             self.noise_frame_threshold,
         )
 
+    def get_thresholds(self) -> Dict[str, float]:
+        """当前**生效**的 AE 报警阈值，供界面回显。
+
+        返回的是夹紧之后的值，不是上次请求的值：`set_thresholds` 会做
+        `max(1, ...)` / `max(0.1, ...)`，请求 0 帧会被存成 1。回显请求值会让界面
+        显示一个判定根本不用的数——这正是 `PDAlarmService` 上出过的
+        "回显与判定脱节"（见 docs/AUDIT_AND_ROADMAP.md §4-①），不要重演。
+        """
+        return {
+            "signal_loss_frames": self.signal_loss_threshold,
+            "noise_threshold_mv": self.noise_threshold,
+            "noise_clear_mv": self.noise_clear,
+            "noise_frame_count": self.noise_frame_threshold,
+        }
+
     def check(
         self,
         device_id: str,
