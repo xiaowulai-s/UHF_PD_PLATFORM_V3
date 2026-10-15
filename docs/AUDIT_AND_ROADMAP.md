@@ -291,17 +291,19 @@ UTF-16LE 字节。按 UTF-16LE 解码正是 `修复完成时间: 2026-03-23 13:4
 
 ### P1 功能缺口（建议 1–1.5 月，约 22 人日）
 
-| # | 任务 | 对应缺项 | 预估 | 预期目标 |
-|---|---|---|---|---|
-| P1-1 | 设置页补 AE 报警阈值（`signal_loss_frames`/`noise_threshold_mv`/`noise_clear_mv`/`noise_frame_count`）与单通道量程，后端 RPC 已就绪 | ④ | 2 d | 现场可调 AE 参数，无需改代码 |
-| P1-2 | `source.set_active` 接入运行时来源面板 | ④⑤ | 0.5 d | 多源可切换活动源 |
-| P1-3 | 历史事件补 phase/polarity：`uhf_pipeline` 按 position 换算相位、补极性字段，`PersistenceSubscriber` 落库；分析页解锁历史 PRPD 散点 | ⑥ | 4 d | 历史 PRPD 散点与极性统计可用 |
-| P1-4 | 放电类型落库：`pd_event_detected` 携带分类结果（或在 `DischargeTypeService` 侧同帧写库） | ① | 3 d | 历史事件可按类型检索 |
-| P1-5 | TDOA 定位接入生产：选定挂点（AE hit 帧或 `ae_hit_detected`）调 `AELocalizer`，结果经 RPC/帧下发，前端 AE 页显示声源坐标与不确定度 | ②⑫ | 6 d | AE 从"只画地形图"变成"真定位" |
-| P1-6 | `device.get` / `storage.stats` 处置：补设备详情面板 / 存储统计卡，或从契约删除 | §4.1 | 2 d | RPC 无悬空 |
-| P1-7 | 补低覆盖模块测试：优先 `udp_driver`、`device_repository`、`config_store`、`hardware_manager`/`hardware_source`/`sensor_types`（后三个可评估改删除） | ⑮ | 4 d | 覆盖率达 P0-2 定的目标 |
+> **进度更新（2026-10-15）**：P1-1 / P1-2 已完成（约 2.5 人日），P1 剩余约 19.5 人日。
 
-**P1 合计约 22 人日。P1-5 是关键项，它把 AE 的核心卖点补上。**
+| # | 任务 | 对应缺项 | 预估 | 状态与目标 |
+|---|---|---|---|---|
+| P1-1 | 设置页补 AE 报警阈值（`signal_loss_frames`/`noise_threshold_mv`/`noise_clear_mv`/`noise_frame_count`）与单通道量程，后端 RPC 已就绪 | ④ | 2 d | ✅ `7f78e6e`（内核 getter/测试） + `d7ef68e`（设置页 UI）。AE 下发后强制回读夹紧后的生效值；通道量程下发后通过 `config.get_thresholds` 回读；前端拒绝消除阈值 ≥ 报警阈值。目标达成：现场可调 AE 参数，无需改代码 |
+| P1-2 | `source.set_active` 接入运行时来源面板 | ④⑤ | 0.5 d | ✅ `d7ef68e`。设备页新增「设为当前」，当前源禁用；调用后 `source.list` 回读。目标达成：多源可切换 UI 当前展示源，明确不影响后台采集 |
+| P1-3 | 历史事件补 phase/polarity：`uhf_pipeline` 按 position 换算相位、补极性字段，`PersistenceSubscriber` 落库；分析页解锁历史 PRPD 散点 | ⑥ | 4 d | ⏳ |
+| P1-4 | 放电类型落库：`pd_event_detected` 携带分类结果（或在 `DischargeTypeService` 侧同帧写库） | ① | 3 d | ⏳ |
+| P1-5 | TDOA 定位接入生产：选定挂点（AE hit 帧或 `ae_hit_detected`）调 `AELocalizer`，结果经 RPC/帧下发，前端 AE 页显示声源坐标与不确定度 | ②⑫ | 6 d | ⏳ |
+| P1-6 | `device.get` / `storage.stats` 处置：补设备详情面板 / 存储统计卡，或从契约删除 | §4.1 | 2 d | ⏳ |
+| P1-7 | 补低覆盖模块测试：优先 `udp_driver`、`device_repository`、`config_store`、`hardware_manager`/`hardware_source`/`sensor_types`（后三个可评估改删除） | ⑮ | 4 d | ⏳ |
+
+**P1 剩余约 19.5 人日。P1-5 是关键项，它把 AE 的核心卖点补上。**
 
 ### P2 质量基建（可与 P1 并行，约 10 人日）
 
