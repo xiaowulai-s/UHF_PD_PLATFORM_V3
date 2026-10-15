@@ -1,0 +1,58 @@
+# 行尾与二进制属性。
+#
+# 本仓库此前没有这个文件，后果不是"看着不整齐"，而是**伪修改**：同一份内容在
+# 不同机器上 checkout 后行尾不同，`git status` 报出一堆"只差行尾"的改动，
+# 真正的改动被淹没——2026-10-13 那次提交就有 7 个文件因此只能跳过不提交
+# （见 docs/AUDIT_AND_ROADMAP.md §5-⑯）。
+# 现状基线（加本文件前）：242 个已跟踪文件里 76 个含 CRLF，其中 64 个是文本。
+#
+# 约定：文本一律 LF 入库；`.bat`/`.cmd`/`.ps1` 例外，Windows 上必须 CRLF。
+* text=auto eol=lf
+
+# ── 二进制：绝不做行尾转换 ─────────────────────────────
+# 必须显式声明。`text=auto` 会去探测内容，而 PNG/ICO 的字节流里恰好出现 \r\n，
+# 一旦被判成文本就会在 checkout 时损坏文件。加本文件前实测有 12 个二进制
+# 文件"含 CRLF"（11 个 .png + 1 个 .ico）——那正是探测器会误判的那批。
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.bmp binary
+*.exe binary
+*.dll binary
+*.pyd binary
+*.so binary
+*.dylib binary
+*.zip binary
+*.whl binary
+*.gz binary
+*.7z binary
+*.pdf binary
+*.xlsx binary
+*.xls binary
+*.docx binary
+*.db binary
+*.db-wal binary
+*.db-shm binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.qm binary
+*.pyc binary
+*.pyz binary
+*.toc binary
+*.pkg binary
+
+# ── Windows 脚本保持 CRLF ──────────────────────────────
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# ── 差异呈现 ───────────────────────────────────────────
+# 冻结内核的 .toc 是 PyInstaller 生成的单行巨长 JSON，不识别为二进制时
+# diff 会卡住。
+*.toc -diff
+*.pyz -diff
