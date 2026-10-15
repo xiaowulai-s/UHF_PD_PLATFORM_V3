@@ -364,7 +364,7 @@ onMounted(async () => {
     <section class="shrink-0 rounded-lg border border-app-border bg-app-surface">
       <div class="flex flex-wrap items-center gap-2 border-b border-app-border px-4 py-2">
         <span class="text-[13px] font-medium">运行时来源</span>
-        <span class="text-[11px] text-app-muted">内核里正在跑的数据源，可不停机启停；与下方设备配置是两套对象，移除来源不会删除设备配置</span>
+        <span class="text-[11px] text-app-muted">内核里正在跑的数据源，可不停机启停；切换当前源只影响 UI 展示，不影响采集；与下方设备配置是两套对象，移除来源不会删除设备配置</span>
         <button
           class="ml-auto flex items-center gap-1.5 rounded-md border border-app-border px-2 py-1 text-[11px]"
           @click="refreshRuntime"
@@ -423,6 +423,14 @@ onMounted(async () => {
                   @click="sourceAction('source.stop', src.id, '已停止')"
                 >
                   <Square :size="11" /> 停止
+                </button>
+                <button
+                  :disabled="busy === `src:${src.id}` || src.id === runtime.active_source"
+                  :title="src.id === runtime.active_source ? '此来源已是当前 UI 展示源' : '只切换 UI 展示源，不影响后台采集'"
+                  class="rounded-md border border-app-border px-2 py-1 text-[11px] disabled:opacity-40"
+                  @click="sourceAction('source.set_active', src.id, '已设为当前 UI 展示源')"
+                >
+                  {{ src.id === runtime.active_source ? "当前源" : "设为当前" }}
                 </button>
                 <button
                   v-if="pendingSourceRemove !== src.id"
