@@ -95,24 +95,13 @@ markers = [
 ]
 qt_api = "pyside6"
 
-[tool.coverage.run]
-# ui/ 已于 M8 归档到 _archive/ui-offline-20261008/（旧 PySide6 界面下线），
-# 覆盖率目标只剩 core/。
-source = ["core"]
-omit = [
-    "tests/*",
-    "**/__init__.py",
-]
-
-[tool.coverage.report]
-show_missing = true
-fail_under = 80
-exclude_lines = [
-    "pragma: no cover",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-    "raise NotImplementedError",
-]
+# 覆盖率配置**不在这里**。
+#
+# 仓库根有 `.coveragerc`，而 coverage.py 只读它找到的第一个配置（`.coveragerc` →
+# `setup.cfg` → `pyproject.toml`），所以本节若存在就是死配置——写在这里的
+# `fail_under = 80` 从来没生效过，实际门禁是 pytest.ini 的 `--cov-fail-under`。
+# 曾因此出现"文档说 80%、实际 10%"的矛盾（见 docs/AUDIT_AND_ROADMAP.md §5-⑬）。
+# 改覆盖率口径请改 `.coveragerc`（source/omit/exclude_lines）与 `pytest.ini`（门禁值）。
 
 # ───────────────────────────────────────────────────────────
 # mypy 类型检查
