@@ -96,7 +96,7 @@
 | 通道耦合类型配置 | `config.set_channel_coupling` + `device.save` | ✅ |
 | 单通道量程上限配置 | 后端 `config.set_channel_max_amplitude` 有实现，UI 无入口 | ❌ 见 §5-④ |
 | AE 报警阈值配置 | 后端 `config.set_ae_thresholds` 有实现，UI 无入口 | ❌ 见 §5-④ |
-| 文案引用的 RPC 是否存在 | 空态文案写 `acquisition.start_simulator`，**后端无此方法** | ❌ 见 §5-⑥ |
+| 文案引用的 RPC 是否存在 | ~~空态文案写 `acquisition.start_simulator`，后端无此方法~~ **本条为误判，已撤销** | ✅ |
 
 ### 2.8 系统设置
 
@@ -253,7 +253,7 @@
 | 编号 | 缺项 | 现状证据 |
 |---|---|---|
 | ⑱ | `under-construction.vue` 无人引用 | 全前端无 import |
-| ⑲ | 文案引用不存在的 RPC | `device-view.vue` 空态写 `acquisition.start_simulator`，后端无此方法 |
+| ⑲ | ~~文案引用不存在的 RPC~~ **误判，已撤销** | 当时只 `grep core/` 漏了 `sidecar.py`；`acquisition.start_simulator` 由 `sidecar.py:170` 注册，文案是准确的 |
 | ⑳ | 自述清单过期 | `analysis-view.vue` 的"本页未实现的项"第 5 条称"导出报表没有导出 RPC"，但 `report.export` 已交付 JSON/Excel/Word |
 | ㉑ | 5 个偏好"存而不用" | `systemName` `language` `density` `notifyFrequency` `timezone` 无消费点（`formatStamp` 用本地时间，不读所选时区） |
 

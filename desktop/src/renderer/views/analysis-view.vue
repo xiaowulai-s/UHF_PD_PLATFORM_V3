@@ -949,10 +949,6 @@ onMounted(() => {
           恒为 NULL，历史 PRPD 散点与极性统计都做不了。补齐要动内核（按 position 换算相位、
           补极性字段），本页先不假造。
         </li>
-        <li>
-          <span class="text-app-fg">导出报表（PDF/Excel）</span>：没有导出 RPC；
-          本页只提供 CSV（前端生成，不经内核）。
-        </li>
       </ul>
     </section>
   </div>
