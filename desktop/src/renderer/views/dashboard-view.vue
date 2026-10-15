@@ -14,7 +14,7 @@
  */
 
 import { computed } from "vue";
-import { aeHits, alarms, frameCount, stats, streamState } from "@/renderer/lib/store";
+import { aeHits, alarms, frameCount, latestActiveAlarm, stats, streamState } from "@/renderer/lib/store";
 import { TOPICS, type Topic } from "@/shared/protocol";
 import SnapshotMini from "@/renderer/components/charts/snapshot-mini.vue";
 
@@ -88,7 +88,9 @@ const LEVEL_TONE: Record<string, string> = {
 };
 
 const latestAlarm = computed(() => {
-  const raw = alarms.value[0];
+  // 取最新一条**尚未消除**的：内核发了 alarm_cleared 的报警条件已消失，
+  // 挂在"最新告警"卡上会让人以为还在报。全部消除时显示空态。
+  const raw = latestActiveAlarm();
   if (!raw) return null;
   const ts = num(raw.timestamp) ?? 0;
   const channel = raw.channel_id === null || raw.channel_id === undefined ? "" : ` / 通道 ${raw.channel_id}`;

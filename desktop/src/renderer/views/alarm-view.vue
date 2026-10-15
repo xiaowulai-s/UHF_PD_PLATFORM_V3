@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Check, RefreshCw } from "lucide-vue-next";
-import { alarms, call, waitCtrlOpen } from "@/renderer/lib/store";
+import { alarms, call, isAlarmCleared, waitCtrlOpen } from "@/renderer/lib/store";
 import { formatStamp } from "@/renderer/lib/prefs";
 
 interface AlarmRow {
@@ -15,6 +15,13 @@ interface AlarmRow {
   description: string;
   timestamp: number;
   acknowledged: boolean;
+  /**
+   * 内核已发 `alarm_cleared`：条件消失。
+   *
+   * 只对实时帧来的行可能为 true——`alarm_cleared` 说的是"此刻这个条件没了"，
+   * 拿它去标注库内三天前那条历史告警是错的，所以历史行恒为 false。
+   */
+  cleared: boolean;
 }
 
 const SEVERITY = [
@@ -27,6 +34,7 @@ const STATES = [
   { key: "ALL", label: "全部状态" },
   { key: "open", label: "未确认" },
   { key: "ack", label: "已确认" },
+  { key: "cleared", label: "已消除" },
 ];
 
 const LEVEL_STYLE: Record<string, string> = {
@@ -60,6 +68,11 @@ function fromLive(raw: Record<string, unknown>): AlarmRow {
     description: String(raw.description ?? ""),
     timestamp: Number(raw.timestamp ?? 0),
     acknowledged: false,
+    cleared: isAlarmCleared(
+      String(raw.device_id ?? ""),
+      String(raw.alarm_type ?? ""),
+      Number(raw.timestamp ?? 0),
+    ),
   };
 }
 
@@ -76,6 +89,7 @@ function fromHistory(raw: Record<string, unknown>): AlarmRow {
     description: String(raw.description ?? ""),
     timestamp: ts,
     acknowledged: Boolean(raw.acknowledged),
+    cleared: false,
   };
 }
 
@@ -101,14 +115,16 @@ const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
   return merged.value.filter((row) => {
     if (severity.value !== "ALL" && row.level !== severity.value) return false;
-    if (state.value === "open" && row.acknowledged) return false;
-    if (state.value === "ack" && !row.acknowledged) return false;
+    if (state.value === "open" && (row.acknowledged || row.cleared)) return false;
+    if (state.value === "ack" && (!row.acknowledged || row.cleared)) return false;
+    if (state.value === "cleared" && !row.cleared) return false;
     if (!q) return true;
     return row.description.toLowerCase().includes(q) || row.device_id.toLowerCase().includes(q);
   });
 });
 
-const ackable = computed(() => filtered.value.filter((r) => r.id !== null && !r.acknowledged));
+/** 已消除的行不再可确认：条件都没了，确认它没有意义。 */
+const ackable = computed(() => filtered.value.filter((r) => r.id !== null && !r.acknowledged && !r.cleared));
 const allAckableSelected = computed(
   () => ackable.value.length > 0 && ackable.value.every((r) => selected.value.has(r.id as number)),
 );
@@ -234,7 +250,7 @@ onMounted(loadHistory);
                 <input
                   type="checkbox"
                   class="accent-[var(--color-primary)]"
-                  :disabled="row.id === null || row.acknowledged"
+                  :disabled="row.id === null || row.acknowledged || row.cleared"
                   :checked="row.id !== null && selected.has(row.id)"
                   @change="toggle(row.id)"
                 />
@@ -252,7 +268,14 @@ onMounted(loadHistory);
               {{ row.device_id }}<span v-if="row.channel_id !== null"> / {{ row.channel_id }}</span>
             </td>
             <td class="px-3 py-2">
-              <span v-if="row.acknowledged" class="rounded bg-app-success/15 px-1.5 py-0.5 text-[11px] text-app-success">已确认</span>
+              <span
+                v-if="row.cleared"
+                class="rounded bg-app-info/15 px-1.5 py-0.5 text-[11px] text-app-info"
+                title="内核已下发 alarm_cleared：报警条件已消失"
+              >
+                已消除
+              </span>
+              <span v-else-if="row.acknowledged" class="rounded bg-app-success/15 px-1.5 py-0.5 text-[11px] text-app-success">已确认</span>
               <span
                 v-else-if="row.id === null"
                 class="rounded bg-app-warning/15 px-1.5 py-0.5 text-[11px] text-app-warning"
