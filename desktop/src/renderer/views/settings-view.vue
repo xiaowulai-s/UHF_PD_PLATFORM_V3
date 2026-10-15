@@ -207,13 +207,6 @@ onMounted(() => {
           </select>
         </label>
         <label class="flex flex-col gap-1 text-[12px]">
-          <span class="text-app-muted">界面语言</span>
-          <select v-model="prefs.language" class="rounded-md border border-app-border bg-app-bg px-2 py-1.5 text-[13px]">
-            <option value="zh-CN">简体中文</option>
-            <option value="en">English</option>
-          </select>
-        </label>
-        <label class="flex flex-col gap-1 text-[12px]">
           <span class="text-app-muted">时区</span>
           <select v-model="prefs.timezone" class="rounded-md border border-app-border bg-app-bg px-2 py-1.5 text-[13px]">
             <option v-for="tz in TIMEZONES" :key="tz.value" :value="tz.value">{{ tz.value }} ({{ tz.label }})</option>
@@ -223,23 +216,6 @@ onMounted(() => {
           <span class="text-app-muted">日期格式</span>
           <select v-model="prefs.dateFormat" class="rounded-md border border-app-border bg-app-bg px-2 py-1.5 text-[13px]">
             <option v-for="f in DATE_FORMATS" :key="f" :value="f">{{ f }}</option>
-          </select>
-        </label>
-        <label class="flex flex-col gap-1 text-[12px]">
-          <span class="text-app-muted">显示密度</span>
-          <select v-model="prefs.density" class="rounded-md border border-app-border bg-app-bg px-2 py-1.5 text-[13px]">
-            <option value="realtime">实时</option>
-            <option value="comfortable">宽松</option>
-          </select>
-        </label>
-        <label class="flex flex-col gap-1 text-[12px]">
-          <span class="text-app-muted">通知频率</span>
-          <select v-model="prefs.notifyFrequency" class="rounded-md border border-app-border bg-app-bg px-2 py-1.5 text-[13px]">
-            <option value="realtime">实时</option>
-            <option value="5m">每 5 分钟</option>
-            <option value="15m">每 15 分钟</option>
-            <option value="hourly">每小时</option>
-            <option value="daily">每日汇总</option>
           </select>
         </label>
       </div>

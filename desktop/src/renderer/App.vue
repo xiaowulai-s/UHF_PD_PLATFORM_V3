@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { Activity, Gauge, Radio, Settings, ShieldAlert, Waves, LayoutDashboard, ScrollText, Boxes } from "lucide-vue-next";
 import { PAGES } from "./router";
+import { prefs } from "./lib/prefs";
 import { ctrlState, sidecarState, streamState } from "./lib/store";
 
 const route = useRoute();
@@ -33,7 +34,7 @@ const connection = computed(() => {
   <div class="flex h-full">
     <aside class="flex w-60 shrink-0 flex-col border-r border-app-border bg-app-surface">
       <div class="px-4 py-3">
-        <div class="text-sm font-semibold">局部放电检测</div>
+        <div class="text-sm font-semibold">{{ prefs.systemName }}</div>
         <div class="text-[11px] text-app-muted">UHF / AE 双模态</div>
       </div>
       <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
